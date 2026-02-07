@@ -60,6 +60,7 @@ const formatSignal = (signal: SignalEvent): string => {
 const server = createEmitterServer({
   port: config.port,
   scenario,
+  scenarios: SCENARIOS,
   loop: config.loop,
   speed: config.speed,
   onSignal: (signal) => {

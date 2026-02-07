@@ -3,13 +3,14 @@
  *
  * Implements the `CommandSink` interface from `@sajou/core`. Receives
  * frame-by-frame progress updates from the choreographer and moves
- * placeholder rectangles accordingly.
+ * SVG sprites accordingly.
  *
- * V1 uses colored rectangles as entity placeholders (no sprites yet).
+ * Call `init()` to preload SVG assets before starting the choreographer.
+ * Falls back to colored rectangles for unknown entities.
  */
 
-import { Graphics, Container } from "pixi.js";
-import type { Application } from "pixi.js";
+import { Graphics, Container, Sprite, Assets } from "pixi.js";
+import type { Application, Texture } from "pixi.js";
 import type {
   CommandSink,
   ActionStartCommand,
@@ -21,28 +22,31 @@ import type {
 import type { ThemeManifest } from "@sajou/theme-api";
 
 // ---------------------------------------------------------------------------
-// Entity visual definitions (placeholder rects for V1)
+// Entity visual definitions
 // ---------------------------------------------------------------------------
 
-/** Color and size for placeholder entity visuals. */
+/** Size and asset info for each entity type. */
 interface EntityVisualDef {
   readonly width: number;
   readonly height: number;
+  /** Fallback color when SVG is not loaded. */
   readonly color: number;
+  /** SVG asset filename (relative to assetBasePath). */
+  readonly asset: string;
 }
 
-/** Placeholder visual definitions keyed by entity name. */
+/** Visual definitions keyed by entity name. */
 const ENTITY_VISUALS: Readonly<Record<string, EntityVisualDef>> = {
-  peon:        { width: 32, height: 32, color: 0x4488ff },
-  pigeon:      { width: 16, height: 16, color: 0xffffff },
-  forge:       { width: 48, height: 48, color: 0x8b4513 },
-  oracle:      { width: 64, height: 64, color: 0x9933cc },
-  "gold-coins": { width: 12, height: 12, color: 0xffd700 },
-  explosion:   { width: 20, height: 20, color: 0xff3300 },
+  peon:         { width: 32, height: 32, color: 0x4488ff, asset: "peon.svg" },
+  pigeon:       { width: 24, height: 24, color: 0xffffff, asset: "pigeon.svg" },
+  forge:        { width: 48, height: 48, color: 0x8b4513, asset: "forge.svg" },
+  oracle:       { width: 48, height: 48, color: 0x9933cc, asset: "oracle.svg" },
+  "gold-coins": { width: 20, height: 20, color: 0xffd700, asset: "gold-coins.svg" },
+  explosion:    { width: 32, height: 32, color: 0xff3300, asset: "explosion.svg" },
 };
 
 /** Default visual for unknown entities. */
-const DEFAULT_VISUAL: EntityVisualDef = { width: 24, height: 24, color: 0x888888 };
+const DEFAULT_VISUAL: Omit<EntityVisualDef, "asset"> = { width: 24, height: 24, color: 0x888888 };
 
 // ---------------------------------------------------------------------------
 // Animation state for in-flight actions
@@ -79,18 +83,31 @@ const DEFAULT_ALIASES: PositionAliasMap = {
 // PixiCommandSink
 // ---------------------------------------------------------------------------
 
+/** Options for constructing a PixiCommandSink. */
+export interface PixiCommandSinkOptions {
+  /** Application instance. */
+  readonly app: Application;
+  /** Theme manifest with layout/scene info. */
+  readonly manifest: ThemeManifest;
+  /** Optional position alias map. */
+  readonly aliases?: PositionAliasMap;
+  /** Base path for SVG assets. Must end with '/'. */
+  readonly assetBasePath?: string;
+}
+
 /**
  * A `CommandSink` that renders choreographer commands using PixiJS.
  *
- * Entities are colored rectangles positioned on the stage. Animated actions
- * (move, fly, flash) interpolate per-frame using the progress value from
- * the choreographer.
+ * Entities are rendered as SVG sprites when assets are preloaded, with
+ * fallback to colored rectangles. Animated actions (move, fly, flash)
+ * interpolate per-frame using the progress value from the choreographer.
  *
  * @example
  * ```ts
  * const app = new Application();
  * await app.init({ width: 800, height: 600 });
  * const sink = new PixiCommandSink(app, citadelManifest);
+ * await sink.init("/assets/");
  * const choreographer = new Choreographer({ clock, sink });
  * ```
  */
@@ -98,6 +115,7 @@ export class PixiCommandSink implements CommandSink {
   private readonly app: Application;
   private readonly manifest: ThemeManifest;
   private readonly aliases: PositionAliasMap;
+  private readonly assetBasePath: string;
 
   /** Spawned entity visuals, keyed by entityRef. */
   private readonly entities = new Map<string, Container>();
@@ -105,14 +123,60 @@ export class PixiCommandSink implements CommandSink {
   /** In-flight animation state, keyed by `${performanceId}:${entityRef}`. */
   private readonly activeAnimations = new Map<string, AnimState>();
 
+  /** Loaded textures, keyed by entity name. */
+  private readonly textures = new Map<string, Texture>();
+
+  constructor(app: Application, manifest: ThemeManifest, aliases?: PositionAliasMap);
+  constructor(options: PixiCommandSinkOptions);
   constructor(
-    app: Application,
-    manifest: ThemeManifest,
+    appOrOptions: Application | PixiCommandSinkOptions,
+    manifest?: ThemeManifest,
     aliases?: PositionAliasMap,
   ) {
-    this.app = app;
-    this.manifest = manifest;
-    this.aliases = aliases ?? DEFAULT_ALIASES;
+    if ("app" in appOrOptions && "manifest" in appOrOptions) {
+      // Options object form
+      const opts = appOrOptions as PixiCommandSinkOptions;
+      this.app = opts.app;
+      this.manifest = opts.manifest;
+      this.aliases = opts.aliases ?? DEFAULT_ALIASES;
+      this.assetBasePath = opts.assetBasePath ?? "";
+    } else {
+      // Legacy positional form
+      this.app = appOrOptions as Application;
+      this.manifest = manifest!;
+      this.aliases = aliases ?? DEFAULT_ALIASES;
+      this.assetBasePath = "";
+    }
+  }
+
+  /**
+   * Preload SVG assets for all known entities.
+   *
+   * Call this before starting the choreographer to ensure sprites
+   * are available synchronously during spawn.
+   *
+   * @param basePath - Override for the asset base path
+   */
+  async init(basePath?: string): Promise<void> {
+    const base = basePath ?? this.assetBasePath;
+    if (!base) return;
+
+    const loadPromises: Promise<void>[] = [];
+
+    for (const [name, def] of Object.entries(ENTITY_VISUALS)) {
+      const url = `${base}${def.asset}`;
+      loadPromises.push(
+        Assets.load<Texture>(url)
+          .then((texture) => {
+            this.textures.set(name, texture);
+          })
+          .catch(() => {
+            // Silently fall back to rect for this entity
+          }),
+      );
+    }
+
+    await Promise.all(loadPromises);
   }
 
   // =========================================================================
@@ -196,8 +260,8 @@ export class PixiCommandSink implements CommandSink {
    * Resolve a semantic name to pixel coordinates.
    *
    * Resolution order:
-   * 1. Direct layout position match (e.g., "oracle" → {x:400, y:80})
-   * 2. Alias map (e.g., "orchestrator" → "oracle" → {x:400, y:80})
+   * 1. Direct layout position match (e.g., "oracle" -> {x:400, y:80})
+   * 2. Alias map (e.g., "orchestrator" -> "oracle" -> {x:400, y:80})
    * 3. Fallback: scene center
    */
   resolvePosition(name: string): { x: number; y: number } {
@@ -226,6 +290,32 @@ export class PixiCommandSink implements CommandSink {
   }
 
   // =========================================================================
+  // Entity creation
+  // =========================================================================
+
+  /** Create a visual container for an entity, using SVG sprite or fallback rect. */
+  private createEntityVisual(entityRef: string): Container {
+    const texture = this.textures.get(entityRef);
+    const def = ENTITY_VISUALS[entityRef];
+
+    if (texture) {
+      const sprite = new Sprite(texture);
+      sprite.width = def?.width ?? DEFAULT_VISUAL.width;
+      sprite.height = def?.height ?? DEFAULT_VISUAL.height;
+      sprite.anchor.set(0.5, 0.5);
+      return sprite;
+    }
+
+    // Fallback: colored rectangle
+    const visual = def ?? DEFAULT_VISUAL;
+    const gfx = new Graphics();
+    gfx.rect(0, 0, visual.width, visual.height);
+    gfx.fill(visual.color);
+    gfx.pivot.set(visual.width / 2, visual.height / 2);
+    return gfx;
+  }
+
+  // =========================================================================
   // Spawn / Destroy
   // =========================================================================
 
@@ -236,21 +326,16 @@ export class PixiCommandSink implements CommandSink {
     // Remove existing if already spawned
     this.handleDestroy(entityRef);
 
-    const visual = ENTITY_VISUALS[entityRef] ?? DEFAULT_VISUAL;
-    const gfx = new Graphics();
-    gfx.rect(0, 0, visual.width, visual.height);
-    gfx.fill(visual.color);
-    // Center the pivot
-    gfx.pivot.set(visual.width / 2, visual.height / 2);
+    const container = this.createEntityVisual(entityRef);
 
     const at = params["at"] as string | undefined;
     if (at) {
       const pos = this.resolvePosition(at);
-      gfx.position.set(pos.x, pos.y);
+      container.position.set(pos.x, pos.y);
     }
 
-    this.app.stage.addChild(gfx);
-    this.entities.set(entityRef, gfx);
+    this.app.stage.addChild(container);
+    this.entities.set(entityRef, container);
   }
 
   private handleDestroy(entityRef: string): void {
@@ -305,15 +390,11 @@ export class PixiCommandSink implements CommandSink {
     // Linear interpolation for x
     const x = anim.startX + (anim.targetX - anim.startX) * progress;
 
-    // For "fly", the easing function already provides the arc in the progress value.
-    // But we also add a vertical offset for the arc visual:
+    // For "fly", add a vertical offset for the arc visual:
     // parabolic Y offset peaks at progress=0.5
     let y: number;
     if (action === "fly") {
-      const linearT = progress; // progress is already eased by choreographer (arc)
-      // Re-compute linear progress from position for the Y arc.
-      // Since progress is already arc-eased, we use a simpler approach:
-      // Just lerp Y the same as X and add an upward arc offset.
+      const linearT = progress;
       const baseY = anim.startY + (anim.targetY - anim.startY) * progress;
       // arc offset: peak of -80px at the midpoint
       const arcOffset = -80 * 4 * linearT * (1 - linearT);
