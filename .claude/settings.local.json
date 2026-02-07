@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm add:*)",
+      "Bash(npm --version:*)",
+      "Bash(node:*)",
+      "Bash(corepack enable:*)",
+      "Bash(pnpm:*)",
+      "Bash(npm install:*)",
+      "Bash(git -C /Users/yan/synoul415/devel/sajou_AA status)",
+      "Bash(git -C /Users/yan/synoul415/devel/sajou_AA diff)",
+      "Bash(git -C /Users/yan/synoul415/devel/sajou_AA log --oneline -5)",
+      "Bash(git -C /Users/yan/synoul415/devel/sajou_AA add:*)",
+      "Bash(git -C /Users/yan/synoul415/devel/sajou_AA commit -m \"$\\(cat <<''EOF''\nchore\\(root\\): initialize pnpm monorepo with TypeScript and Vitest\n\nSet up pnpm workspaces, strict tsconfig base, vitest config,\nand root scripts for typecheck/test.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git -C /Users/yan/synoul415/devel/sajou_AA commit -m \"$\\(cat <<''EOF''\ndocs\\(schema\\): add ADR-001 signal protocol design\n\nEnvelope + typed payload pattern with 7 V1 signal types.\nCompares flat model, envelope+payload, and event sourcing approaches.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git -C /Users/yan/synoul415/devel/sajou_AA commit -m \"$\\(cat <<''EOF''\nfeat\\(schema\\): implement V1 signal protocol JSON Schema and TypeScript types\n\n- signal.schema.json: envelope + typed payload for 7 signal types\n- signal-types.ts: aligned TypeScript types with discriminated union\n- SignalEvent narrows payload via switch on type field\n- All payload fields readonly \\(immutable signals\\)\n- 9 tests covering all signal types and type narrowing\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git checkout:*)",
+      "Bash(git -C /Users/yan/synoul415/devel/sajou_AA checkout -b feat/emitter)",
+      "Bash(pnpm run typecheck:*)",
+      "Bash(pnpm test:*)",
+      "Bash(pnpm install:*)",
+      "Bash(pnpm typecheck:*)",
+      "Bash(git -C /Users/yan/synoul415/devel/sajou_AA log --oneline -3)",
+      "Bash(git -C /Users/yan/synoul415/devel/sajou_AA branch:*)",
+      "Bash(git -C /Users/yan/synoul415/devel/sajou_AA checkout feat/emitter)",
+      "Bash(git -C /Users/yan/synoul415/devel/sajou_AA diff tsconfig.json)",
+      "Bash(git -C /Users/yan/synoul415/devel/sajou_AA diff pnpm-lock.yaml)",
+      "Bash(git -C /Users/yan/synoul415/devel/sajou_AA commit -m \"$\\(cat <<''EOF''\nfeat\\(emitter\\): implement @sajou/emitter with scenarios and WebSocket server\n\n- Signal factory with auto-incrementing IDs and typed creation\n- Scenario runner with realistic delays, speed control, and loop replay\n- 3 predefined scenarios: simple-task, error-recovery, multi-agent\n- WebSocket server broadcasting signals to all connected clients\n- CLI entry point with --scenario, --port, --speed, --no-loop flags\n- 23 tests covering factory, runner, and scenario validation\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git -C /Users/yan/synoul415/devel/sajou_AA checkout main)",
+      "Bash(git -C /Users/yan/synoul415/devel/sajou_AA merge feat/emitter)",
+      "Bash(git -C /Users/yan/synoul415/devel/sajou_AA push origin main)",
+      "Bash(npx tsc:*)",
+      "Bash(git stash:*)",
+      "Bash(git -C /Users/yan/synoul415/devel/sajou_AA log main..feat/core-choreographer-runtime --oneline)",
+      "Bash(git restore:*)",
+      "Bash(git -C /Users/yan/synoul415/devel/sajou_AA stash list)",
+      "Bash(git -C /Users/yan/synoul415/devel/sajou_AA diff main feat/core-choreographer-runtime --stat)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
+    ]
+  }
+}
