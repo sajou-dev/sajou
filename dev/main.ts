@@ -1,8 +1,9 @@
 /**
- * Sajou Dev Playground — first visual sign of life.
+ * Sajou Dev Playground — live visual playground.
  *
- * Wires together: emitter (signals) → choreographer (sequences) → PixiJS (pixels).
- * Runs the simple-task scenario on loop with colored rectangles as placeholders.
+ * Connects to the emitter WebSocket server on port 9100,
+ * receives signals, and pipes them through the choreographer to PixiJS.
+ * Scenario buttons let you switch between scenarios at runtime.
  */
 
 import { Application, Graphics, Text, TextStyle } from "pixi.js";
@@ -17,13 +18,12 @@ import {
   citadelChoreographies,
   PixiCommandSink,
 } from "@sajou/theme-citadel";
-import { simpleTask, runScenario } from "@sajou/emitter";
 
 // ---------------------------------------------------------------------------
-// Signal bridge (same as integration test)
+// Signal bridge
 // ---------------------------------------------------------------------------
 
-/** Convert an emitter SignalEnvelope to the PerformanceSignal expected by the choreographer. */
+/** Convert a parsed signal envelope to the PerformanceSignal expected by the choreographer. */
 function toPerformanceSignal(signal: SignalEnvelope<SignalType>): PerformanceSignal {
   return {
     type: signal.type,
@@ -42,6 +42,58 @@ function log(msg: string): void {
   line.textContent = `[${new Date().toISOString().slice(11, 23)}] ${msg}`;
   logEl.appendChild(line);
   logEl.scrollTop = logEl.scrollHeight;
+}
+
+// ---------------------------------------------------------------------------
+// WebSocket connection
+// ---------------------------------------------------------------------------
+
+const WS_URL = "ws://localhost:9100";
+
+/** Meta-messages from the server (not signals). */
+interface MetaMessage {
+  readonly meta: string;
+  readonly available?: readonly string[];
+  readonly scenario?: string;
+}
+
+function isMetaMessage(msg: unknown): msg is MetaMessage {
+  return typeof msg === "object" && msg !== null && "meta" in msg;
+}
+
+function isSignalEnvelope(msg: unknown): msg is SignalEnvelope<SignalType> {
+  return typeof msg === "object" && msg !== null && "type" in msg && "payload" in msg && "id" in msg;
+}
+
+// ---------------------------------------------------------------------------
+// Scenario buttons
+// ---------------------------------------------------------------------------
+
+const SCENARIOS = ["simple-task", "error-recovery", "multi-agent"];
+
+function createScenarioButtons(
+  container: HTMLElement,
+  onSwitch: (name: string) => void,
+): Map<string, HTMLButtonElement> {
+  const buttons = new Map<string, HTMLButtonElement>();
+  for (const name of SCENARIOS) {
+    const btn = document.createElement("button");
+    btn.textContent = name;
+    btn.className = "scenario-btn";
+    btn.addEventListener("click", () => onSwitch(name));
+    container.appendChild(btn);
+    buttons.set(name, btn);
+  }
+  return buttons;
+}
+
+function setActiveButton(
+  buttons: Map<string, HTMLButtonElement>,
+  active: string,
+): void {
+  for (const [name, btn] of buttons) {
+    btn.classList.toggle("active", name === active);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -74,14 +126,12 @@ async function main(): Promise<void> {
   });
 
   for (const [name, pos] of Object.entries(citadelManifest.layout.positions)) {
-    // Small circle marker
     const marker = new Graphics();
     marker.circle(0, 0, 4);
     marker.fill(0x3a6a3a);
     marker.position.set(pos.x, pos.y);
     app.stage.addChild(marker);
 
-    // Label
     const label = new Text({ text: name, style: labelStyle });
     label.position.set(pos.x + 8, pos.y - 6);
     app.stage.addChild(label);
@@ -107,20 +157,67 @@ async function main(): Promise<void> {
   }
 
   log(`Registered ${citadelChoreographies.length} choreographies.`);
-  log("Running simple-task scenario (loop mode, 1x speed)...");
 
-  // 7. Run the simple-task scenario
-  runScenario(
-    simpleTask,
-    (signal) => {
-      log(`Signal: ${signal.type} ${signal.correlationId ?? ""}`);
-      choreographer.handleSignal(
-        toPerformanceSignal(signal),
-        signal.correlationId,
-      );
-    },
-    { loop: true, speed: 1, loopGapMs: 3000 },
-  );
+  // 7. Scenario selector buttons
+  const btnContainer = document.getElementById("scenario-buttons")!;
+  let ws: WebSocket | null = null;
+
+  const switchScenario = (name: string): void => {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ command: "switch", scenario: name }));
+      log(`Switching to scenario: ${name}`);
+      setActiveButton(buttons, name);
+    }
+  };
+
+  const buttons = createScenarioButtons(btnContainer, switchScenario);
+  setActiveButton(buttons, "simple-task");
+
+  // 8. Connect to the emitter server via WebSocket
+  const connect = (): void => {
+    log(`Connecting to ${WS_URL}...`);
+    ws = new WebSocket(WS_URL);
+
+    ws.addEventListener("open", () => {
+      log("WebSocket connected.");
+    });
+
+    ws.addEventListener("message", (event) => {
+      try {
+        const msg: unknown = JSON.parse(String(event.data));
+
+        if (isMetaMessage(msg)) {
+          if (msg.meta === "scenarios") {
+            log(`Server scenarios: ${(msg.available ?? []).join(", ")}`);
+          } else if (msg.meta === "scenario_switched") {
+            log(`Server switched to: ${msg.scenario ?? "unknown"}`);
+          }
+          return;
+        }
+
+        if (isSignalEnvelope(msg)) {
+          log(`Signal: ${msg.type} ${msg.correlationId ?? ""}`);
+          choreographer.handleSignal(
+            toPerformanceSignal(msg),
+            msg.correlationId,
+          );
+        }
+      } catch {
+        // Ignore malformed messages
+      }
+    });
+
+    ws.addEventListener("close", () => {
+      log("WebSocket disconnected. Reconnecting in 2s...");
+      setTimeout(connect, 2000);
+    });
+
+    ws.addEventListener("error", () => {
+      // close event will fire after this, triggering reconnect
+    });
+  };
+
+  connect();
 }
 
 main().catch((err) => {

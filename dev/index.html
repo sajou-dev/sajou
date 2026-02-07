@@ -18,6 +18,29 @@
       }
       h1 { font-size: 1.2rem; color: #7ac67a; }
       #app { border: 1px solid #2a4a2a; }
+      #scenario-buttons {
+        display: flex;
+        gap: 8px;
+      }
+      .scenario-btn {
+        font-family: monospace;
+        font-size: 0.8rem;
+        padding: 6px 14px;
+        background: #1a2e1a;
+        color: #88aa88;
+        border: 1px solid #2a4a2a;
+        cursor: pointer;
+        transition: background 0.15s, color 0.15s;
+      }
+      .scenario-btn:hover {
+        background: #2a4a2a;
+        color: #aaccaa;
+      }
+      .scenario-btn.active {
+        background: #3a6a3a;
+        color: #fff;
+        border-color: #5a8a5a;
+      }
       #log {
         width: 800px;
         max-height: 200px;
@@ -32,6 +55,7 @@
   </head>
   <body>
     <h1>Sajou — Citadel Dev Playground</h1>
+    <div id="scenario-buttons"></div>
     <div id="app"></div>
     <div id="log"></div>
     <script type="module" src="./main.ts"></script>
