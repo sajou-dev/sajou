@@ -2,6 +2,7 @@
   "files": [],
   "references": [
     { "path": "packages/schema" },
-    { "path": "packages/core" }
+    { "path": "packages/core" },
+    { "path": "packages/emitter" }
   ]
 }
