@@ -2,15 +2,24 @@
  * PixiCommandSink — translates choreographer commands into PixiJS visuals.
  *
  * Implements the `CommandSink` interface from `@sajou/core`. Receives
- * frame-by-frame progress updates from the choreographer and moves
- * SVG sprites accordingly.
+ * frame-by-frame progress updates from the choreographer and renders
+ * Tiny Swords (Pixel Frog) pixel art sprites with animated spritesheets.
  *
- * Call `init()` to preload SVG assets before starting the choreographer.
+ * Call `init()` to preload PNG assets before starting the choreographer.
  * Falls back to colored rectangles for unknown entities.
  */
 
-import { Graphics, Container, Sprite, Assets } from "pixi.js";
-import type { Application, Texture } from "pixi.js";
+import {
+  Graphics,
+  Container,
+  Sprite,
+  Assets,
+  AnimatedSprite,
+  Rectangle,
+  TilingSprite,
+  Texture,
+} from "pixi.js";
+import type { Application } from "pixi.js";
 import type {
   CommandSink,
   ActionStartCommand,
@@ -22,31 +31,108 @@ import type {
 import type { ThemeManifest } from "@sajou/theme-api";
 
 // ---------------------------------------------------------------------------
-// Entity visual definitions
+// Entity visual definitions — Tiny Swords asset pack
 // ---------------------------------------------------------------------------
 
-/** Size and asset info for each entity type. */
-interface EntityVisualDef {
-  readonly width: number;
-  readonly height: number;
-  /** Fallback color when SVG is not loaded. */
-  readonly color: number;
-  /** SVG asset filename (relative to assetBasePath). */
+/** Spritesheet animation with its own PNG file. */
+interface SpritesheetAnimDef {
   readonly asset: string;
+  readonly frameCount: number;
+  readonly fps: number;
+  readonly loop: boolean;
+}
+
+/** Size, asset, and spritesheet info for each entity type. */
+interface EntityVisualDef {
+  /** Display width in scene pixels. */
+  readonly displayWidth: number;
+  /** Display height in scene pixels. */
+  readonly displayHeight: number;
+  /** Fallback color when assets fail to load. */
+  readonly color: number;
+  /** Primary asset path (relative to assetBasePath). */
+  readonly asset: string;
+  /** Frame size for horizontal spritesheet strips (square frames). */
+  readonly frameSize?: number;
+  /** Frame count in the primary spritesheet. */
+  readonly frameCount?: number;
+  /** Frames per second for primary animation. */
+  readonly fps?: number;
+  /** Whether primary animation loops. */
+  readonly loop?: boolean;
+  /** Additional named animations with separate spritesheet files. */
+  readonly animations?: Readonly<Record<string, SpritesheetAnimDef>>;
 }
 
 /** Visual definitions keyed by entity name. */
 const ENTITY_VISUALS: Readonly<Record<string, EntityVisualDef>> = {
-  peon:         { width: 32, height: 32, color: 0x4488ff, asset: "peon.svg" },
-  pigeon:       { width: 24, height: 24, color: 0xffffff, asset: "pigeon.svg" },
-  forge:        { width: 48, height: 48, color: 0x8b4513, asset: "forge.svg" },
-  oracle:       { width: 48, height: 48, color: 0x9933cc, asset: "oracle.svg" },
-  "gold-coins": { width: 20, height: 20, color: 0xffd700, asset: "gold-coins.svg" },
-  explosion:    { width: 32, height: 32, color: 0xff3300, asset: "explosion.svg" },
+  peon: {
+    displayWidth: 64,
+    displayHeight: 64,
+    color: 0x4488ff,
+    asset: "tiny-swords/Units/Blue Units/Pawn/Pawn_Idle.png",
+    frameSize: 192,
+    frameCount: 8,
+    fps: 6,
+    loop: true,
+    animations: {
+      run: {
+        asset: "tiny-swords/Units/Blue Units/Pawn/Pawn_Run.png",
+        frameCount: 6,
+        fps: 10,
+        loop: true,
+      },
+    },
+  },
+  pigeon: {
+    displayWidth: 32,
+    displayHeight: 32,
+    color: 0xffffff,
+    asset: "tiny-swords/Units/Blue Units/Archer/Arrow.png",
+  },
+  forge: {
+    displayWidth: 80,
+    displayHeight: 106,
+    color: 0x8b4513,
+    asset: "tiny-swords/Buildings/Blue Buildings/Barracks.png",
+  },
+  oracle: {
+    displayWidth: 128,
+    displayHeight: 102,
+    color: 0x9933cc,
+    asset: "tiny-swords/Buildings/Blue Buildings/Castle.png",
+  },
+  "gold-coins": {
+    displayWidth: 48,
+    displayHeight: 48,
+    color: 0xffd700,
+    asset: "tiny-swords/Terrain/Resources/Gold/Gold Resource/Gold_Resource.png",
+  },
+  explosion: {
+    displayWidth: 80,
+    displayHeight: 80,
+    color: 0xff3300,
+    asset: "tiny-swords/Particle FX/Explosion_01.png",
+    frameSize: 192,
+    frameCount: 8,
+    fps: 16,
+    loop: false,
+  },
 };
 
 /** Default visual for unknown entities. */
-const DEFAULT_VISUAL: Omit<EntityVisualDef, "asset"> = { width: 24, height: 24, color: 0x888888 };
+const DEFAULT_VISUAL = { displayWidth: 24, displayHeight: 24, color: 0x888888 };
+
+/** Terrain tile asset and extraction coordinates. */
+const TERRAIN = {
+  asset: "tiny-swords/Terrain/Tileset/Tilemap_color1.png",
+  /** X offset of a clean interior grass tile in the tilemap. */
+  tileX: 64,
+  /** Y offset of a clean interior grass tile in the tilemap. */
+  tileY: 64,
+  /** Tile size in pixels. */
+  tileSize: 64,
+} as const;
 
 // ---------------------------------------------------------------------------
 // Animation state for in-flight actions
@@ -91,16 +177,16 @@ export interface PixiCommandSinkOptions {
   readonly manifest: ThemeManifest;
   /** Optional position alias map. */
   readonly aliases?: PositionAliasMap;
-  /** Base path for SVG assets. Must end with '/'. */
+  /** Base path for PNG assets. Must end with '/'. */
   readonly assetBasePath?: string;
 }
 
 /**
  * A `CommandSink` that renders choreographer commands using PixiJS.
  *
- * Entities are rendered as SVG sprites when assets are preloaded, with
- * fallback to colored rectangles. Animated actions (move, fly, flash)
- * interpolate per-frame using the progress value from the choreographer.
+ * Entities are rendered as Tiny Swords pixel art sprites. Animated
+ * entities (peon, explosion) use PixiJS AnimatedSprite with spritesheet
+ * frame slicing. The terrain is a tiled grass background.
  *
  * @example
  * ```ts
@@ -123,8 +209,17 @@ export class PixiCommandSink implements CommandSink {
   /** In-flight animation state, keyed by `${performanceId}:${entityRef}`. */
   private readonly activeAnimations = new Map<string, AnimState>();
 
-  /** Loaded textures, keyed by entity name. */
+  /** Loaded textures for static sprites, keyed by entity name. */
   private readonly textures = new Map<string, Texture>();
+
+  /**
+   * Pre-sliced animation frame textures.
+   * Outer key: entity name. Inner key: animation name ("default" for primary).
+   */
+  private readonly animFrames = new Map<string, Map<string, Texture[]>>();
+
+  /** FPS values per entity per animation, for AnimatedSprite speed switching. */
+  private readonly animFps = new Map<string, Map<string, number>>();
 
   constructor(app: Application, manifest: ThemeManifest, aliases?: PositionAliasMap);
   constructor(options: PixiCommandSinkOptions);
@@ -150,7 +245,7 @@ export class PixiCommandSink implements CommandSink {
   }
 
   /**
-   * Preload SVG assets for all known entities.
+   * Preload PNG assets for all known entities and set up the terrain.
    *
    * Call this before starting the choreographer to ensure sprites
    * are available synchronously during spawn.
@@ -164,19 +259,140 @@ export class PixiCommandSink implements CommandSink {
     const loadPromises: Promise<void>[] = [];
 
     for (const [name, def] of Object.entries(ENTITY_VISUALS)) {
-      const url = `${base}${def.asset}`;
+      // Load primary asset
       loadPromises.push(
-        Assets.load<Texture>(url)
-          .then((texture) => {
-            this.textures.set(name, texture);
-          })
-          .catch(() => {
-            // Silently fall back to rect for this entity
-          }),
+        this.loadEntityAsset(name, def, `${base}${def.asset}`),
       );
+
+      // Load additional animation assets
+      if (def.animations) {
+        for (const [animName, animDef] of Object.entries(def.animations)) {
+          loadPromises.push(
+            this.loadAnimationAsset(
+              name,
+              animName,
+              animDef,
+              def.frameSize ?? 0,
+              `${base}${animDef.asset}`,
+            ),
+          );
+        }
+      }
     }
 
+    // Load terrain tilemap
+    loadPromises.push(this.loadTerrain(base));
+
     await Promise.all(loadPromises);
+  }
+
+  // =========================================================================
+  // Asset loading helpers
+  // =========================================================================
+
+  /** Load and process a primary entity asset (static or spritesheet). */
+  private async loadEntityAsset(
+    name: string,
+    def: EntityVisualDef,
+    url: string,
+  ): Promise<void> {
+    try {
+      const loaded = await Assets.load<Texture>(encodeURI(url));
+      loaded.source.scaleMode = "nearest";
+
+      if (def.frameSize && def.frameCount) {
+        // Horizontal spritesheet strip: slice into individual frame textures
+        const frames = this.sliceFrames(loaded, def.frameSize, def.frameCount);
+        this.getOrCreateMap(this.animFrames, name).set("default", frames);
+        this.getOrCreateMap(this.animFps, name).set("default", def.fps ?? 10);
+      } else {
+        // Static single-frame sprite
+        this.textures.set(name, loaded);
+      }
+    } catch {
+      // Asset failed to load — entity will use colored rectangle fallback
+    }
+  }
+
+  /** Load and process an additional animation spritesheet. */
+  private async loadAnimationAsset(
+    entityName: string,
+    animName: string,
+    animDef: SpritesheetAnimDef,
+    frameSize: number,
+    url: string,
+  ): Promise<void> {
+    try {
+      const texture = await Assets.load<Texture>(encodeURI(url));
+      texture.source.scaleMode = "nearest";
+
+      const frames = this.sliceFrames(texture, frameSize, animDef.frameCount);
+      this.getOrCreateMap(this.animFrames, entityName).set(animName, frames);
+      this.getOrCreateMap(this.animFps, entityName).set(animName, animDef.fps);
+    } catch {
+      // Animation asset failed to load — entity will use primary animation only
+    }
+  }
+
+  /** Slice a horizontal spritesheet into individual frame textures. */
+  private sliceFrames(
+    texture: Texture,
+    frameSize: number,
+    frameCount: number,
+  ): Texture[] {
+    const frames: Texture[] = [];
+    for (let i = 0; i < frameCount; i++) {
+      frames.push(
+        new Texture({
+          source: texture.source,
+          frame: new Rectangle(i * frameSize, 0, frameSize, frameSize),
+        }),
+      );
+    }
+    return frames;
+  }
+
+  /** Load the terrain tilemap and create a tiled grass background. */
+  private async loadTerrain(base: string): Promise<void> {
+    try {
+      const tilemap = await Assets.load<Texture>(encodeURI(`${base}${TERRAIN.asset}`));
+      tilemap.source.scaleMode = "nearest";
+
+      const grassTile = new Texture({
+        source: tilemap.source,
+        frame: new Rectangle(
+          TERRAIN.tileX,
+          TERRAIN.tileY,
+          TERRAIN.tileSize,
+          TERRAIN.tileSize,
+        ),
+      });
+
+      const { sceneWidth, sceneHeight } = this.manifest.layout;
+      const bg = new TilingSprite({
+        texture: grassTile,
+        width: sceneWidth,
+        height: sceneHeight,
+      });
+
+      // Insert at the very bottom of the display list
+      this.app.stage.addChildAt(bg, 0);
+    } catch {
+      // Terrain failed to load — scene will show the solid background color
+    }
+  }
+
+  /** Get or create an inner Map inside a nested Map structure. */
+  private getOrCreateMap<V>(
+    outer: Map<string, Map<string, V>>,
+    key: string,
+  ): Map<string, V> {
+    let inner = outer.get(key);
+    if (!inner) {
+      inner = new Map();
+      outer.set(key, inner);
+    }
+    return inner;
   }
 
   // =========================================================================
@@ -293,26 +509,70 @@ export class PixiCommandSink implements CommandSink {
   // Entity creation
   // =========================================================================
 
-  /** Create a visual container for an entity, using SVG sprite or fallback rect. */
+  /** Create a visual container for an entity, using sprites or fallback rect. */
   private createEntityVisual(entityRef: string): Container {
-    const texture = this.textures.get(entityRef);
     const def = ENTITY_VISUALS[entityRef];
+    const dw = def?.displayWidth ?? DEFAULT_VISUAL.displayWidth;
+    const dh = def?.displayHeight ?? DEFAULT_VISUAL.displayHeight;
+    const color = def?.color ?? DEFAULT_VISUAL.color;
 
+    // Animated spritesheet entity?
+    const entityFrameMap = this.animFrames.get(entityRef);
+    if (entityFrameMap) {
+      const defaultFrames = entityFrameMap.get("default");
+      if (defaultFrames && defaultFrames.length > 0) {
+        const anim = new AnimatedSprite(defaultFrames);
+        anim.width = dw;
+        anim.height = dh;
+        anim.anchor.set(0.5, 0.5);
+        anim.animationSpeed = (def?.fps ?? 10) / 60;
+        anim.loop = def?.loop ?? true;
+        anim.play();
+        return anim;
+      }
+    }
+
+    // Static sprite with loaded texture?
+    const texture = this.textures.get(entityRef);
     if (texture) {
       const sprite = new Sprite(texture);
-      sprite.width = def?.width ?? DEFAULT_VISUAL.width;
-      sprite.height = def?.height ?? DEFAULT_VISUAL.height;
+      sprite.width = dw;
+      sprite.height = dh;
       sprite.anchor.set(0.5, 0.5);
       return sprite;
     }
 
     // Fallback: colored rectangle
-    const visual = def ?? DEFAULT_VISUAL;
     const gfx = new Graphics();
-    gfx.rect(0, 0, visual.width, visual.height);
-    gfx.fill(visual.color);
-    gfx.pivot.set(visual.width / 2, visual.height / 2);
+    gfx.rect(0, 0, dw, dh);
+    gfx.fill(color);
+    gfx.pivot.set(dw / 2, dh / 2);
     return gfx;
+  }
+
+  /** Switch an AnimatedSprite entity to a named animation. */
+  private setEntityAnimation(entityRef: string, animName: string): void {
+    const entity = this.entities.get(entityRef);
+    if (!entity || !(entity instanceof AnimatedSprite)) return;
+
+    const entityFrameMap = this.animFrames.get(entityRef);
+    if (!entityFrameMap) return;
+
+    const frames = entityFrameMap.get(animName);
+    if (!frames || frames.length === 0) return;
+
+    const fpsMap = this.animFps.get(entityRef);
+    const fps = fpsMap?.get(animName) ?? 10;
+
+    const def = ENTITY_VISUALS[entityRef];
+    const isLoop = animName === "default"
+      ? (def?.loop ?? true)
+      : (def?.animations?.[animName]?.loop ?? true);
+
+    entity.textures = frames;
+    entity.animationSpeed = fps / 60;
+    entity.loop = isLoop;
+    entity.gotoAndPlay(0);
   }
 
   // =========================================================================
@@ -372,6 +632,15 @@ export class PixiCommandSink implements CommandSink {
       targetY: target.y,
       action: "move",
     });
+
+    // Switch to run animation for animated entities
+    this.setEntityAnimation(entityRef, "run");
+
+    // Flip sprite to face movement direction
+    if (entity instanceof Sprite) {
+      const direction = target.x >= entity.position.x ? 1 : -1;
+      entity.scale.x = Math.abs(entity.scale.x) * direction;
+    }
   }
 
   private handleMoveUpdate(
@@ -394,10 +663,9 @@ export class PixiCommandSink implements CommandSink {
     // parabolic Y offset peaks at progress=0.5
     let y: number;
     if (action === "fly") {
-      const linearT = progress;
       const baseY = anim.startY + (anim.targetY - anim.startY) * progress;
       // arc offset: peak of -80px at the midpoint
-      const arcOffset = -80 * 4 * linearT * (1 - linearT);
+      const arcOffset = -80 * 4 * progress * (1 - progress);
       y = baseY + arcOffset;
     } else {
       y = anim.startY + (anim.targetY - anim.startY) * progress;
@@ -420,6 +688,9 @@ export class PixiCommandSink implements CommandSink {
     }
 
     this.activeAnimations.delete(key);
+
+    // Switch back to idle animation
+    this.setEntityAnimation(entityRef, "default");
   }
 
   // =========================================================================
