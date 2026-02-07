@@ -1,0 +1,22 @@
+/**
+ * @sajou/schema — JSON Schemas and TypeScript types for the Sajou signal protocol.
+ *
+ * This package is the shared contract between all Sajou packages.
+ * Schemas are the source of truth; TypeScript types are aligned with them.
+ */
+
+export type {
+  SignalEvent,
+  SignalEnvelope,
+  SignalType,
+  SignalPayloadMap,
+  AgentState,
+  ErrorSeverity,
+  TaskDispatchPayload,
+  ToolCallPayload,
+  ToolResultPayload,
+  TokenUsagePayload,
+  AgentStateChangePayload,
+  ErrorPayload,
+  CompletionPayload,
+} from "./signal-types.js";
