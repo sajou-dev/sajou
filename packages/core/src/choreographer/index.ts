@@ -8,6 +8,7 @@ export type { ChoreographerOptions } from "./choreographer.js";
 
 // Clock
 export type { Clock, CancelHandle } from "./clock.js";
+export { BrowserClock } from "./browser-clock.js";
 
 // Commands & sink
 export type {
