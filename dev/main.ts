@@ -16,6 +16,7 @@ import type { SignalEnvelope, SignalType } from "@sajou/schema";
 import {
   citadelManifest,
   citadelChoreographies,
+  citadelEntityVisuals,
   PixiCommandSink,
 } from "@sajou/theme-citadel";
 
@@ -224,7 +225,11 @@ async function main(): Promise<void> {
   }
 
   // 3. Create the PixiJS command sink and preload sprite assets
-  const sink = new PixiCommandSink(app, citadelManifest);
+  const sink = new PixiCommandSink({
+    app,
+    manifest: citadelManifest,
+    entityVisuals: citadelEntityVisuals,
+  });
   log("Loading sprite assets...");
   await sink.init("/citadel-assets/");
   log("Assets loaded.");
