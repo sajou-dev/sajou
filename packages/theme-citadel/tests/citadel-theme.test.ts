@@ -7,6 +7,8 @@
 
 import { describe, expect, it } from "vitest";
 import { citadelTheme, citadelManifest, citadelEntities } from "@sajou/theme-citadel";
+import type { EntityVisualConfig } from "@sajou/schema";
+import citadelEntityVisuals from "../src/entity-visuals.json";
 
 describe("citadelManifest", () => {
   it("should have correct identity", () => {
@@ -93,6 +95,38 @@ describe("citadelEntities", () => {
     const coins = citadelEntities["gold-coins"];
     expect(coins?.tags).toContain("cost");
     expect(coins?.visual.type).toBe("particle");
+  });
+});
+
+describe("citadelEntityVisuals (entity-visuals.json)", () => {
+  const config = citadelEntityVisuals as EntityVisualConfig;
+
+  it("should have entries for all 6 manifest entities", () => {
+    const manifestEntityIds = Object.keys(citadelManifest.entities);
+    const visualEntityIds = Object.keys(config.entities);
+
+    for (const id of manifestEntityIds) {
+      expect(visualEntityIds).toContain(id);
+    }
+  });
+
+  it("every entity should have an idle state", () => {
+    for (const [id, entry] of Object.entries(config.entities)) {
+      expect(entry.states["idle"], `entity '${id}' missing idle state`).toBeDefined();
+    }
+  });
+
+  it("every entity should have valid display dimensions", () => {
+    for (const [id, entry] of Object.entries(config.entities)) {
+      expect(entry.displayWidth, `${id} displayWidth`).toBeGreaterThan(0);
+      expect(entry.displayHeight, `${id} displayHeight`).toBeGreaterThan(0);
+    }
+  });
+
+  it("every entity should have a valid fallback color", () => {
+    for (const [id, entry] of Object.entries(config.entities)) {
+      expect(entry.fallbackColor, `${id} fallbackColor`).toMatch(/^#[0-9a-fA-F]{6}$/);
+    }
   });
 });
 

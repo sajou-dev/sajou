@@ -20,3 +20,12 @@ export type {
   ErrorPayload,
   CompletionPayload,
 } from "./signal-types.js";
+
+export type {
+  EntityVisualConfig,
+  EntityVisualEntry,
+  EntityVisualState,
+  StaticVisualState,
+  SpritesheetVisualState,
+  SourceRect,
+} from "./entity-visual-types.js";
