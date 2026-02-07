@@ -1,0 +1,25 @@
+{
+  "name": "@sajou/theme-api",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Theme contract interfaces for Sajou — defines how themes expose entities, renderers, and capabilities",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc --build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@sajou/schema": "workspace:*"
+  }
+}
