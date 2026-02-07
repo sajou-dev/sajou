@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sajou — Dev Playground</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body {
+        background: #0d1b0d;
+        color: #ccc;
+        font-family: monospace;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 20px;
+        gap: 16px;
+      }
+      h1 { font-size: 1.2rem; color: #7ac67a; }
+      #app { border: 1px solid #2a4a2a; }
+      #log {
+        width: 800px;
+        max-height: 200px;
+        overflow-y: auto;
+        font-size: 0.75rem;
+        color: #88aa88;
+        background: #0a140a;
+        padding: 8px;
+        border: 1px solid #1a2e1a;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Sajou — Citadel Dev Playground</h1>
+    <div id="app"></div>
+    <div id="log"></div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
