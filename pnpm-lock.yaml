@@ -23,6 +23,21 @@ importers:
 
   packages/schema: {}
 
+  packages/theme-api:
+    dependencies:
+      '@sajou/schema':
+        specifier: workspace:*
+        version: link:../schema
+
+  packages/theme-citadel:
+    dependencies:
+      '@sajou/schema':
+        specifier: workspace:*
+        version: link:../schema
+      '@sajou/theme-api':
+        specifier: workspace:*
+        version: link:../theme-api
+
 packages:
 
   '@esbuild/aix-ppc64@0.27.3':
