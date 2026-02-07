@@ -1,0 +1,27 @@
+{
+  "name": "@sajou/theme-citadel",
+  "version": "0.0.0",
+  "private": true,
+  "description": "WC3-inspired medieval fantasy theme for Sajou — the reference implementation",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "assets"
+  ],
+  "scripts": {
+    "build": "tsc --build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@sajou/schema": "workspace:*",
+    "@sajou/theme-api": "workspace:*"
+  }
+}
