@@ -194,7 +194,7 @@ async function main(): Promise<void> {
   await app.init({
     width: citadelManifest.layout.sceneWidth,
     height: citadelManifest.layout.sceneHeight,
-    background: 0x1a2e1a,
+    background: 0x3a7a2a,
     antialias: true,
   });
 
@@ -223,9 +223,9 @@ async function main(): Promise<void> {
     app.stage.addChild(label);
   }
 
-  // 3. Create the PixiJS command sink and preload SVG assets
+  // 3. Create the PixiJS command sink and preload sprite assets
   const sink = new PixiCommandSink(app, citadelManifest);
-  log("Loading SVG assets...");
+  log("Loading sprite assets...");
   await sink.init("/citadel-assets/");
   log("Assets loaded.");
 
