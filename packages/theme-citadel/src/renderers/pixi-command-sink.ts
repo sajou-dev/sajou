@@ -209,6 +209,9 @@ export class PixiCommandSink implements CommandSink {
   /** In-flight animation state, keyed by `${performanceId}:${entityRef}`. */
   private readonly activeAnimations = new Map<string, AnimState>();
 
+  /** Entity refs whose visuals were created by a flash action (temporary). */
+  private readonly flashCreatedEntities = new Set<string>();
+
   /** Loaded textures for static sprites, keyed by entity name. */
   private readonly textures = new Map<string, Texture>();
 
@@ -521,12 +524,21 @@ export class PixiCommandSink implements CommandSink {
     if (entityFrameMap) {
       const defaultFrames = entityFrameMap.get("default");
       if (defaultFrames && defaultFrames.length > 0) {
+        const isLoop = def?.loop ?? true;
         const anim = new AnimatedSprite(defaultFrames);
         anim.width = dw;
         anim.height = dh;
         anim.anchor.set(0.5, 0.5);
         anim.animationSpeed = (def?.fps ?? 10) / 60;
-        anim.loop = def?.loop ?? true;
+        anim.loop = isLoop;
+
+        // One-shot animations auto-destroy when finished
+        if (!isLoop) {
+          anim.onComplete = () => {
+            this.handleDestroy(entityRef);
+          };
+        }
+
         anim.play();
         return anim;
       }
@@ -702,7 +714,8 @@ export class PixiCommandSink implements CommandSink {
     params: Readonly<Record<string, unknown>>,
   ): void {
     // Flash targets a position, not necessarily a spawned entity.
-    // If the entity doesn't exist, spawn a temporary flash rect.
+    // If the entity doesn't exist, create a temporary flash rect
+    // that will be cleaned up in handleFlashComplete.
     let entity = this.entities.get(entityRef);
     if (!entity) {
       const pos = this.resolvePosition(entityRef);
@@ -717,6 +730,7 @@ export class PixiCommandSink implements CommandSink {
 
       this.app.stage.addChild(gfx);
       this.entities.set(entityRef, gfx);
+      this.flashCreatedEntities.add(entityRef);
       entity = gfx;
     }
 
@@ -735,7 +749,16 @@ export class PixiCommandSink implements CommandSink {
     const entity = this.entities.get(entityRef);
     if (!entity) return;
 
-    entity.alpha = 1;
+    if (this.flashCreatedEntities.has(entityRef)) {
+      // Temporary flash visual — remove it entirely
+      this.app.stage.removeChild(entity);
+      entity.destroy();
+      this.entities.delete(entityRef);
+      this.flashCreatedEntities.delete(entityRef);
+    } else {
+      // Pre-existing entity (e.g. forge) — restore full opacity
+      entity.alpha = 1;
+    }
   }
 
   // =========================================================================
