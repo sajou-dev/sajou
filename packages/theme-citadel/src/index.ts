@@ -11,7 +11,7 @@
 export { citadelTheme } from "./citadel-theme.js";
 export { citadelManifest } from "./citadel-manifest.js";
 export { PixiCommandSink } from "./renderers/pixi-command-sink.js";
-export type { PositionAliasMap } from "./renderers/pixi-command-sink.js";
+export type { PositionAliasMap, PixiCommandSinkOptions } from "./renderers/pixi-command-sink.js";
 export {
   citadelEntities,
   peonEntity,

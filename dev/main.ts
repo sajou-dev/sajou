@@ -223,8 +223,11 @@ async function main(): Promise<void> {
     app.stage.addChild(label);
   }
 
-  // 3. Create the PixiJS command sink
+  // 3. Create the PixiJS command sink and preload SVG assets
   const sink = new PixiCommandSink(app, citadelManifest);
+  log("Loading SVG assets...");
+  await sink.init("/citadel-assets/");
+  log("Assets loaded.");
 
   // 4. Pre-spawn static entities
   sink.preSpawn("oracle", "oracle");
