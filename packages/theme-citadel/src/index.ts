@@ -19,3 +19,10 @@ export {
   goldCoinsEntity,
   explosionEntity,
 } from "./entities/citadel-entities.js";
+export {
+  citadelChoreographies,
+  taskDispatchChoreography,
+  errorChoreography,
+  toolCallChoreography,
+  tokenUsageChoreography,
+} from "./choreographies/citadel-choreographies.js";

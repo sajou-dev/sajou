@@ -21,6 +21,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@sajou/core": "workspace:*",
     "@sajou/schema": "workspace:*",
     "@sajou/theme-api": "workspace:*"
   }
