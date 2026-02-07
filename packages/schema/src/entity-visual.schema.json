@@ -1,0 +1,149 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sajou.dev/schema/entity-visual.json",
+  "title": "Sajou Entity Visual Config",
+  "description": "Declarative visual configuration for theme entities. Each entity defines display dimensions, a fallback color, and one or more named visual states (idle, run, attack...). States are either static images or animated spritesheets. Every entity must have an 'idle' state as the default/resting visual.",
+  "type": "object",
+  "required": ["entities"],
+  "properties": {
+    "entities": {
+      "type": "object",
+      "description": "Map of entity ID to its visual configuration. Keys are entity names (e.g., 'peon', 'forge').",
+      "additionalProperties": {
+        "$ref": "#/$defs/entityVisualEntry"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "entityVisualEntry": {
+      "type": "object",
+      "description": "Visual configuration for a single entity. Defines display size, fallback color, and named visual states.",
+      "required": ["displayWidth", "displayHeight", "fallbackColor", "states"],
+      "properties": {
+        "displayWidth": {
+          "type": "number",
+          "minimum": 1,
+          "description": "Display width in scene pixels. The sprite is scaled to this width regardless of source asset size."
+        },
+        "displayHeight": {
+          "type": "number",
+          "minimum": 1,
+          "description": "Display height in scene pixels. The sprite is scaled to this height regardless of source asset size."
+        },
+        "fallbackColor": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "description": "CSS hex color (e.g., '#4488ff') used as fallback when the asset fails to load. Rendered as a colored rectangle."
+        },
+        "states": {
+          "type": "object",
+          "description": "Named visual states for this entity. Each key is a state name (e.g., 'idle', 'run', 'attack'). Every entity must have at least an 'idle' state.",
+          "additionalProperties": {
+            "$ref": "#/$defs/entityVisualState"
+          },
+          "minProperties": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "entityVisualState": {
+      "type": "object",
+      "description": "A single visual state. Discriminated on the 'type' field: 'static' for single images, 'spritesheet' for animated frame sequences.",
+      "required": ["type", "asset"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["static", "spritesheet"],
+          "description": "Visual state type. 'static': single image or cropped region. 'spritesheet': animated frame sequence from a grid."
+        },
+        "asset": {
+          "type": "string",
+          "description": "Asset path relative to the theme's asset base path (e.g., 'Factions/Knights/Troops/Pawn/Blue/Pawn_Blue.png')."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "type": { "const": "static" } }
+          },
+          "then": {
+            "properties": {
+              "type": true,
+              "asset": true,
+              "sourceRect": {
+                "$ref": "#/$defs/sourceRect"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        {
+          "if": {
+            "properties": { "type": { "const": "spritesheet" } }
+          },
+          "then": {
+            "required": ["frameSize", "frameCount", "fps"],
+            "properties": {
+              "type": true,
+              "asset": true,
+              "frameSize": {
+                "type": "number",
+                "minimum": 1,
+                "description": "Size of each frame cell in pixels. Frames are square (frameSize x frameSize)."
+              },
+              "frameCount": {
+                "type": "number",
+                "minimum": 1,
+                "description": "Number of frames in this animation row."
+              },
+              "frameRow": {
+                "type": "number",
+                "minimum": 0,
+                "description": "Row index in the spritesheet grid (0-based). Default: 0."
+              },
+              "fps": {
+                "type": "number",
+                "minimum": 1,
+                "description": "Playback speed in frames per second."
+              },
+              "loop": {
+                "type": "boolean",
+                "description": "Whether the animation loops. Default: true."
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      ]
+    },
+    "sourceRect": {
+      "type": "object",
+      "description": "Sub-region crop rectangle for static sprites that need a portion of the source image.",
+      "required": ["x", "y", "w", "h"],
+      "properties": {
+        "x": {
+          "type": "number",
+          "minimum": 0,
+          "description": "X offset in the source image (pixels)."
+        },
+        "y": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Y offset in the source image (pixels)."
+        },
+        "w": {
+          "type": "number",
+          "minimum": 1,
+          "description": "Width of the crop region (pixels)."
+        },
+        "h": {
+          "type": "number",
+          "minimum": 1,
+          "description": "Height of the crop region (pixels)."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

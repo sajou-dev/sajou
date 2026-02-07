@@ -11,11 +11,18 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
-    "./signal.schema.json": "./src/signal.schema.json"
+    "./signal.schema.json": "./src/signal.schema.json",
+    "./entity-visual.schema.json": "./src/entity-visual.schema.json"
   },
-  "files": ["dist", "src/*.schema.json"],
+  "files": [
+    "dist",
+    "src/*.schema.json"
+  ],
   "scripts": {
     "build": "tsc --build",
     "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "ajv": "^8.17.1"
   }
 }
