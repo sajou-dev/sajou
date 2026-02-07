@@ -7,6 +7,7 @@
 
 export {
   Choreographer,
+  BrowserClock,
   TestClock,
   RecordingSink,
   resetPerformanceIdCounter,
