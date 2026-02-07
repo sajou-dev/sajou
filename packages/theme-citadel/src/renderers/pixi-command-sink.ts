@@ -29,102 +29,9 @@ import type {
   InterruptCommand,
 } from "@sajou/core";
 import type { ThemeManifest } from "@sajou/theme-api";
+import type { EntityVisualConfig } from "@sajou/schema";
 
-// ---------------------------------------------------------------------------
-// Entity visual definitions — Tiny Swords asset pack
-// ---------------------------------------------------------------------------
-
-/** Spritesheet animation definition. */
-interface SpritesheetAnimDef {
-  /** Separate PNG file. Omit to use the primary entity asset. */
-  readonly asset?: string;
-  /** Row in the grid for this animation (default 0). */
-  readonly frameRow?: number;
-  readonly frameCount: number;
-  readonly fps: number;
-  readonly loop: boolean;
-}
-
-/** Size, asset, and spritesheet info for each entity type. */
-interface EntityVisualDef {
-  /** Display width in scene pixels. */
-  readonly displayWidth: number;
-  /** Display height in scene pixels. */
-  readonly displayHeight: number;
-  /** Fallback color when assets fail to load. */
-  readonly color: number;
-  /** Primary asset path (relative to assetBasePath). */
-  readonly asset: string;
-  /** Frame size for spritesheet cells (square frames). */
-  readonly frameSize?: number;
-  /** Frame count in the primary animation. */
-  readonly frameCount?: number;
-  /** Row in the grid for the primary animation (default 0). */
-  readonly frameRow?: number;
-  /** Frames per second for primary animation. */
-  readonly fps?: number;
-  /** Whether primary animation loops. */
-  readonly loop?: boolean;
-  /** Source rectangle for static sprites that need cropping. */
-  readonly sourceRect?: { readonly x: number; readonly y: number; readonly w: number; readonly h: number };
-  /** Additional named animations (same file via frameRow, or separate file via asset). */
-  readonly animations?: Readonly<Record<string, SpritesheetAnimDef>>;
-}
-
-/** Visual definitions keyed by entity name (Tiny Swords update-010 pack). */
-const ENTITY_VISUALS: Readonly<Record<string, EntityVisualDef>> = {
-  peon: {
-    displayWidth: 64,
-    displayHeight: 64,
-    color: 0x4488ff,
-    asset: "tiny-swords-update-010/Factions/Knights/Troops/Pawn/Blue/Pawn_Blue.png",
-    frameSize: 192,
-    frameCount: 6,
-    frameRow: 0,
-    fps: 10,
-    loop: true,
-    animations: {
-      run: { frameRow: 1, frameCount: 6, fps: 10, loop: true },
-    },
-  },
-  pigeon: {
-    displayWidth: 32,
-    displayHeight: 32,
-    color: 0xffffff,
-    asset: "tiny-swords-update-010/Factions/Knights/Troops/Archer/Arrow/Arrow.png",
-    sourceRect: { x: 0, y: 0, w: 64, h: 64 },
-  },
-  forge: {
-    displayWidth: 64,
-    displayHeight: 96,
-    color: 0x8b4513,
-    asset: "tiny-swords-update-010/Factions/Knights/Buildings/House/House_Blue.png",
-  },
-  oracle: {
-    displayWidth: 128,
-    displayHeight: 102,
-    color: 0x9933cc,
-    asset: "tiny-swords-update-010/Factions/Knights/Buildings/Castle/Castle_Blue.png",
-  },
-  "gold-coins": {
-    displayWidth: 48,
-    displayHeight: 48,
-    color: 0xffd700,
-    asset: "tiny-swords-update-010/Resources/Resources/G_Idle.png",
-  },
-  explosion: {
-    displayWidth: 80,
-    displayHeight: 80,
-    color: 0xff3300,
-    asset: "tiny-swords-update-010/Effects/Explosion/Explosions.png",
-    frameSize: 192,
-    frameCount: 9,
-    fps: 10,
-    loop: false,
-  },
-};
-
-/** Default visual for unknown entities. */
+/** Default visual for unknown entities (no config found). */
 const DEFAULT_VISUAL = { displayWidth: 24, displayHeight: 24, color: 0x888888 };
 
 /** Terrain tile asset and extraction coordinates (update-010 pack). */
@@ -179,6 +86,8 @@ export interface PixiCommandSinkOptions {
   readonly app: Application;
   /** Theme manifest with layout/scene info. */
   readonly manifest: ThemeManifest;
+  /** Declarative entity visual configuration. */
+  readonly entityVisuals: EntityVisualConfig;
   /** Optional position alias map. */
   readonly aliases?: PositionAliasMap;
   /** Base path for PNG assets. Must end with '/'. */
@@ -196,7 +105,9 @@ export interface PixiCommandSinkOptions {
  * ```ts
  * const app = new Application();
  * await app.init({ width: 800, height: 600 });
- * const sink = new PixiCommandSink(app, citadelManifest);
+ * const sink = new PixiCommandSink({
+ *   app, manifest: citadelManifest, entityVisuals,
+ * });
  * await sink.init("/assets/");
  * const choreographer = new Choreographer({ clock, sink });
  * ```
@@ -204,6 +115,7 @@ export interface PixiCommandSinkOptions {
 export class PixiCommandSink implements CommandSink {
   private readonly app: Application;
   private readonly manifest: ThemeManifest;
+  private readonly entityVisuals: EntityVisualConfig;
   private readonly aliases: PositionAliasMap;
   private readonly assetBasePath: string;
 
@@ -216,39 +128,24 @@ export class PixiCommandSink implements CommandSink {
   /** Entity refs whose visuals were created by a flash action (temporary). */
   private readonly flashCreatedEntities = new Set<string>();
 
-  /** Loaded textures for static sprites, keyed by entity name. */
-  private readonly textures = new Map<string, Texture>();
+  /** Loaded textures for static sprites, keyed by `${entityName}:${stateName}`. */
+  private readonly stateTextures = new Map<string, Texture>();
 
   /**
    * Pre-sliced animation frame textures.
-   * Outer key: entity name. Inner key: animation name ("default" for primary).
+   * Outer key: entity name. Inner key: state name (e.g., "idle", "run").
    */
   private readonly animFrames = new Map<string, Map<string, Texture[]>>();
 
   /** FPS values per entity per animation, for AnimatedSprite speed switching. */
   private readonly animFps = new Map<string, Map<string, number>>();
 
-  constructor(app: Application, manifest: ThemeManifest, aliases?: PositionAliasMap);
-  constructor(options: PixiCommandSinkOptions);
-  constructor(
-    appOrOptions: Application | PixiCommandSinkOptions,
-    manifest?: ThemeManifest,
-    aliases?: PositionAliasMap,
-  ) {
-    if ("app" in appOrOptions && "manifest" in appOrOptions) {
-      // Options object form
-      const opts = appOrOptions as PixiCommandSinkOptions;
-      this.app = opts.app;
-      this.manifest = opts.manifest;
-      this.aliases = opts.aliases ?? DEFAULT_ALIASES;
-      this.assetBasePath = opts.assetBasePath ?? "";
-    } else {
-      // Legacy positional form
-      this.app = appOrOptions as Application;
-      this.manifest = manifest!;
-      this.aliases = aliases ?? DEFAULT_ALIASES;
-      this.assetBasePath = "";
-    }
+  constructor(options: PixiCommandSinkOptions) {
+    this.app = options.app;
+    this.manifest = options.manifest;
+    this.entityVisuals = options.entityVisuals;
+    this.aliases = options.aliases ?? DEFAULT_ALIASES;
+    this.assetBasePath = options.assetBasePath ?? "";
   }
 
   /**
@@ -263,31 +160,34 @@ export class PixiCommandSink implements CommandSink {
     const base = basePath ?? this.assetBasePath;
     if (!base) return;
 
+    // Validate entity visuals config
+    const { validateEntityVisuals } = await import("./validate-entity-visuals.js");
+    const result = validateEntityVisuals(this.entityVisuals);
+    for (const warning of result.warnings) {
+      console.warn(`[PixiCommandSink] ${warning}`);
+    }
+
     const loadPromises: Promise<void>[] = [];
 
-    for (const [name, def] of Object.entries(ENTITY_VISUALS)) {
-      // Load primary asset
-      loadPromises.push(
-        this.loadEntityAsset(name, def, `${base}${def.asset}`),
-      );
+    // Deduplicate asset loads — multiple states may share the same PNG
+    const loadedAssets = new Map<string, Promise<Texture>>();
 
-      // Load additional animation assets from separate files
-      // (same-file animations are handled inside loadEntityAsset)
-      if (def.animations) {
-        for (const [animName, animDef] of Object.entries(def.animations)) {
-          if (animDef.asset) {
-            loadPromises.push(
-              this.loadAnimationAsset(
-                name,
-                animName,
-                animDef,
-                def.frameSize ?? 0,
-                `${base}${animDef.asset}`,
-              ),
-            );
-          }
-        }
+    const loadAsset = (url: string): Promise<Texture> => {
+      let promise = loadedAssets.get(url);
+      if (!promise) {
+        promise = Assets.load<Texture>(encodeURI(url)).then((tex) => {
+          tex.source.scaleMode = "nearest";
+          return tex;
+        });
+        loadedAssets.set(url, promise);
       }
+      return promise;
+    };
+
+    for (const [name, entry] of Object.entries(this.entityVisuals.entities)) {
+      loadPromises.push(
+        this.loadEntityStates(name, entry, base, loadAsset),
+      );
     }
 
     // Load terrain tilemap
@@ -300,68 +200,40 @@ export class PixiCommandSink implements CommandSink {
   // Asset loading helpers
   // =========================================================================
 
-  /** Load and process a primary entity asset (static or spritesheet). */
-  private async loadEntityAsset(
+  /**
+   * Load all visual states for an entity from the declarative config.
+   *
+   * Each state is either static (single image) or a spritesheet (animated).
+   * Asset loads are deduplicated via the `loadAsset` function.
+   */
+  private async loadEntityStates(
     name: string,
-    def: EntityVisualDef,
-    url: string,
+    entry: import("@sajou/schema").EntityVisualEntry,
+    base: string,
+    loadAsset: (url: string) => Promise<Texture>,
   ): Promise<void> {
-    try {
-      const loaded = await Assets.load<Texture>(encodeURI(url));
-      loaded.source.scaleMode = "nearest";
+    for (const [stateName, state] of Object.entries(entry.states)) {
+      try {
+        const url = `${base}${state.asset}`;
+        const loaded = await loadAsset(url);
 
-      if (def.frameSize && def.frameCount) {
-        // Spritesheet: slice frames from the specified row
-        const row = def.frameRow ?? 0;
-        const frames = this.sliceFrames(loaded, def.frameSize, def.frameCount, row);
-        this.getOrCreateMap(this.animFrames, name).set("default", frames);
-        this.getOrCreateMap(this.animFps, name).set("default", def.fps ?? 10);
-
-        // Process same-file animations (no separate asset, just a different row)
-        if (def.animations) {
-          for (const [animName, animDef] of Object.entries(def.animations)) {
-            if (!animDef.asset) {
-              const animRow = animDef.frameRow ?? 0;
-              const animFrames = this.sliceFrames(loaded, def.frameSize, animDef.frameCount, animRow);
-              this.getOrCreateMap(this.animFrames, name).set(animName, animFrames);
-              this.getOrCreateMap(this.animFps, name).set(animName, animDef.fps);
-            }
-          }
+        if (state.type === "spritesheet") {
+          const row = state.frameRow ?? 0;
+          const frames = this.sliceFrames(loaded, state.frameSize, state.frameCount, row);
+          this.getOrCreateMap(this.animFrames, name).set(stateName, frames);
+          this.getOrCreateMap(this.animFps, name).set(stateName, state.fps);
+        } else if (state.sourceRect) {
+          const cropped = new Texture({
+            source: loaded.source,
+            frame: new Rectangle(state.sourceRect.x, state.sourceRect.y, state.sourceRect.w, state.sourceRect.h),
+          });
+          this.stateTextures.set(`${name}:${stateName}`, cropped);
+        } else {
+          this.stateTextures.set(`${name}:${stateName}`, loaded);
         }
-      } else if (def.sourceRect) {
-        // Static sprite with a sub-region crop
-        const cropped = new Texture({
-          source: loaded.source,
-          frame: new Rectangle(def.sourceRect.x, def.sourceRect.y, def.sourceRect.w, def.sourceRect.h),
-        });
-        this.textures.set(name, cropped);
-      } else {
-        // Static single-frame sprite
-        this.textures.set(name, loaded);
+      } catch {
+        // Asset failed to load — state will use fallback
       }
-    } catch {
-      // Asset failed to load — entity will use colored rectangle fallback
-    }
-  }
-
-  /** Load and process an additional animation from a separate file. */
-  private async loadAnimationAsset(
-    entityName: string,
-    animName: string,
-    animDef: SpritesheetAnimDef,
-    frameSize: number,
-    url: string,
-  ): Promise<void> {
-    try {
-      const texture = await Assets.load<Texture>(encodeURI(url));
-      texture.source.scaleMode = "nearest";
-
-      const row = animDef.frameRow ?? 0;
-      const frames = this.sliceFrames(texture, frameSize, animDef.frameCount, row);
-      this.getOrCreateMap(this.animFrames, entityName).set(animName, frames);
-      this.getOrCreateMap(this.animFps, entityName).set(animName, animDef.fps);
-    } catch {
-      // Animation asset failed to load — entity will use primary animation only
     }
   }
 
@@ -544,22 +416,28 @@ export class PixiCommandSink implements CommandSink {
 
   /** Create a visual container for an entity, using sprites or fallback rect. */
   private createEntityVisual(entityRef: string): Container {
-    const def = ENTITY_VISUALS[entityRef];
-    const dw = def?.displayWidth ?? DEFAULT_VISUAL.displayWidth;
-    const dh = def?.displayHeight ?? DEFAULT_VISUAL.displayHeight;
-    const color = def?.color ?? DEFAULT_VISUAL.color;
+    const entry = this.entityVisuals.entities[entityRef];
+    const dw = entry?.displayWidth ?? DEFAULT_VISUAL.displayWidth;
+    const dh = entry?.displayHeight ?? DEFAULT_VISUAL.displayHeight;
+    const color = entry
+      ? parseInt(entry.fallbackColor.replace("#", ""), 16)
+      : DEFAULT_VISUAL.color;
 
-    // Animated spritesheet entity?
+    // Resolve idle state config
+    const idleState = entry?.states["idle"];
+
+    // Animated spritesheet entity (idle state)?
     const entityFrameMap = this.animFrames.get(entityRef);
     if (entityFrameMap) {
-      const defaultFrames = entityFrameMap.get("default");
-      if (defaultFrames && defaultFrames.length > 0) {
-        const isLoop = def?.loop ?? true;
-        const anim = new AnimatedSprite(defaultFrames);
+      const idleFrames = entityFrameMap.get("idle");
+      if (idleFrames && idleFrames.length > 0) {
+        const isLoop = idleState?.type === "spritesheet" ? (idleState.loop ?? true) : true;
+        const fps = idleState?.type === "spritesheet" ? idleState.fps : 10;
+        const anim = new AnimatedSprite(idleFrames);
         anim.width = dw;
         anim.height = dh;
         anim.anchor.set(0.5, 0.5);
-        anim.animationSpeed = (def?.fps ?? 10) / 60;
+        anim.animationSpeed = fps / 60;
         anim.loop = isLoop;
 
         // One-shot animations auto-destroy when finished
@@ -574,8 +452,8 @@ export class PixiCommandSink implements CommandSink {
       }
     }
 
-    // Static sprite with loaded texture?
-    const texture = this.textures.get(entityRef);
+    // Static sprite with loaded texture (idle state)?
+    const texture = this.stateTextures.get(`${entityRef}:idle`);
     if (texture) {
       const sprite = new Sprite(texture);
       sprite.width = dw;
@@ -592,24 +470,24 @@ export class PixiCommandSink implements CommandSink {
     return gfx;
   }
 
-  /** Switch an AnimatedSprite entity to a named animation. */
-  private setEntityAnimation(entityRef: string, animName: string): void {
+  /** Switch an AnimatedSprite entity to a named animation state. */
+  private setEntityAnimation(entityRef: string, stateName: string): void {
     const entity = this.entities.get(entityRef);
     if (!entity || !(entity instanceof AnimatedSprite)) return;
 
     const entityFrameMap = this.animFrames.get(entityRef);
     if (!entityFrameMap) return;
 
-    const frames = entityFrameMap.get(animName);
+    const frames = entityFrameMap.get(stateName);
     if (!frames || frames.length === 0) return;
 
     const fpsMap = this.animFps.get(entityRef);
-    const fps = fpsMap?.get(animName) ?? 10;
+    const fps = fpsMap?.get(stateName) ?? 10;
 
-    const def = ENTITY_VISUALS[entityRef];
-    const isLoop = animName === "default"
-      ? (def?.loop ?? true)
-      : (def?.animations?.[animName]?.loop ?? true);
+    // Look up loop setting from the declarative config
+    const entry = this.entityVisuals.entities[entityRef];
+    const stateConfig = entry?.states[stateName];
+    const isLoop = stateConfig?.type === "spritesheet" ? (stateConfig.loop ?? true) : true;
 
     entity.textures = frames;
     entity.animationSpeed = fps / 60;
@@ -732,7 +610,7 @@ export class PixiCommandSink implements CommandSink {
     this.activeAnimations.delete(key);
 
     // Switch back to idle animation
-    this.setEntityAnimation(entityRef, "default");
+    this.setEntityAnimation(entityRef, "idle");
   }
 
   // =========================================================================

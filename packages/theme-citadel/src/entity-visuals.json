@@ -1,0 +1,90 @@
+{
+  "entities": {
+    "peon": {
+      "displayWidth": 64,
+      "displayHeight": 64,
+      "fallbackColor": "#4488ff",
+      "states": {
+        "idle": {
+          "type": "spritesheet",
+          "asset": "tiny-swords-update-010/Factions/Knights/Troops/Pawn/Blue/Pawn_Blue.png",
+          "frameSize": 192,
+          "frameCount": 6,
+          "frameRow": 0,
+          "fps": 10,
+          "loop": true
+        },
+        "run": {
+          "type": "spritesheet",
+          "asset": "tiny-swords-update-010/Factions/Knights/Troops/Pawn/Blue/Pawn_Blue.png",
+          "frameSize": 192,
+          "frameCount": 6,
+          "frameRow": 1,
+          "fps": 10,
+          "loop": true
+        }
+      }
+    },
+    "pigeon": {
+      "displayWidth": 32,
+      "displayHeight": 32,
+      "fallbackColor": "#ffffff",
+      "states": {
+        "idle": {
+          "type": "static",
+          "asset": "tiny-swords-update-010/Factions/Knights/Troops/Archer/Arrow/Arrow.png",
+          "sourceRect": { "x": 0, "y": 0, "w": 64, "h": 64 }
+        }
+      }
+    },
+    "forge": {
+      "displayWidth": 64,
+      "displayHeight": 96,
+      "fallbackColor": "#8b4513",
+      "states": {
+        "idle": {
+          "type": "static",
+          "asset": "tiny-swords-update-010/Factions/Knights/Buildings/House/House_Blue.png"
+        }
+      }
+    },
+    "oracle": {
+      "displayWidth": 128,
+      "displayHeight": 102,
+      "fallbackColor": "#9933cc",
+      "states": {
+        "idle": {
+          "type": "static",
+          "asset": "tiny-swords-update-010/Factions/Knights/Buildings/Castle/Castle_Blue.png"
+        }
+      }
+    },
+    "gold-coins": {
+      "displayWidth": 48,
+      "displayHeight": 48,
+      "fallbackColor": "#ffd700",
+      "states": {
+        "idle": {
+          "type": "static",
+          "asset": "tiny-swords-update-010/Resources/Resources/G_Idle.png"
+        }
+      }
+    },
+    "explosion": {
+      "displayWidth": 80,
+      "displayHeight": 80,
+      "fallbackColor": "#ff3300",
+      "states": {
+        "idle": {
+          "type": "spritesheet",
+          "asset": "tiny-swords-update-010/Effects/Explosion/Explosions.png",
+          "frameSize": 192,
+          "frameCount": 9,
+          "frameRow": 0,
+          "fps": 10,
+          "loop": false
+        }
+      }
+    }
+  }
+}
