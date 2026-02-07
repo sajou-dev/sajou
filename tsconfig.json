@@ -3,6 +3,8 @@
   "references": [
     { "path": "packages/schema" },
     { "path": "packages/core" },
+    { "path": "packages/theme-api" },
+    { "path": "packages/theme-citadel" },
     { "path": "packages/emitter" }
   ]
 }

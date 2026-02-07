@@ -14,6 +14,10 @@
     "pnpm": ">=9"
   },
   "devDependencies": {
+    "@sajou/core": "workspace:*",
+    "@sajou/emitter": "workspace:*",
+    "@sajou/schema": "workspace:*",
+    "@sajou/theme-citadel": "workspace:*",
     "typescript": "^5.9.3",
     "vitest": "^4.0.18"
   },
