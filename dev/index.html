@@ -14,10 +14,11 @@
         flex-direction: column;
         align-items: center;
         padding: 20px;
-        gap: 16px;
+        gap: 12px;
       }
       h1 { font-size: 1.2rem; color: #7ac67a; }
-      #app { border: 1px solid #2a4a2a; }
+
+      /* Scenario buttons */
       #scenario-buttons {
         display: flex;
         gap: 8px;
@@ -41,14 +42,90 @@
         color: #fff;
         border-color: #5a8a5a;
       }
-      #log {
-        width: 800px;
-        max-height: 200px;
+
+      /* Resource bar (WC3 style) */
+      #resource-bar {
+        display: flex;
+        gap: 24px;
+        padding: 6px 16px;
+        background: linear-gradient(180deg, #2a1a0a 0%, #1a0e04 100%);
+        border: 1px solid #5a3a1a;
+        border-radius: 2px;
+        min-width: 300px;
+        justify-content: center;
+      }
+      .resource {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.85rem;
+        font-weight: bold;
+      }
+      .resource-icon {
+        font-size: 1rem;
+        line-height: 1;
+      }
+      .resource-gold { color: #ffd700; }
+      .resource-lumber { color: #8bc34a; }
+      .resource-value {
+        min-width: 50px;
+        text-align: right;
+      }
+
+      /* Main layout: canvas + combat log side by side */
+      #main-area {
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+      }
+      #app { border: 1px solid #2a4a2a; flex-shrink: 0; }
+
+      /* Combat log panel */
+      #combat-log {
+        width: 280px;
+        height: 600px;
         overflow-y: auto;
-        font-size: 0.75rem;
+        font-size: 0.7rem;
         color: #88aa88;
         background: #0a140a;
         padding: 8px;
+        border: 1px solid #1a2e1a;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      #combat-log-title {
+        font-size: 0.8rem;
+        color: #5a8a5a;
+        border-bottom: 1px solid #1a2e1a;
+        padding-bottom: 4px;
+        margin-bottom: 4px;
+        font-weight: bold;
+      }
+      .log-entry {
+        padding: 2px 0;
+        border-bottom: 1px solid #0d1f0d;
+        line-height: 1.4;
+      }
+      .log-entry .log-time { color: #556655; }
+      .log-entry .log-type { font-weight: bold; }
+      .log-type-task_dispatch { color: #4488ff; }
+      .log-type-tool_call { color: #8b6914; }
+      .log-type-tool_result { color: #44aa44; }
+      .log-type-token_usage { color: #ffd700; }
+      .log-type-agent_state_change { color: #9966cc; }
+      .log-type-error { color: #ff4444; }
+      .log-type-completion { color: #44cccc; }
+
+      /* System log (below) */
+      #log {
+        width: 1092px;
+        max-height: 120px;
+        overflow-y: auto;
+        font-size: 0.65rem;
+        color: #556655;
+        background: #0a140a;
+        padding: 6px;
         border: 1px solid #1a2e1a;
       }
     </style>
@@ -56,7 +133,24 @@
   <body>
     <h1>Sajou — Citadel Dev Playground</h1>
     <div id="scenario-buttons"></div>
-    <div id="app"></div>
+    <div id="resource-bar">
+      <div class="resource resource-gold">
+        <span class="resource-icon">&#x2B50;</span>
+        <span>Gold:</span>
+        <span class="resource-value" id="gold-count">0</span>
+      </div>
+      <div class="resource resource-lumber">
+        <span class="resource-icon">&#x1F332;</span>
+        <span>Lumber:</span>
+        <span class="resource-value" id="lumber-count">0</span>
+      </div>
+    </div>
+    <div id="main-area">
+      <div id="app"></div>
+      <div id="combat-log">
+        <div id="combat-log-title">Combat Log</div>
+      </div>
+    </div>
     <div id="log"></div>
     <script type="module" src="./main.ts"></script>
   </body>

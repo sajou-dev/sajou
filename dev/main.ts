@@ -3,7 +3,7 @@
  *
  * Connects to the emitter WebSocket server on port 9100,
  * receives signals, and pipes them through the choreographer to PixiJS.
- * Scenario buttons let you switch between scenarios at runtime.
+ * Features: scenario switching, combat log, gold/lumber resource counters.
  */
 
 import { Application, Graphics, Text, TextStyle } from "pixi.js";
@@ -32,7 +32,7 @@ function toPerformanceSignal(signal: SignalEnvelope<SignalType>): PerformanceSig
 }
 
 // ---------------------------------------------------------------------------
-// Logging
+// System log (small debug log at the bottom)
 // ---------------------------------------------------------------------------
 
 const logEl = document.getElementById("log")!;
@@ -42,6 +42,92 @@ function log(msg: string): void {
   line.textContent = `[${new Date().toISOString().slice(11, 23)}] ${msg}`;
   logEl.appendChild(line);
   logEl.scrollTop = logEl.scrollHeight;
+}
+
+// ---------------------------------------------------------------------------
+// Combat log (rich signal log panel)
+// ---------------------------------------------------------------------------
+
+const combatLogEl = document.getElementById("combat-log")!;
+const MAX_COMBAT_LOG_ENTRIES = 100;
+let combatLogCount = 0;
+
+/** Format a signal type for display. */
+function formatSignalType(type: string): string {
+  return type.replace(/_/g, " ");
+}
+
+/** Extract a short description from a signal payload. */
+function getSignalDetail(signal: SignalEnvelope<SignalType>): string {
+  const p = signal.payload as Record<string, unknown>;
+  switch (signal.type) {
+    case "task_dispatch":
+      return `${String(p["from"] ?? "?")} -> ${String(p["to"] ?? "?")}`;
+    case "tool_call":
+      return String(p["toolName"] ?? "");
+    case "tool_result":
+      return `${String(p["toolName"] ?? "")} ${p["success"] ? "OK" : "FAIL"}`;
+    case "token_usage":
+      return `P:${String(p["promptTokens"] ?? 0)} C:${String(p["completionTokens"] ?? 0)}`;
+    case "agent_state_change":
+      return `${String(p["from"] ?? "?")} -> ${String(p["to"] ?? "?")}`;
+    case "error":
+      return String(p["message"] ?? "");
+    case "completion":
+      return p["success"] ? "success" : "failed";
+    default:
+      return "";
+  }
+}
+
+/** Add a signal entry to the combat log. */
+function combatLogEntry(signal: SignalEnvelope<SignalType>): void {
+  const entry = document.createElement("div");
+  entry.className = "log-entry";
+
+  const time = new Date(signal.timestamp).toISOString().slice(11, 19);
+  const detail = getSignalDetail(signal);
+
+  entry.innerHTML =
+    `<span class="log-time">${time}</span> ` +
+    `<span class="log-type log-type-${signal.type}">${formatSignalType(signal.type)}</span>` +
+    (detail ? ` <span class="log-detail">${detail}</span>` : "") +
+    (signal.source ? ` <span class="log-source">[${signal.source}]</span>` : "");
+
+  combatLogEl.appendChild(entry);
+  combatLogCount++;
+
+  // Trim old entries
+  if (combatLogCount > MAX_COMBAT_LOG_ENTRIES) {
+    const firstEntry = combatLogEl.querySelector(".log-entry");
+    if (firstEntry) {
+      combatLogEl.removeChild(firstEntry);
+      combatLogCount--;
+    }
+  }
+
+  combatLogEl.scrollTop = combatLogEl.scrollHeight;
+}
+
+// ---------------------------------------------------------------------------
+// Resource counters (gold = prompt tokens, lumber = completion tokens)
+// ---------------------------------------------------------------------------
+
+const goldEl = document.getElementById("gold-count")!;
+const lumberEl = document.getElementById("lumber-count")!;
+let totalGold = 0;
+let totalLumber = 0;
+
+/** Update resource counters from a token_usage signal. */
+function updateResources(signal: SignalEnvelope<SignalType>): void {
+  if (signal.type !== "token_usage") return;
+  const p = signal.payload as Record<string, unknown>;
+  const prompt = typeof p["promptTokens"] === "number" ? p["promptTokens"] : 0;
+  const completion = typeof p["completionTokens"] === "number" ? p["completionTokens"] : 0;
+  totalGold += prompt;
+  totalLumber += completion;
+  goldEl.textContent = totalGold.toLocaleString();
+  lumberEl.textContent = totalLumber.toLocaleString();
 }
 
 // ---------------------------------------------------------------------------
@@ -173,7 +259,17 @@ async function main(): Promise<void> {
   const buttons = createScenarioButtons(btnContainer, switchScenario);
   setActiveButton(buttons, "simple-task");
 
-  // 8. Connect to the emitter server via WebSocket
+  // 8. Handle incoming signal: combat log + resources + choreographer
+  const handleSignal = (signal: SignalEnvelope<SignalType>): void => {
+    combatLogEntry(signal);
+    updateResources(signal);
+    choreographer.handleSignal(
+      toPerformanceSignal(signal),
+      signal.correlationId,
+    );
+  };
+
+  // 9. Connect to the emitter server via WebSocket
   const connect = (): void => {
     log(`Connecting to ${WS_URL}...`);
     ws = new WebSocket(WS_URL);
@@ -197,10 +293,7 @@ async function main(): Promise<void> {
 
         if (isSignalEnvelope(msg)) {
           log(`Signal: ${msg.type} ${msg.correlationId ?? ""}`);
-          choreographer.handleSignal(
-            toPerformanceSignal(msg),
-            msg.correlationId,
-          );
+          handleSignal(msg);
         }
       } catch {
         // Ignore malformed messages
