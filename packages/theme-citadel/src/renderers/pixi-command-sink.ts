@@ -34,9 +34,12 @@ import type { ThemeManifest } from "@sajou/theme-api";
 // Entity visual definitions — Tiny Swords asset pack
 // ---------------------------------------------------------------------------
 
-/** Spritesheet animation with its own PNG file. */
+/** Spritesheet animation definition. */
 interface SpritesheetAnimDef {
-  readonly asset: string;
+  /** Separate PNG file. Omit to use the primary entity asset. */
+  readonly asset?: string;
+  /** Row in the grid for this animation (default 0). */
+  readonly frameRow?: number;
   readonly frameCount: number;
   readonly fps: number;
   readonly loop: boolean;
@@ -52,70 +55,71 @@ interface EntityVisualDef {
   readonly color: number;
   /** Primary asset path (relative to assetBasePath). */
   readonly asset: string;
-  /** Frame size for horizontal spritesheet strips (square frames). */
+  /** Frame size for spritesheet cells (square frames). */
   readonly frameSize?: number;
-  /** Frame count in the primary spritesheet. */
+  /** Frame count in the primary animation. */
   readonly frameCount?: number;
+  /** Row in the grid for the primary animation (default 0). */
+  readonly frameRow?: number;
   /** Frames per second for primary animation. */
   readonly fps?: number;
   /** Whether primary animation loops. */
   readonly loop?: boolean;
-  /** Additional named animations with separate spritesheet files. */
+  /** Source rectangle for static sprites that need cropping. */
+  readonly sourceRect?: { readonly x: number; readonly y: number; readonly w: number; readonly h: number };
+  /** Additional named animations (same file via frameRow, or separate file via asset). */
   readonly animations?: Readonly<Record<string, SpritesheetAnimDef>>;
 }
 
-/** Visual definitions keyed by entity name. */
+/** Visual definitions keyed by entity name (Tiny Swords update-010 pack). */
 const ENTITY_VISUALS: Readonly<Record<string, EntityVisualDef>> = {
   peon: {
     displayWidth: 64,
     displayHeight: 64,
     color: 0x4488ff,
-    asset: "tiny-swords/Units/Blue Units/Pawn/Pawn_Idle.png",
+    asset: "tiny-swords-update-010/Factions/Knights/Troops/Pawn/Blue/Pawn_Blue.png",
     frameSize: 192,
-    frameCount: 8,
-    fps: 6,
+    frameCount: 6,
+    frameRow: 0,
+    fps: 10,
     loop: true,
     animations: {
-      run: {
-        asset: "tiny-swords/Units/Blue Units/Pawn/Pawn_Run.png",
-        frameCount: 6,
-        fps: 10,
-        loop: true,
-      },
+      run: { frameRow: 1, frameCount: 6, fps: 10, loop: true },
     },
   },
   pigeon: {
     displayWidth: 32,
     displayHeight: 32,
     color: 0xffffff,
-    asset: "tiny-swords/Units/Blue Units/Archer/Arrow.png",
+    asset: "tiny-swords-update-010/Factions/Knights/Troops/Archer/Arrow/Arrow.png",
+    sourceRect: { x: 0, y: 0, w: 64, h: 64 },
   },
   forge: {
-    displayWidth: 80,
-    displayHeight: 106,
+    displayWidth: 64,
+    displayHeight: 96,
     color: 0x8b4513,
-    asset: "tiny-swords/Buildings/Blue Buildings/Barracks.png",
+    asset: "tiny-swords-update-010/Factions/Knights/Buildings/House/House_Blue.png",
   },
   oracle: {
     displayWidth: 128,
     displayHeight: 102,
     color: 0x9933cc,
-    asset: "tiny-swords/Buildings/Blue Buildings/Castle.png",
+    asset: "tiny-swords-update-010/Factions/Knights/Buildings/Castle/Castle_Blue.png",
   },
   "gold-coins": {
     displayWidth: 48,
     displayHeight: 48,
     color: 0xffd700,
-    asset: "tiny-swords/Terrain/Resources/Gold/Gold Resource/Gold_Resource.png",
+    asset: "tiny-swords-update-010/Resources/Resources/G_Idle.png",
   },
   explosion: {
     displayWidth: 80,
     displayHeight: 80,
     color: 0xff3300,
-    asset: "tiny-swords/Particle FX/Explosion_01.png",
+    asset: "tiny-swords-update-010/Effects/Explosion/Explosions.png",
     frameSize: 192,
-    frameCount: 8,
-    fps: 16,
+    frameCount: 9,
+    fps: 10,
     loop: false,
   },
 };
@@ -123,9 +127,9 @@ const ENTITY_VISUALS: Readonly<Record<string, EntityVisualDef>> = {
 /** Default visual for unknown entities. */
 const DEFAULT_VISUAL = { displayWidth: 24, displayHeight: 24, color: 0x888888 };
 
-/** Terrain tile asset and extraction coordinates. */
+/** Terrain tile asset and extraction coordinates (update-010 pack). */
 const TERRAIN = {
-  asset: "tiny-swords/Terrain/Tileset/Tilemap_color1.png",
+  asset: "tiny-swords-update-010/Terrain/Ground/Tilemap_Flat.png",
   /** X offset of a clean interior grass tile in the tilemap. */
   tileX: 64,
   /** Y offset of a clean interior grass tile in the tilemap. */
@@ -267,18 +271,21 @@ export class PixiCommandSink implements CommandSink {
         this.loadEntityAsset(name, def, `${base}${def.asset}`),
       );
 
-      // Load additional animation assets
+      // Load additional animation assets from separate files
+      // (same-file animations are handled inside loadEntityAsset)
       if (def.animations) {
         for (const [animName, animDef] of Object.entries(def.animations)) {
-          loadPromises.push(
-            this.loadAnimationAsset(
-              name,
-              animName,
-              animDef,
-              def.frameSize ?? 0,
-              `${base}${animDef.asset}`,
-            ),
-          );
+          if (animDef.asset) {
+            loadPromises.push(
+              this.loadAnimationAsset(
+                name,
+                animName,
+                animDef,
+                def.frameSize ?? 0,
+                `${base}${animDef.asset}`,
+              ),
+            );
+          }
         }
       }
     }
@@ -304,10 +311,30 @@ export class PixiCommandSink implements CommandSink {
       loaded.source.scaleMode = "nearest";
 
       if (def.frameSize && def.frameCount) {
-        // Horizontal spritesheet strip: slice into individual frame textures
-        const frames = this.sliceFrames(loaded, def.frameSize, def.frameCount);
+        // Spritesheet: slice frames from the specified row
+        const row = def.frameRow ?? 0;
+        const frames = this.sliceFrames(loaded, def.frameSize, def.frameCount, row);
         this.getOrCreateMap(this.animFrames, name).set("default", frames);
         this.getOrCreateMap(this.animFps, name).set("default", def.fps ?? 10);
+
+        // Process same-file animations (no separate asset, just a different row)
+        if (def.animations) {
+          for (const [animName, animDef] of Object.entries(def.animations)) {
+            if (!animDef.asset) {
+              const animRow = animDef.frameRow ?? 0;
+              const animFrames = this.sliceFrames(loaded, def.frameSize, animDef.frameCount, animRow);
+              this.getOrCreateMap(this.animFrames, name).set(animName, animFrames);
+              this.getOrCreateMap(this.animFps, name).set(animName, animDef.fps);
+            }
+          }
+        }
+      } else if (def.sourceRect) {
+        // Static sprite with a sub-region crop
+        const cropped = new Texture({
+          source: loaded.source,
+          frame: new Rectangle(def.sourceRect.x, def.sourceRect.y, def.sourceRect.w, def.sourceRect.h),
+        });
+        this.textures.set(name, cropped);
       } else {
         // Static single-frame sprite
         this.textures.set(name, loaded);
@@ -317,7 +344,7 @@ export class PixiCommandSink implements CommandSink {
     }
   }
 
-  /** Load and process an additional animation spritesheet. */
+  /** Load and process an additional animation from a separate file. */
   private async loadAnimationAsset(
     entityName: string,
     animName: string,
@@ -329,7 +356,8 @@ export class PixiCommandSink implements CommandSink {
       const texture = await Assets.load<Texture>(encodeURI(url));
       texture.source.scaleMode = "nearest";
 
-      const frames = this.sliceFrames(texture, frameSize, animDef.frameCount);
+      const row = animDef.frameRow ?? 0;
+      const frames = this.sliceFrames(texture, frameSize, animDef.frameCount, row);
       this.getOrCreateMap(this.animFrames, entityName).set(animName, frames);
       this.getOrCreateMap(this.animFps, entityName).set(animName, animDef.fps);
     } catch {
@@ -337,18 +365,20 @@ export class PixiCommandSink implements CommandSink {
     }
   }
 
-  /** Slice a horizontal spritesheet into individual frame textures. */
+  /** Slice a spritesheet row into individual frame textures. */
   private sliceFrames(
     texture: Texture,
     frameSize: number,
     frameCount: number,
+    row = 0,
   ): Texture[] {
     const frames: Texture[] = [];
+    const y = row * frameSize;
     for (let i = 0; i < frameCount; i++) {
       frames.push(
         new Texture({
           source: texture.source,
-          frame: new Rectangle(i * frameSize, 0, frameSize, frameSize),
+          frame: new Rectangle(i * frameSize, y, frameSize, frameSize),
         }),
       );
     }
