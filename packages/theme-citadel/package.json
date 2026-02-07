@@ -23,6 +23,7 @@
   "dependencies": {
     "@sajou/core": "workspace:*",
     "@sajou/schema": "workspace:*",
-    "@sajou/theme-api": "workspace:*"
+    "@sajou/theme-api": "workspace:*",
+    "pixi.js": "^8.16.0"
   }
 }
