@@ -3,9 +3,9 @@
  *
  * Visual grid that slices a spritesheet by frameWidth/frameHeight, showing
  * each row with an animated mini-preview. Clicking a row auto-fills frameRow
- * and frameCount. Two sliders (Frame W / Frame H) let users find the right
- * cell size visually. Row labels are editable and stored for state-name
- * suggestions.
+ * and frameCount. Number inputs (Frame W / Frame H) let users set the cell
+ * size directly. Row labels are editable and stored for state-name
+ * suggestions. All frames in a row are shown in a scrollable strip.
  *
  * Single-row strips (e.g. 1728x192 = 9 frames) are supported — the explorer
  * shows whenever at least 2 frames exist (cols > 1).
@@ -268,93 +268,73 @@ function render(): void {
   explorerEl.hidden = false;
   explorerEl.innerHTML = "";
 
-  // Header with frameWidth / frameHeight sliders
+  // Header with frameWidth / frameHeight number inputs
   const header = document.createElement("div");
   header.className = "ss-explorer-header";
 
   const title = document.createElement("h4");
   title.textContent = "Spritesheet Explorer";
 
-  // Frame Width slider
-  const widthRow = document.createElement("div");
-  widthRow.className = "ss-explorer-size-row";
+  // Frame W/H inputs row
+  const sizeRow = document.createElement("div");
+  sizeRow.className = "ss-explorer-size-row";
 
   const widthLabel = document.createElement("span");
   widthLabel.className = "label-text";
   widthLabel.textContent = "Frame W";
 
-  const widthSlider = document.createElement("input");
-  widthSlider.type = "range";
-  widthSlider.min = "8";
-  widthSlider.max = String(Math.min(dims.width, 4096));
-  widthSlider.step = "1";
-  widthSlider.value = String(ss.frameWidth);
-  widthSlider.className = "ss-explorer-slider";
+  const widthInput = document.createElement("input");
+  widthInput.type = "number";
+  widthInput.min = "1";
+  widthInput.max = String(Math.min(dims.width, 4096));
+  widthInput.value = String(ss.frameWidth);
+  widthInput.className = "num-input ss-explorer-num";
 
-  const widthValue = document.createElement("span");
-  widthValue.className = "val-display";
-  widthValue.textContent = `${ss.frameWidth}px`;
-
-  widthSlider.addEventListener("input", () => {
-    const newW = Math.max(1, Number(widthSlider.value));
-    widthValue.textContent = `${newW}px`;
+  widthInput.addEventListener("input", () => {
+    const newW = Math.max(1, Number(widthInput.value));
     if (vs.type === "spritesheet") {
       (vs as SpritesheetState).frameWidth = newW;
       updateState({});
     }
   });
 
-  widthRow.appendChild(widthLabel);
-  widthRow.appendChild(widthSlider);
-  widthRow.appendChild(widthValue);
-
-  // Frame Height slider
-  const heightRow = document.createElement("div");
-  heightRow.className = "ss-explorer-size-row";
-
   const heightLabel = document.createElement("span");
   heightLabel.className = "label-text";
   heightLabel.textContent = "Frame H";
 
-  const heightSlider = document.createElement("input");
-  heightSlider.type = "range";
-  heightSlider.min = "8";
-  heightSlider.max = String(Math.min(dims.height, 4096));
-  heightSlider.step = "1";
-  heightSlider.value = String(ss.frameHeight);
-  heightSlider.className = "ss-explorer-slider";
+  const heightInput = document.createElement("input");
+  heightInput.type = "number";
+  heightInput.min = "1";
+  heightInput.max = String(Math.min(dims.height, 4096));
+  heightInput.value = String(ss.frameHeight);
+  heightInput.className = "num-input ss-explorer-num";
 
-  const heightValue = document.createElement("span");
-  heightValue.className = "val-display";
-  heightValue.textContent = `${ss.frameHeight}px`;
-
-  heightSlider.addEventListener("input", () => {
-    const newH = Math.max(1, Number(heightSlider.value));
-    heightValue.textContent = `${newH}px`;
+  heightInput.addEventListener("input", () => {
+    const newH = Math.max(1, Number(heightInput.value));
     if (vs.type === "spritesheet") {
       (vs as SpritesheetState).frameHeight = newH;
       updateState({});
     }
   });
 
-  heightRow.appendChild(heightLabel);
-  heightRow.appendChild(heightSlider);
-  heightRow.appendChild(heightValue);
-
   const dimsInfo = document.createElement("span");
   dimsInfo.className = "ss-explorer-dims";
   dimsInfo.textContent = `${dims.width}\u00D7${dims.height}px \u2022 ${cols}\u00D7${rows} grid`;
 
+  sizeRow.appendChild(widthLabel);
+  sizeRow.appendChild(widthInput);
+  sizeRow.appendChild(heightLabel);
+  sizeRow.appendChild(heightInput);
+  sizeRow.appendChild(dimsInfo);
+
   // Instruction text above the grid
   const helpText = document.createElement("p");
   helpText.className = "ss-explorer-help";
-  helpText.textContent = "Adjust Frame W/H to slice the spritesheet, then click a row to assign it to this state.";
+  helpText.textContent = "Click a row to select it, or click individual frames to pick a sub-range.";
 
   header.appendChild(title);
   header.appendChild(helpText);
-  header.appendChild(widthRow);
-  header.appendChild(heightRow);
-  header.appendChild(dimsInfo);
+  header.appendChild(sizeRow);
   explorerEl.appendChild(header);
 
   // Load the image for canvas drawing
@@ -434,7 +414,7 @@ function render(): void {
     const strip = document.createElement("div");
     strip.className = "ss-explorer-strip";
 
-    for (let c = 0; c < Math.min(nonEmpty, 16); c++) {
+    for (let c = 0; c < nonEmpty; c++) {
       const frameCanvas = document.createElement("canvas");
       frameCanvas.className = "ss-explorer-frame";
       // Highlight selected frames in the current row
@@ -477,13 +457,6 @@ function render(): void {
       });
 
       strip.appendChild(frameCanvas);
-    }
-
-    if (nonEmpty > 16) {
-      const more = document.createElement("span");
-      more.className = "ss-explorer-more";
-      more.textContent = `+${nonEmpty - 16}`;
-      strip.appendChild(more);
     }
 
     // Frame count badge
