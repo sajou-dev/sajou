@@ -298,9 +298,10 @@ export class PixiCommandSink implements CommandSink {
           this.getOrCreateMap(this.animFrames, name).set(stateName, frames);
           this.getOrCreateMap(this.animFps, name).set(stateName, state.fps);
         } else if (state.sourceRect) {
+          const sr = state.sourceRect;
           const cropped = new Texture({
             source: loaded.source,
-            frame: new Rectangle(state.sourceRect.x, state.sourceRect.y, state.sourceRect.w, state.sourceRect.h),
+            frame: new Rectangle(sr.x, sr.y, sr.w, sr.h),
           });
           this.stateTextures.set(`${name}:${stateName}`, cropped);
         } else {
@@ -774,9 +775,8 @@ export class PixiCommandSink implements CommandSink {
       const colorNum = colorStr ? parseInt(colorStr.replace("#", ""), 16) : 0xffffff;
 
       const gfx = new Graphics();
-      gfx.rect(0, 0, 40, 40);
-      gfx.fill(colorNum);
-      gfx.pivot.set(20, 20);
+      gfx.circle(0, 0, 32);
+      gfx.fill({ color: colorNum, alpha: 0.6 });
       gfx.position.set(pos.x, pos.y);
 
       this.app.stage.addChild(gfx);
