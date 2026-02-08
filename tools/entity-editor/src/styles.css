@@ -224,15 +224,6 @@ html, body {
   padding: 0;
 }
 
-.empty-state {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  color: var(--text-muted);
-  font-size: 14px;
-}
-
 .config-section {
   padding: 16px;
 }
@@ -627,6 +618,183 @@ input[type="color"] {
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-muted);
+}
+
+/* --- Onboarding overlay ------------------------------------------------ */
+
+.onboarding-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(4px);
+}
+
+.onboarding-overlay[hidden] {
+  display: none;
+}
+
+.onboarding-panel {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 32px 36px;
+  max-width: 520px;
+  width: 90%;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.onboarding-panel h2 {
+  font-size: 18px;
+  margin-bottom: 4px;
+}
+
+.onboarding-subtitle {
+  color: var(--text-secondary);
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.onboarding-steps {
+  list-style: none;
+  counter-reset: step;
+  padding: 0;
+  margin-bottom: 20px;
+}
+
+.onboarding-steps li {
+  counter-increment: step;
+  display: flex;
+  flex-direction: column;
+  padding: 10px 0 10px 36px;
+  position: relative;
+  border-left: 2px solid var(--border);
+  margin-left: 12px;
+}
+
+.onboarding-steps li::before {
+  content: counter(step);
+  position: absolute;
+  left: -13px;
+  top: 10px;
+  width: 24px;
+  height: 24px;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.onboarding-steps li strong {
+  font-size: 13px;
+  margin-bottom: 2px;
+}
+
+.onboarding-steps li span {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.onboarding-steps kbd {
+  display: inline-block;
+  padding: 1px 5px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.onboarding-remember {
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* --- Validation warnings ----------------------------------------------- */
+
+.validation-warnings {
+  margin-bottom: 12px;
+}
+
+.validation-warnings[hidden] {
+  display: none;
+}
+
+.validation-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(210, 153, 34, 0.1);
+  border: 1px solid var(--warning);
+  border-radius: var(--radius);
+  margin-bottom: 6px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--warning);
+}
+
+.validation-warning .warn-icon {
+  flex-shrink: 0;
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+.validation-error {
+  background: rgba(248, 81, 73, 0.1);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+/* --- Empty state hints ------------------------------------------------- */
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-muted);
+  font-size: 14px;
+  gap: 6px;
+}
+
+.empty-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+.empty-state kbd {
+  display: inline-block;
+  padding: 1px 5px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+/* --- Help button ------------------------------------------------------- */
+
+#btn-help {
+  margin-left: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+#btn-help:hover {
+  color: var(--accent);
 }
 
 /* --- Input file hidden ------------------------------------------------- */
