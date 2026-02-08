@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sajou Entity Editor</title>
+  <link rel="stylesheet" href="/src/styles.css" />
+</head>
+<body>
+  <header id="header">
+    <div class="header-left">
+      <h1>Sajou <span class="header-accent">Entity Editor</span></h1>
+    </div>
+    <div class="header-actions">
+      <button id="btn-import-json" class="btn btn-secondary" title="Import entity-visuals.json">Import JSON</button>
+      <button id="btn-export" class="btn btn-primary" title="Export entity-visuals.json + assets as zip">Export .zip</button>
+    </div>
+  </header>
+
+  <main id="workspace">
+    <!-- Left panel: Entity list -->
+    <aside id="panel-entities" class="panel">
+      <div class="panel-header">
+        <h2>Entities</h2>
+        <button id="btn-add-entity" class="btn btn-icon" title="Add entity">+</button>
+      </div>
+      <ul id="entity-list" class="entity-list"></ul>
+    </aside>
+
+    <!-- Center panel: Entity config + state config + preview -->
+    <section id="panel-config" class="panel">
+      <div id="no-selection" class="empty-state">
+        <p>Select an entity or create one to begin.</p>
+      </div>
+
+      <div id="entity-config" class="config-section" hidden>
+        <div class="config-header">
+          <input id="entity-name" type="text" class="entity-name-input" placeholder="entity-id" spellcheck="false" />
+          <button id="btn-delete-entity" class="btn btn-danger btn-small" title="Delete entity">Delete</button>
+        </div>
+
+        <div class="config-row">
+          <label>
+            <span class="label-text">Width</span>
+            <input id="input-width" type="range" min="8" max="512" value="64" />
+            <span id="val-width" class="val-display">64</span>
+          </label>
+          <label>
+            <span class="label-text">Height</span>
+            <input id="input-height" type="range" min="8" max="512" value="64" />
+            <span id="val-height" class="val-display">64</span>
+          </label>
+          <label>
+            <span class="label-text">Fallback</span>
+            <input id="input-color" type="color" value="#888888" />
+          </label>
+        </div>
+
+        <!-- States section -->
+        <div class="states-section">
+          <div class="states-header">
+            <h3>States</h3>
+            <button id="btn-add-state" class="btn btn-icon btn-small" title="Add state">+</button>
+          </div>
+          <div id="state-tabs" class="state-tabs"></div>
+        </div>
+
+        <!-- State config (shown when a state tab is active) -->
+        <div id="state-config" class="state-config" hidden>
+          <div class="config-row">
+            <label>
+              <span class="label-text">Type</span>
+              <select id="state-type" class="select-input">
+                <option value="static">Static</option>
+                <option value="spritesheet">Spritesheet</option>
+              </select>
+            </label>
+            <label>
+              <span class="label-text">Asset</span>
+              <span id="state-asset-name" class="asset-badge">none</span>
+            </label>
+            <button id="btn-clear-asset" class="btn btn-small btn-secondary" title="Clear asset binding">Clear</button>
+          </div>
+
+          <!-- Spritesheet params (shown when type=spritesheet) -->
+          <div id="spritesheet-params" class="config-row" hidden>
+            <label>
+              <span class="label-text">Frame size</span>
+              <input id="input-frame-size" type="number" min="1" max="1024" value="192" class="num-input" />
+            </label>
+            <label>
+              <span class="label-text">Frames</span>
+              <input id="input-frame-count" type="number" min="1" max="128" value="6" class="num-input" />
+            </label>
+            <label>
+              <span class="label-text">Row</span>
+              <input id="input-frame-row" type="number" min="0" max="64" value="0" class="num-input" />
+            </label>
+            <label>
+              <span class="label-text">FPS</span>
+              <input id="input-fps" type="number" min="1" max="120" value="10" class="num-input" />
+            </label>
+            <label class="checkbox-label">
+              <input id="input-loop" type="checkbox" checked />
+              <span class="label-text">Loop</span>
+            </label>
+          </div>
+
+          <!-- Source rect params (shown when type=static) -->
+          <div id="source-rect-params" hidden>
+            <label class="checkbox-label">
+              <input id="input-use-source-rect" type="checkbox" />
+              <span class="label-text">Crop (sourceRect)</span>
+            </label>
+            <div id="source-rect-fields" class="config-row" hidden>
+              <label>
+                <span class="label-text">X</span>
+                <input id="input-sr-x" type="number" min="0" max="4096" value="0" class="num-input" />
+              </label>
+              <label>
+                <span class="label-text">Y</span>
+                <input id="input-sr-y" type="number" min="0" max="4096" value="0" class="num-input" />
+              </label>
+              <label>
+                <span class="label-text">W</span>
+                <input id="input-sr-w" type="number" min="1" max="4096" value="64" class="num-input" />
+              </label>
+              <label>
+                <span class="label-text">H</span>
+                <input id="input-sr-h" type="number" min="1" max="4096" value="64" class="num-input" />
+              </label>
+            </div>
+          </div>
+
+          <!-- Preview canvas -->
+          <div class="preview-section">
+            <h4>Preview</h4>
+            <div id="preview-container" class="preview-container"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Right panel: Asset browser -->
+    <aside id="panel-assets" class="panel">
+      <div class="panel-header">
+        <h2>Assets</h2>
+        <button id="btn-pick-files" class="btn btn-icon btn-small" title="Open file picker">Browse</button>
+      </div>
+      <div id="asset-drop-zone" class="drop-zone">
+        <p>Drop asset folder here</p>
+        <p class="drop-hint">or click Browse</p>
+      </div>
+      <div id="asset-tree" class="asset-tree"></div>
+    </aside>
+  </main>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
