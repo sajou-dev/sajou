@@ -56,16 +56,39 @@
   <!-- ================================================================== -->
   <section id="section-assets" class="tab-section" hidden>
     <div id="assets-tab-content" class="assets-tab">
+      <!-- Toolbar -->
       <div class="assets-toolbar">
         <input id="assets-search" type="text" class="search-input" placeholder="Search assets..." spellcheck="false" />
-        <button id="btn-assets-pick" class="btn btn-secondary btn-small" title="Open file picker to select an asset folder">Browse</button>
+        <select id="assets-category-filter" class="assets-select" title="Filter by category">
+          <option value="">All</option>
+        </select>
+        <div class="assets-toolbar-spacer"></div>
+        <input id="assets-thumb-size" type="range" min="32" max="160" value="64"
+               class="thumb-slider" title="Thumbnail size" />
+        <button id="assets-view-grid" class="btn btn-icon btn-small active" title="Grid view">&#9638;</button>
+        <button id="assets-view-list" class="btn btn-icon btn-small" title="List view">&#9776;</button>
+        <button id="btn-assets-pick" class="btn btn-secondary btn-small">Import</button>
       </div>
-      <div id="assets-drop-zone" class="drop-zone">
-        <p>Drop asset folder here</p>
-        <p class="drop-hint">or click Browse to import sprites</p>
-        <p class="drop-hint">Supports PNG, SVG, JPG, WebP</p>
+
+      <!-- Category bar (pills for quick filtering + drop targets) -->
+      <div id="assets-category-bar" class="assets-category-bar" hidden></div>
+
+      <!-- Selection action bar (visible when multi-selecting) -->
+      <div id="assets-selection-bar" class="assets-selection-bar" hidden></div>
+
+      <!-- Body: browser + detail panel -->
+      <div class="assets-body">
+        <div class="assets-browser">
+          <div id="assets-drop-zone" class="drop-zone">
+            <p>Drop asset folder here</p>
+            <p class="drop-hint">or click Import to add sprites</p>
+            <p class="drop-hint">Supports PNG, SVG, JPG, WebP</p>
+          </div>
+          <div id="assets-grid" class="assets-grid"></div>
+          <div id="assets-list" class="assets-list" hidden></div>
+        </div>
+        <aside id="assets-detail" class="assets-detail" hidden></aside>
       </div>
-      <div id="assets-grid" class="assets-grid"></div>
     </div>
   </section>
 

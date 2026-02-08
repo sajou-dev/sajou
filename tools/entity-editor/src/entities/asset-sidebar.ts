@@ -67,6 +67,7 @@ async function scanDirectory(
         name: child.name,
         objectUrl: URL.createObjectURL(file),
         file,
+        category: null,
       });
     } else if (child.isDirectory) {
       const subPath = basePath ? `${basePath}/${child.name}` : child.name;
@@ -95,6 +96,7 @@ function scanFileList(files: FileList): AssetFile[] {
       name: file.name,
       objectUrl: URL.createObjectURL(file),
       file,
+      category: null,
     });
   }
   return results;
@@ -279,6 +281,7 @@ async function handleDrop(e: DragEvent): Promise<void> {
         name: entry.name,
         objectUrl: URL.createObjectURL(file),
         file,
+        category: null,
       });
     }
   }

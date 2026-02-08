@@ -64,6 +64,8 @@ export interface AssetFile {
   objectUrl: string;
   /** The original File reference for zip export. */
   file: File;
+  /** User-assigned category (null = uncategorized). */
+  category: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -84,6 +86,14 @@ export interface AppState {
   assets: AssetFile[];
   /** Currently highlighted asset path in the asset browser. */
   selectedAssetPath: string | null;
+  /** User-defined asset categories. */
+  assetCategories: string[];
+  /** Active category filter (null = show all). */
+  assetCategoryFilter: string | null;
+  /** Asset browser view mode. */
+  assetViewMode: "grid" | "list";
+  /** Thumbnail size in pixels. */
+  assetThumbSize: number;
   /** Scene layout state. */
   scene: SceneState;
   /** Transient scene editor state. */
@@ -121,6 +131,10 @@ export function createInitialState(): AppState {
     selectedStateName: null,
     assets: [],
     selectedAssetPath: null,
+    assetCategories: [],
+    assetCategoryFilter: null,
+    assetViewMode: "grid",
+    assetThumbSize: 64,
     scene: createDefaultSceneState(),
     sceneEditor: createDefaultSceneEditorState(),
   };

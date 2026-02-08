@@ -133,7 +133,19 @@ function collectReferencedAssets(): Set<string> {
   return paths;
 }
 
-/** Export entity-visuals.json + scene-layout.json + referenced assets as a zip download. */
+/** Generate asset-categories.json for the zip. */
+function generateAssetCategoriesJson(): string {
+  const { assetCategories, assets } = getState();
+  const assignments: Record<string, string> = {};
+  for (const asset of assets) {
+    if (asset.category) {
+      assignments[asset.path] = asset.category;
+    }
+  }
+  return JSON.stringify({ categories: assetCategories, assignments }, null, 2);
+}
+
+/** Export entity-visuals.json + scene-layout.json + asset-categories.json + referenced assets as a zip download. */
 export async function exportZip(): Promise<void> {
   const zip = new JSZip();
 
@@ -145,6 +157,10 @@ export async function exportZip(): Promise<void> {
   const { scene } = getState();
   const sceneJson = generateSceneJson(scene);
   zip.file("scene-layout.json", sceneJson);
+
+  // Add asset categories JSON
+  const categoriesJson = generateAssetCategoriesJson();
+  zip.file("asset-categories.json", categoriesJson);
 
   // Add referenced assets
   const referencedPaths = collectReferencedAssets();
@@ -183,6 +199,17 @@ export async function importZip(file: File): Promise<void> {
     // Extract JSON configs
     const entityFile = zip.file("entity-visuals.json");
     const sceneFile = zip.file("scene-layout.json");
+    const categoriesFile = zip.file("asset-categories.json");
+
+    // Parse categories first so we can assign them during asset creation
+    let categories: string[] = [];
+    let assignments: Record<string, string> = {};
+    if (categoriesFile) {
+      const catText = await categoriesFile.async("string");
+      const catParsed = JSON.parse(catText) as Record<string, unknown>;
+      categories = (catParsed["categories"] as string[] | undefined) ?? [];
+      assignments = (catParsed["assignments"] as Record<string, string> | undefined) ?? {};
+    }
 
     // Extract asset files (everything that isn't a .json)
     const assetFiles: AssetFile[] = [];
@@ -203,6 +230,7 @@ export async function importZip(file: File): Promise<void> {
             name,
             objectUrl,
             file: assetFileObj,
+            category: assignments[relativePath] ?? null,
           });
         }),
       );
@@ -219,7 +247,12 @@ export async function importZip(file: File): Promise<void> {
         merged.push(a);
       }
     }
-    updateState({ assets: merged });
+
+    // Merge categories
+    const existingCategories = getState().assetCategories;
+    const allCategories = [...new Set([...existingCategories, ...categories])];
+
+    updateState({ assets: merged, assetCategories: allCategories });
 
     // Import entity visuals
     if (entityFile) {
