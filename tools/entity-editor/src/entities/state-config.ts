@@ -32,6 +32,7 @@ const inputFrameWidth = document.getElementById("input-frame-width") as HTMLInpu
 const inputFrameHeight = document.getElementById("input-frame-height") as HTMLInputElement;
 const inputFrameCount = document.getElementById("input-frame-count") as HTMLInputElement;
 const inputFrameRow = document.getElementById("input-frame-row") as HTMLInputElement;
+const inputFrameStart = document.getElementById("input-frame-start") as HTMLInputElement;
 const inputFps = document.getElementById("input-fps") as HTMLInputElement;
 const inputLoop = document.getElementById("input-loop") as HTMLInputElement;
 
@@ -107,6 +108,19 @@ function validateAndShowWarnings(): void {
       if (ss.frameCount > expectedCols) {
         warnings.push({
           message: `frameCount is ${ss.frameCount} but the image is ${dims.width}px wide with frameWidth ${ss.frameWidth}px, so only ${expectedCols} columns fit. Reduce frameCount to ${expectedCols}.`,
+          isError: true,
+        });
+      }
+
+      // Check frameStart vs available columns
+      if (ss.frameStart >= expectedCols) {
+        warnings.push({
+          message: `frameStart is ${ss.frameStart} but only ${expectedCols} columns exist (0-${expectedCols - 1}).`,
+          isError: true,
+        });
+      } else if (ss.frameStart + ss.frameCount > expectedCols) {
+        warnings.push({
+          message: `frameStart(${ss.frameStart}) + frameCount(${ss.frameCount}) = ${ss.frameStart + ss.frameCount} exceeds available columns (${expectedCols}).`,
           isError: true,
         });
       }
@@ -213,6 +227,7 @@ function render(): void {
     inputFrameHeight.value = String(ss.frameHeight);
     inputFrameCount.value = String(ss.frameCount);
     inputFrameRow.value = String(ss.frameRow);
+    inputFrameStart.value = String(ss.frameStart);
     inputFps.value = String(ss.fps);
     inputLoop.checked = ss.loop;
   } else {
@@ -272,6 +287,7 @@ export function initStateConfig(): void {
           frameHeight: 192,
           frameCount: 6,
           frameRow: 0,
+          frameStart: 0,
           fps: 10,
           loop: true,
         };
@@ -325,6 +341,15 @@ export function initStateConfig(): void {
       const vs = getSelectedState();
       if (vs?.type === "spritesheet") {
         (vs as SpritesheetState).frameRow = Math.max(0, Number(inputFrameRow.value));
+      }
+    });
+  });
+
+  inputFrameStart.addEventListener("input", () => {
+    mutateCurrentState(() => {
+      const vs = getSelectedState();
+      if (vs?.type === "spritesheet") {
+        (vs as SpritesheetState).frameStart = Math.max(0, Number(inputFrameStart.value));
       }
     });
   });

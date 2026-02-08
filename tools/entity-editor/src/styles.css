@@ -1289,6 +1289,18 @@ input[type="color"] {
   border-radius: 2px;
   background: var(--bg-tertiary);
   image-rendering: pixelated;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: border-color 0.1s;
+}
+
+.ss-explorer-frame:hover {
+  border-color: var(--text-muted);
+}
+
+.ss-explorer-frame.selected-frame {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
 }
 
 .ss-explorer-more {

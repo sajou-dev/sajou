@@ -76,7 +76,7 @@ function stopAnimations(): void {
 
 /**
  * Animate a single row in a small canvas.
- * Draws frames 0..frameCount cycling at ~fps.
+ * Draws frames from frameStart..frameStart+frameCount cycling at ~fps.
  */
 function animateRow(
   canvas: HTMLCanvasElement,
@@ -86,6 +86,7 @@ function animateRow(
   row: number,
   frameCount: number,
   fps: number,
+  frameStart = 0,
 ): void {
   const ctx = canvas.getContext("2d")!;
   let frame = 0;
@@ -103,7 +104,7 @@ function animateRow(
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(
       img,
-      frame * frameWidth, row * frameHeight, frameWidth, frameHeight,
+      (frameStart + frame) * frameWidth, row * frameHeight, frameWidth, frameHeight,
       0, 0, canvas.width, canvas.height,
     );
     frame = (frame + 1) % frameCount;
@@ -259,7 +260,7 @@ function render(): void {
 
   // Build a render key to skip needless DOM rebuilds
   const state = getState();
-  const renderKey = `${ss.asset}|${ss.frameWidth}|${ss.frameHeight}|${ss.frameRow}|${state.selectedEntityId}|${state.selectedStateName}`;
+  const renderKey = `${ss.asset}|${ss.frameWidth}|${ss.frameHeight}|${ss.frameRow}|${ss.frameStart}|${ss.frameCount}|${state.selectedEntityId}|${state.selectedStateName}`;
   if (renderKey === lastRenderKey) return;
   lastRenderKey = renderKey;
 
@@ -424,15 +425,22 @@ function render(): void {
     previewCanvas.width = thumbW;
     previewCanvas.height = cappedH;
 
-    animateRow(previewCanvas, img, ss.frameWidth, ss.frameHeight, r, nonEmpty, ss.fps || 10);
+    // For the selected row, animate only the selected sub-range; otherwise full row
+    const previewStart = r === ss.frameRow ? ss.frameStart : 0;
+    const previewCount = r === ss.frameRow ? ss.frameCount : nonEmpty;
+    animateRow(previewCanvas, img, ss.frameWidth, ss.frameHeight, r, previewCount, ss.fps || 10, previewStart);
 
-    // Frame strip: show individual frames as small thumbnails
+    // Frame strip: show individual frames as small clickable thumbnails
     const strip = document.createElement("div");
     strip.className = "ss-explorer-strip";
 
     for (let c = 0; c < Math.min(nonEmpty, 16); c++) {
       const frameCanvas = document.createElement("canvas");
       frameCanvas.className = "ss-explorer-frame";
+      // Highlight selected frames in the current row
+      if (r === ss.frameRow && c >= ss.frameStart && c < ss.frameStart + ss.frameCount) {
+        frameCanvas.classList.add("selected-frame");
+      }
       const fThumbW = 28;
       const fThumbH = Math.min(Math.round(28 * ss.frameHeight / ss.frameWidth), 48);
       frameCanvas.width = fThumbW;
@@ -444,6 +452,30 @@ function render(): void {
         c * ss.frameWidth, r * ss.frameHeight, ss.frameWidth, ss.frameHeight,
         0, 0, fThumbW, fThumbH,
       );
+
+      // Click: set frameStart to this column, frameCount=1 (single frame)
+      // Shift+click: extend range from current frameStart to clicked column
+      const col = c;
+      const row = r;
+      frameCanvas.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (vs.type !== "spritesheet") return;
+        const ssState = vs as SpritesheetState;
+        ssState.frameRow = row;
+
+        if (e.shiftKey && row === ss.frameRow) {
+          // Extend range: from min(frameStart, col) to max
+          const rangeStart = Math.min(ssState.frameStart, col);
+          const rangeEnd = Math.max(ssState.frameStart + ssState.frameCount - 1, col);
+          ssState.frameStart = rangeStart;
+          ssState.frameCount = rangeEnd - rangeStart + 1;
+        } else {
+          ssState.frameStart = col;
+          ssState.frameCount = 1;
+        }
+        updateState({});
+      });
+
       strip.appendChild(frameCanvas);
     }
 
@@ -459,11 +491,12 @@ function render(): void {
     countBadge.className = "ss-explorer-count";
     countBadge.textContent = `${nonEmpty}f`;
 
-    // Click to select this row
+    // Click to select this row (full row, frameStart reset to 0)
     rowEl.addEventListener("click", () => {
       if (vs.type !== "spritesheet") return;
       const ssState = vs as SpritesheetState;
       ssState.frameRow = r;
+      ssState.frameStart = 0;
       ssState.frameCount = nonEmpty;
       updateState({});
     });
@@ -482,10 +515,14 @@ function render(): void {
   footer.className = "ss-explorer-footer";
 
   if (ss.frameRow >= 0 && ss.frameRow < rows) {
-    const rowFrames = countNonEmptyFrames(img, ss.frameWidth, ss.frameHeight, ss.frameRow, cols);
     const info = document.createElement("p");
     info.className = "ss-explorer-info";
-    info.textContent = `Row ${ss.frameRow} selected \u2014 ${rowFrames} frames at ${ss.fps}fps. Add more states (+) to use other rows (walk, sit, etc.)`;
+    if (ss.frameCount === 1) {
+      info.textContent = `Row ${ss.frameRow}, frame ${ss.frameStart} selected (static). Click another frame or Shift+click to select a range.`;
+    } else {
+      const endFrame = ss.frameStart + ss.frameCount - 1;
+      info.textContent = `Row ${ss.frameRow}, frames ${ss.frameStart}\u2013${endFrame} selected (${ss.frameCount} frames at ${ss.fps}fps). Shift+click to adjust range.`;
+    }
     footer.appendChild(info);
   }
 

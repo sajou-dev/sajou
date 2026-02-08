@@ -101,6 +101,7 @@ function sliceFrames(
   frameHeight: number,
   frameCount: number,
   frameRow: number,
+  frameStart = 0,
 ): Texture[] {
   const frames: Texture[] = [];
   const y = frameRow * frameHeight;
@@ -108,7 +109,7 @@ function sliceFrames(
     frames.push(
       new Texture({
         source: texture.source,
-        frame: new Rectangle(i * frameWidth, y, frameWidth, frameHeight),
+        frame: new Rectangle((frameStart + i) * frameWidth, y, frameWidth, frameHeight),
       }),
     );
   }
@@ -147,7 +148,7 @@ async function renderPreview(): Promise<void> {
     assetKey = "empty";
   } else if (visualState.type === "spritesheet") {
     const ss = visualState as SpritesheetState;
-    assetKey = `${state.selectedEntityId}|${state.selectedStateName}|ss|${ss.asset}|${ss.frameWidth}|${ss.frameHeight}|${ss.frameCount}|${ss.frameRow}|${ss.fps}`;
+    assetKey = `${state.selectedEntityId}|${state.selectedStateName}|ss|${ss.asset}|${ss.frameWidth}|${ss.frameHeight}|${ss.frameCount}|${ss.frameRow}|${ss.frameStart}|${ss.fps}`;
   } else {
     const st = visualState as StaticState;
     const sr = st.sourceRect;
@@ -173,7 +174,7 @@ async function renderPreview(): Promise<void> {
 
   if (visualState.type === "spritesheet") {
     const ss = visualState as SpritesheetState;
-    const frames = sliceFrames(texture, ss.frameWidth, ss.frameHeight, ss.frameCount, ss.frameRow);
+    const frames = sliceFrames(texture, ss.frameWidth, ss.frameHeight, ss.frameCount, ss.frameRow, ss.frameStart);
     if (frames.length === 0) return;
 
     const anim = new AnimatedSprite(frames);

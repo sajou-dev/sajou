@@ -29,6 +29,9 @@ function stateToJson(state: VisualState): Record<string, unknown> {
     if (state.frameRow !== 0) {
       obj["frameRow"] = state.frameRow;
     }
+    if (state.frameStart) {
+      obj["frameStart"] = state.frameStart;
+    }
     if (!state.loop) {
       obj["loop"] = false;
     }
@@ -209,6 +212,7 @@ export function importJson(jsonText: string): void {
               frameHeight: Number(rawState["frameHeight"] ?? legacySize ?? 192),
               frameCount: Number(rawState["frameCount"] ?? 6),
               frameRow: Number(rawState["frameRow"] ?? 0),
+              frameStart: Number(rawState["frameStart"] ?? 0),
               fps: Number(rawState["fps"] ?? 10),
               loop: rawState["loop"] !== false,
             };

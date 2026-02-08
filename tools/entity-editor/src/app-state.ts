@@ -38,6 +38,7 @@ export interface SpritesheetState {
   frameHeight: number;
   frameCount: number;
   frameRow: number;
+  frameStart: number;
   fps: number;
   loop: boolean;
 }
