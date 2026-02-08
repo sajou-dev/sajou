@@ -5,6 +5,7 @@
     { "path": "packages/core" },
     { "path": "packages/theme-api" },
     { "path": "packages/theme-citadel" },
+    { "path": "packages/theme-office" },
     { "path": "packages/emitter" }
   ]
 }

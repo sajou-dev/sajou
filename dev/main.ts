@@ -1,9 +1,10 @@
 /**
- * Sajou Dev Playground — live visual playground.
+ * Sajou Dev Playground — live visual playground with theme switching.
  *
  * Connects to the emitter WebSocket server on port 9100,
  * receives signals, and pipes them through the choreographer to PixiJS.
- * Features: scenario switching, combat log, gold/lumber resource counters.
+ * Features: theme switching (Citadel / Office), scenario switching,
+ * combat log, gold/lumber resource counters.
  */
 
 import { Application, Graphics, Text, TextStyle } from "pixi.js";
@@ -11,14 +12,68 @@ import {
   Choreographer,
   BrowserClock,
 } from "@sajou/core";
-import type { PerformanceSignal } from "@sajou/core";
-import type { SignalEnvelope, SignalType } from "@sajou/schema";
+import type { PerformanceSignal, ChoreographyDefinition } from "@sajou/core";
+import type { SignalEnvelope, SignalType, EntityVisualConfig } from "@sajou/schema";
+import type { ThemeManifest } from "@sajou/theme-api";
 import {
   citadelManifest,
   citadelChoreographies,
   citadelEntityVisuals,
-  PixiCommandSink,
+  PixiCommandSink as CitadelPixiCommandSink,
 } from "@sajou/theme-citadel";
+import {
+  officeManifest,
+  officeChoreographies,
+  officeEntityVisuals,
+  PixiCommandSink as OfficePixiCommandSink,
+} from "@sajou/theme-office";
+
+// ---------------------------------------------------------------------------
+// Theme configuration
+// ---------------------------------------------------------------------------
+
+interface ThemeConfig {
+  readonly id: string;
+  readonly name: string;
+  readonly manifest: ThemeManifest;
+  readonly entityVisuals: EntityVisualConfig;
+  readonly choreographies: readonly ChoreographyDefinition[];
+  readonly assetBasePath: string;
+  readonly bgColor: number;
+  /** Entity + position pairs to pre-spawn when the scene loads. */
+  readonly preSpawns: readonly { entity: string; position: string }[];
+}
+
+const THEMES: readonly ThemeConfig[] = [
+  {
+    id: "citadel",
+    name: "Citadel",
+    manifest: citadelManifest,
+    entityVisuals: citadelEntityVisuals,
+    choreographies: citadelChoreographies,
+    assetBasePath: "/citadel-assets/",
+    bgColor: 0x3a7a2a,
+    preSpawns: [
+      { entity: "oracle", position: "oracle" },
+      { entity: "forge", position: "forgeLeft" },
+      { entity: "peon", position: "spawnPoint" },
+    ],
+  },
+  {
+    id: "office",
+    name: "Office",
+    manifest: officeManifest,
+    entityVisuals: officeEntityVisuals,
+    choreographies: officeChoreographies,
+    assetBasePath: "/office-assets/",
+    bgColor: 0x8899aa,
+    preSpawns: [
+      { entity: "manager-desk", position: "managerDesk" },
+      { entity: "server-rack", position: "serverLeft" },
+      { entity: "worker", position: "entrance" },
+    ],
+  },
+];
 
 // ---------------------------------------------------------------------------
 // Signal bridge
@@ -184,35 +239,52 @@ function setActiveButton(
 }
 
 // ---------------------------------------------------------------------------
-// Main
+// Theme selector buttons
 // ---------------------------------------------------------------------------
 
-async function main(): Promise<void> {
-  log("Initializing PixiJS...");
+function createThemeButtons(
+  container: HTMLElement,
+  onSwitch: (theme: ThemeConfig) => void,
+): Map<string, HTMLButtonElement> {
+  const buttons = new Map<string, HTMLButtonElement>();
+  for (const theme of THEMES) {
+    const btn = document.createElement("button");
+    btn.textContent = theme.name;
+    btn.className = "theme-btn";
+    btn.addEventListener("click", () => onSwitch(theme));
+    container.appendChild(btn);
+    buttons.set(theme.id, btn);
+  }
+  return buttons;
+}
 
-  // 1. Create PixiJS Application
+// ---------------------------------------------------------------------------
+// Scene initialization for a theme
+// ---------------------------------------------------------------------------
+
+interface ActiveScene {
+  readonly app: Application;
+  readonly choreographer: Choreographer;
+  readonly themeConfig: ThemeConfig;
+}
+
+async function initScene(themeConfig: ThemeConfig): Promise<ActiveScene> {
   const app = new Application();
   await app.init({
-    width: citadelManifest.layout.sceneWidth,
-    height: citadelManifest.layout.sceneHeight,
-    background: 0x3a7a2a,
+    width: themeConfig.manifest.layout.sceneWidth,
+    height: themeConfig.manifest.layout.sceneHeight,
+    background: themeConfig.bgColor,
     antialias: true,
   });
 
-  const appEl = document.getElementById("app");
-  if (!appEl) throw new Error("Missing #app element");
-  appEl.appendChild(app.canvas);
-
-  log("PixiJS ready. Drawing scene layout...");
-
-  // 2. Draw layout position markers
+  // Draw layout position markers
   const labelStyle = new TextStyle({
     fontFamily: "monospace",
     fontSize: 10,
     fill: 0x5a8a5a,
   });
 
-  for (const [name, pos] of Object.entries(citadelManifest.layout.positions)) {
+  for (const [name, pos] of Object.entries(themeConfig.manifest.layout.positions)) {
     const marker = new Graphics();
     marker.circle(0, 0, 4);
     marker.fill(0x3a6a3a);
@@ -224,60 +296,119 @@ async function main(): Promise<void> {
     app.stage.addChild(label);
   }
 
-  // 3. Create the PixiJS command sink and preload sprite assets
-  const sink = new PixiCommandSink({
-    app,
-    manifest: citadelManifest,
-    entityVisuals: citadelEntityVisuals,
-  });
-  log("Loading sprite assets...");
-  await sink.init("/citadel-assets/");
-  log("Assets loaded.");
+  // Create the PixiJS command sink based on theme
+  let sink: import("@sajou/core").CommandSink;
 
-  // 4. Pre-spawn static entities
-  sink.preSpawn("oracle", "oracle");
-  sink.preSpawn("forge", "forgeLeft");
-  sink.preSpawn("peon", "spawnPoint");
+  if (themeConfig.id === "office") {
+    const officeSink = new OfficePixiCommandSink({
+      app,
+      manifest: themeConfig.manifest,
+      entityVisuals: themeConfig.entityVisuals,
+    });
+    log("Loading Office sprite assets...");
+    await officeSink.init(themeConfig.assetBasePath);
+    log("Office assets loaded.");
 
-  log("Scene ready. Starting choreographer...");
+    // Pre-spawn static entities
+    for (const { entity, position } of themeConfig.preSpawns) {
+      officeSink.preSpawn(entity, position);
+    }
+    sink = officeSink;
+  } else {
+    const citadelSink = new CitadelPixiCommandSink({
+      app,
+      manifest: themeConfig.manifest,
+      entityVisuals: themeConfig.entityVisuals,
+    });
+    log("Loading Citadel sprite assets...");
+    await citadelSink.init(themeConfig.assetBasePath);
+    log("Citadel assets loaded.");
 
-  // 5. Create BrowserClock + Choreographer
+    // Pre-spawn static entities
+    for (const { entity, position } of themeConfig.preSpawns) {
+      citadelSink.preSpawn(entity, position);
+    }
+    sink = citadelSink;
+  }
+
+  // Create BrowserClock + Choreographer
   const clock = new BrowserClock();
   const choreographer = new Choreographer({ clock, sink });
 
-  // 6. Register Citadel choreographies
-  for (const choreo of citadelChoreographies) {
+  // Register choreographies
+  for (const choreo of themeConfig.choreographies) {
     choreographer.register(choreo);
   }
 
-  log(`Registered ${citadelChoreographies.length} choreographies.`);
+  log(`Registered ${String(themeConfig.choreographies.length)} choreographies for ${themeConfig.name}.`);
 
-  // 7. Scenario selector buttons
+  return { app, choreographer, themeConfig };
+}
+
+// ---------------------------------------------------------------------------
+// Main
+// ---------------------------------------------------------------------------
+
+async function main(): Promise<void> {
+  log("Initializing Sajou Dev Playground...");
+
+  const appEl = document.getElementById("app")!;
+  const themeSelectorEl = document.getElementById("theme-selector")!;
   const btnContainer = document.getElementById("scenario-buttons")!;
+
+  // Track active scene
+  let activeScene: ActiveScene | null = null;
   let ws: WebSocket | null = null;
 
+  // Theme switching
+  const switchTheme = async (themeConfig: ThemeConfig): Promise<void> => {
+    log(`Switching to theme: ${themeConfig.name}...`);
+
+    // Tear down old scene
+    if (activeScene) {
+      activeScene.choreographer.dispose();
+      appEl.innerHTML = "";
+      activeScene.app.destroy(true);
+      activeScene = null;
+    }
+
+    // Initialize new scene
+    activeScene = await initScene(themeConfig);
+    appEl.appendChild(activeScene.app.canvas);
+    setActiveButton(themeButtons, themeConfig.id);
+
+    log(`Theme ${themeConfig.name} ready.`);
+  };
+
+  const themeButtons = createThemeButtons(themeSelectorEl, (theme) => {
+    switchTheme(theme).catch((err) => log(`Theme switch error: ${String(err)}`));
+  });
+
+  // Scenario switching
   const switchScenario = (name: string): void => {
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ command: "switch", scenario: name }));
       log(`Switching to scenario: ${name}`);
-      setActiveButton(buttons, name);
+      setActiveButton(scenarioButtons, name);
     }
   };
 
-  const buttons = createScenarioButtons(btnContainer, switchScenario);
-  setActiveButton(buttons, "simple-task");
+  const scenarioButtons = createScenarioButtons(btnContainer, switchScenario);
+  setActiveButton(scenarioButtons, "simple-task");
 
-  // 8. Handle incoming signal: combat log + resources + choreographer
+  // Handle incoming signal: combat log + resources + choreographer
   const handleSignal = (signal: SignalEnvelope<SignalType>): void => {
     combatLogEntry(signal);
     updateResources(signal);
-    choreographer.handleSignal(
-      toPerformanceSignal(signal),
-      signal.correlationId,
-    );
+    if (activeScene) {
+      activeScene.choreographer.handleSignal(
+        toPerformanceSignal(signal),
+        signal.correlationId,
+      );
+    }
   };
 
-  // 9. Connect to the emitter server via WebSocket
+  // Connect to the emitter server via WebSocket
   const connect = (): void => {
     log(`Connecting to ${WS_URL}...`);
     ws = new WebSocket(WS_URL);
@@ -318,6 +449,8 @@ async function main(): Promise<void> {
     });
   };
 
+  // Start with Citadel theme (default)
+  await switchTheme(THEMES[0]!);
   connect();
 }
 
