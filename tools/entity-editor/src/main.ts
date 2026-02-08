@@ -6,7 +6,7 @@
  */
 
 import { initTabController } from "./tab-controller.js";
-import { initAssetBrowser } from "./asset-browser.js";
+import { initAssetsTab } from "./assets/assets-tab.js";
 import { initEntitiesTab } from "./entities/entities-tab.js";
 import { exportZip, importJson } from "./exporter.js";
 
@@ -101,5 +101,5 @@ jsonInput.addEventListener("change", () => {
 // ---------------------------------------------------------------------------
 
 initTabController();
-initAssetBrowser();
+initAssetsTab();
 initEntitiesTab();

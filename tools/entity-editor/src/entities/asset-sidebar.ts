@@ -1,17 +1,17 @@
 /**
- * Asset browser module.
+ * Asset sidebar module (entities tab right panel).
  *
- * Handles drag & drop of asset folders, file picker, recursive scanning
- * for PNG/SVG files, and displays a file tree with thumbnails.
- * Clicking an asset selects it for binding to an entity state.
+ * Compact tree view of imported assets. Handles drag & drop of asset
+ * folders, file picker, and recursive scanning for image files.
+ * Clicking an asset binds it to the currently selected entity state.
  */
 
 import {
   getState,
   updateState,
   subscribe,
-} from "./app-state.js";
-import type { AssetFile } from "./app-state.js";
+} from "../app-state.js";
+import type { AssetFile } from "../app-state.js";
 
 // ---------------------------------------------------------------------------
 // DOM references
@@ -296,8 +296,8 @@ async function handleDrop(e: DragEvent): Promise<void> {
 // Init
 // ---------------------------------------------------------------------------
 
-/** Initialize the asset browser module. */
-export function initAssetBrowser(): void {
+/** Initialize the asset sidebar module. */
+export function initAssetSidebar(): void {
   // Drag & drop
   dropZone.addEventListener("dragover", (e) => {
     e.preventDefault();
