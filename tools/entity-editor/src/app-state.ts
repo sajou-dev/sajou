@@ -1,9 +1,15 @@
 /**
- * Shared application state for the entity editor.
+ * Shared application state for the theme editor.
  *
  * Simple observable state — modules subscribe to changes and the UI
  * re-renders when the state updates. No framework needed.
  */
+
+import type {
+  ActiveTab,
+  SceneState,
+  SceneEditorState,
+} from "./types.js";
 
 // ---------------------------------------------------------------------------
 // Types matching @sajou/schema entity-visual format
@@ -64,6 +70,8 @@ export interface AssetFile {
 
 /** The entire editor state. */
 export interface AppState {
+  /** Currently active tab. */
+  activeTab: ActiveTab;
   /** All entities, keyed by entity ID. */
   entities: Record<string, EntityEntry>;
   /** Currently selected entity ID (null if none). */
@@ -74,16 +82,45 @@ export interface AppState {
   assets: AssetFile[];
   /** Currently highlighted asset path in the asset browser. */
   selectedAssetPath: string | null;
+  /** Scene layout state. */
+  scene: SceneState;
+  /** Transient scene editor state. */
+  sceneEditor: SceneEditorState;
+}
+
+/** Create a default scene state. */
+export function createDefaultSceneState(): SceneState {
+  return {
+    sceneWidth: 800,
+    sceneHeight: 600,
+    ground: { type: "color", color: "#3a7a2a", tileAsset: "", tileSize: 64 },
+    positions: {},
+    decorations: [],
+    walls: [],
+    routes: [],
+  };
+}
+
+/** Create a default scene editor state. */
+export function createDefaultSceneEditorState(): SceneEditorState {
+  return {
+    mode: "select",
+    selectedIds: [],
+    selectedType: null,
+  };
 }
 
 /** Create an empty initial state. */
 export function createInitialState(): AppState {
   return {
+    activeTab: "entities",
     entities: {},
     selectedEntityId: null,
     selectedStateName: null,
     assets: [],
     selectedAssetPath: null,
+    scene: createDefaultSceneState(),
+    sceneEditor: createDefaultSceneEditorState(),
   };
 }
 
