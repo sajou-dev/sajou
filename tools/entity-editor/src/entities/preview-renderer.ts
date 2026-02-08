@@ -2,19 +2,13 @@
  * Preview renderer module.
  *
  * Renders a live preview of the currently selected entity state
- * using PixiJS. Shows static sprites or animated spritesheets
+ * using plain Canvas 2D. Shows static sprites or animated spritesheets
  * with the configured parameters in real time.
+ *
+ * Uses the same HTMLImageElement + canvas approach as the spritesheet
+ * explorer mini-previews, which is reliable and requires no WebGL.
  */
 
-import {
-  Application,
-  Sprite,
-  AnimatedSprite,
-  Texture,
-  Rectangle,
-  Assets,
-  Container,
-} from "pixi.js";
 import {
   getState,
   subscribe,
@@ -27,43 +21,51 @@ import type { SpritesheetState, StaticState } from "../app-state.js";
 // State
 // ---------------------------------------------------------------------------
 
-let app: Application | null = null;
-let currentSprite: Container | null = null;
+let canvas: HTMLCanvasElement | null = null;
+let ctx: CanvasRenderingContext2D | null = null;
 let lastAssetKey = "";
-let lastTextureUrl = "";
-let loadedTexture: Texture | null = null;
+let animationRaf = 0;
 
-/** Monotonic generation counter — guards against async render races. */
-let renderGeneration = 0;
+/** Image cache keyed by asset path. */
+const imgCache = new Map<string, HTMLImageElement>();
 
 const container = document.getElementById("preview-container")!;
 
+const CANVAS_W = 400;
+const CANVAS_H = 240;
+
 // ---------------------------------------------------------------------------
-// Init
+// Canvas setup
 // ---------------------------------------------------------------------------
 
-/** Initialize the PixiJS application for previews. */
-async function createApp(): Promise<Application> {
-  const pixiApp = new Application();
-  await pixiApp.init({
-    width: 400,
-    height: 240,
-    backgroundAlpha: 0,
-    antialias: false,
-  });
-  container.appendChild(pixiApp.canvas);
-  return pixiApp;
+/** Ensure the preview canvas exists inside the container. */
+function ensureCanvas(): void {
+  if (canvas) return;
+  canvas = document.createElement("canvas");
+  canvas.width = CANVAS_W;
+  canvas.height = CANVAS_H;
+  canvas.style.imageRendering = "pixelated";
+  container.appendChild(canvas);
+  ctx = canvas.getContext("2d")!;
 }
 
-/** Clear the current preview sprite. */
-function clearPreview(): void {
-  if (!app) return;
-  if (currentSprite) {
-    app.stage.removeChild(currentSprite);
-    currentSprite.destroy();
-    currentSprite = null;
+/** Stop any running animation loop. */
+function stopAnimation(): void {
+  if (animationRaf) {
+    cancelAnimationFrame(animationRaf);
+    animationRaf = 0;
   }
 }
+
+/** Clear the canvas. */
+function clearCanvas(): void {
+  if (!ctx || !canvas) return;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+}
+
+// ---------------------------------------------------------------------------
+// Image loading
+// ---------------------------------------------------------------------------
 
 /** Find the object URL for an asset path. */
 function findAssetUrl(assetPath: string): string | null {
@@ -72,77 +74,41 @@ function findAssetUrl(assetPath: string): string | null {
   return asset?.objectUrl ?? null;
 }
 
-/** Load a texture from an object URL, with caching. */
-async function loadTexture(url: string): Promise<Texture | null> {
-  if (url === lastTextureUrl && loadedTexture) {
-    return loadedTexture;
-  }
+/** Load an HTMLImageElement, cached. Returns null if still loading. */
+function loadImage(assetPath: string): HTMLImageElement | null {
+  const cached = imgCache.get(assetPath);
+  if (cached && cached.complete) return cached;
 
-  try {
-    // Clear previous cache entry to force reload
-    if (lastTextureUrl && Assets.cache.has(lastTextureUrl)) {
-      Assets.cache.remove(lastTextureUrl);
-    }
+  const url = findAssetUrl(assetPath);
+  if (!url) return null;
 
-    const tex = await Assets.load<Texture>(url);
-    tex.source.scaleMode = "nearest";
-    lastTextureUrl = url;
-    loadedTexture = tex;
-    return tex;
-  } catch {
-    return null;
-  }
-}
+  if (cached) return null; // still loading
 
-/** Slice frames from a spritesheet texture. */
-function sliceFrames(
-  texture: Texture,
-  frameWidth: number,
-  frameHeight: number,
-  frameCount: number,
-  frameRow: number,
-  frameStart = 0,
-): Texture[] {
-  const frames: Texture[] = [];
-  const y = frameRow * frameHeight;
-  for (let i = 0; i < frameCount; i++) {
-    frames.push(
-      new Texture({
-        source: texture.source,
-        frame: new Rectangle((frameStart + i) * frameWidth, y, frameWidth, frameHeight),
-      }),
-    );
-  }
-  return frames;
+  const img = new Image();
+  img.src = url;
+  imgCache.set(assetPath, img);
+  img.onload = () => renderPreview();
+  return null;
 }
 
 // ---------------------------------------------------------------------------
-// Render preview
+// Render
 // ---------------------------------------------------------------------------
 
 /**
- * Update the preview canvas with the current state.
+ * Render the preview for the current state.
  *
- * Uses an explicit cache key built from individual fields (not JSON.stringify)
- * and a generation counter to guard against async render races — if a newer
- * renderPreview starts while an older one is awaiting, the older one bails.
- *
- * Spritesheet previews always loop regardless of the `loop` config so the
- * user gets continuous visual feedback.
+ * Static sprites: draw once, centered and scaled to displayWidth/Height.
+ * Spritesheets: animate at fps, looping through the selected frame range.
  */
-async function renderPreview(): Promise<void> {
-  const gen = ++renderGeneration;
-
-  if (!app) {
-    app = await createApp();
-    if (gen !== renderGeneration) return;
-  }
+function renderPreview(): void {
+  ensureCanvas();
 
   const entity = getSelectedEntity();
   const visualState = getSelectedState();
   const state = getState();
 
-  // Build an explicit cache key from individual fields
+  // Build cache key
   let assetKey: string;
   if (!entity || !visualState || !visualState.asset) {
     assetKey = "empty";
@@ -158,57 +124,81 @@ async function renderPreview(): Promise<void> {
   if (assetKey === lastAssetKey) return;
   lastAssetKey = assetKey;
 
-  clearPreview();
+  stopAnimation();
+  clearCanvas();
 
   if (!entity || !visualState || !visualState.asset) return;
 
-  const url = findAssetUrl(visualState.asset);
-  if (!url) return;
-
-  const texture = await loadTexture(url);
-  if (gen !== renderGeneration) return; // outdated — newer render started
-  if (!texture) return;
-
-  const dw = entity.displayWidth;
-  const dh = entity.displayHeight;
+  const img = loadImage(visualState.asset);
+  if (!img) return; // will re-render when loaded
 
   if (visualState.type === "spritesheet") {
-    const ss = visualState as SpritesheetState;
-    const frames = sliceFrames(texture, ss.frameWidth, ss.frameHeight, ss.frameCount, ss.frameRow, ss.frameStart);
-    if (frames.length === 0) return;
-
-    const anim = new AnimatedSprite(frames);
-    anim.width = dw;
-    anim.height = dh;
-    anim.anchor.set(0.5, 0.5);
-    anim.animationSpeed = ss.fps / 60;
-    // Always loop in preview — user needs continuous visual feedback
-    anim.loop = true;
-    anim.position.set(app.screen.width / 2, app.screen.height / 2);
-    anim.play();
-
-    app.stage.addChild(anim);
-    currentSprite = anim;
+    renderSpritesheet(img, entity.displayWidth, entity.displayHeight, visualState as SpritesheetState);
   } else {
-    const st = visualState as StaticState;
-    let displayTexture = texture;
-
-    if (st.sourceRect) {
-      displayTexture = new Texture({
-        source: texture.source,
-        frame: new Rectangle(st.sourceRect.x, st.sourceRect.y, st.sourceRect.w, st.sourceRect.h),
-      });
-    }
-
-    const sprite = new Sprite(displayTexture);
-    sprite.width = dw;
-    sprite.height = dh;
-    sprite.anchor.set(0.5, 0.5);
-    sprite.position.set(app.screen.width / 2, app.screen.height / 2);
-
-    app.stage.addChild(sprite);
-    currentSprite = sprite;
+    renderStatic(img, entity.displayWidth, entity.displayHeight, visualState as StaticState);
   }
+}
+
+/** Draw a static sprite (optionally cropped) centered in the canvas. */
+function renderStatic(
+  img: HTMLImageElement,
+  dw: number,
+  dh: number,
+  state: StaticState,
+): void {
+  if (!ctx) return;
+
+  ctx.imageSmoothingEnabled = false;
+  const x = (CANVAS_W - dw) / 2;
+  const y = (CANVAS_H - dh) / 2;
+
+  if (state.sourceRect) {
+    const sr = state.sourceRect;
+    ctx.drawImage(img, sr.x, sr.y, sr.w, sr.h, x, y, dw, dh);
+  } else {
+    ctx.drawImage(img, x, y, dw, dh);
+  }
+}
+
+/** Animate a spritesheet, looping through selected frames at fps. */
+function renderSpritesheet(
+  img: HTMLImageElement,
+  dw: number,
+  dh: number,
+  ss: SpritesheetState,
+): void {
+  if (!ctx) return;
+
+  const frameCount = ss.frameCount;
+  const frameStart = ss.frameStart;
+  const frameWidth = ss.frameWidth;
+  const frameHeight = ss.frameHeight;
+  const row = ss.frameRow;
+  const interval = 1000 / ss.fps;
+
+  let frame = 0;
+  let lastTime = 0;
+
+  const x = (CANVAS_W - dw) / 2;
+  const y = (CANVAS_H - dh) / 2;
+  const srcY = row * frameHeight;
+
+  function tick(time: number): void {
+    animationRaf = requestAnimationFrame(tick);
+
+    if (time - lastTime < interval) return;
+    lastTime = time;
+
+    ctx!.clearRect(0, 0, CANVAS_W, CANVAS_H);
+    ctx!.imageSmoothingEnabled = false;
+
+    const srcX = (frameStart + frame) * frameWidth;
+    ctx!.drawImage(img, srcX, srcY, frameWidth, frameHeight, x, y, dw, dh);
+
+    frame = (frame + 1) % frameCount;
+  }
+
+  animationRaf = requestAnimationFrame(tick);
 }
 
 // ---------------------------------------------------------------------------
@@ -217,7 +207,5 @@ async function renderPreview(): Promise<void> {
 
 /** Initialize the preview renderer. */
 export function initPreviewRenderer(): void {
-  subscribe(() => {
-    void renderPreview();
-  });
+  subscribe(renderPreview);
 }
