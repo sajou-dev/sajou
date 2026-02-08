@@ -48,10 +48,10 @@ const validationWarnings = document.getElementById("validation-warnings")!;
 // ---------------------------------------------------------------------------
 
 /** Cached image dimensions, keyed by asset path. */
-const imageDimensions = new Map<string, { width: number; height: number }>();
+export const imageDimensions = new Map<string, { width: number; height: number }>();
 
 /** Load and cache image dimensions from an asset's object URL. */
-function getImageDimensions(
+export function getImageDimensions(
   assetPath: string,
 ): { width: number; height: number } | null {
   // Return cached if available
