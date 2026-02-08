@@ -1,16 +1,18 @@
 /**
  * Export module.
  *
- * Generates entity-visuals.json conforming to the @sajou/schema format
- * and bundles it with referenced assets into a downloadable zip file.
+ * Generates entity-visuals.json and scene-layout.json conforming
+ * to the @sajou/schema format and bundles them with referenced
+ * assets into a downloadable zip file.
  */
 
 import JSZip from "jszip";
-import { getState, updateState } from "./app-state.js";
+import { getState, updateState, createDefaultSceneState } from "./app-state.js";
 import type { EntityEntry, VisualState } from "./app-state.js";
+import type { SceneLayoutJson, SceneState } from "./types.js";
 
 // ---------------------------------------------------------------------------
-// JSON generation
+// Entity JSON generation
 // ---------------------------------------------------------------------------
 
 /** Convert a VisualState to a schema-conformant JSON object. */
@@ -64,7 +66,7 @@ function entityToJson(entry: EntityEntry): Record<string, unknown> {
 }
 
 /** Generate the full entity-visuals.json content. */
-function generateJson(): string {
+function generateEntityJson(): string {
   const { entities } = getState();
   const output: Record<string, unknown> = {};
 
@@ -76,14 +78,34 @@ function generateJson(): string {
 }
 
 // ---------------------------------------------------------------------------
+// Scene JSON generation
+// ---------------------------------------------------------------------------
+
+/** Generate the scene-layout.json content. */
+function generateSceneJson(scene: SceneState): string {
+  const layout: SceneLayoutJson = {
+    sceneWidth: scene.sceneWidth,
+    sceneHeight: scene.sceneHeight,
+    ground: { ...scene.ground },
+    positions: { ...scene.positions },
+    decorations: scene.decorations.map((d) => ({ ...d })),
+    walls: scene.walls.map((w) => ({ ...w, points: w.points.map((p) => ({ ...p })) })),
+    routes: scene.routes.map((r) => ({ ...r })),
+  };
+
+  return JSON.stringify(layout, null, 2);
+}
+
+// ---------------------------------------------------------------------------
 // Zip export
 // ---------------------------------------------------------------------------
 
-/** Collect all unique asset paths referenced by entities. */
+/** Collect all unique asset paths referenced by entities and scene. */
 function collectReferencedAssets(): Set<string> {
   const paths = new Set<string>();
-  const { entities } = getState();
+  const { entities, scene } = getState();
 
+  // Entity assets
   for (const entry of Object.values(entities)) {
     for (const state of Object.values(entry.states)) {
       if (state.asset) {
@@ -92,16 +114,33 @@ function collectReferencedAssets(): Set<string> {
     }
   }
 
+  // Scene decoration assets
+  for (const decor of scene.decorations) {
+    if (decor.asset) {
+      paths.add(decor.asset);
+    }
+  }
+
+  // Scene ground tile asset
+  if (scene.ground.type === "tile" && scene.ground.tileAsset) {
+    paths.add(scene.ground.tileAsset);
+  }
+
   return paths;
 }
 
-/** Export entity-visuals.json + referenced assets as a zip download. */
+/** Export entity-visuals.json + scene-layout.json + referenced assets as a zip download. */
 export async function exportZip(): Promise<void> {
   const zip = new JSZip();
 
-  // Add the JSON config
-  const json = generateJson();
-  zip.file("entity-visuals.json", json);
+  // Add entity visuals JSON
+  const entityJson = generateEntityJson();
+  zip.file("entity-visuals.json", entityJson);
+
+  // Add scene layout JSON
+  const { scene } = getState();
+  const sceneJson = generateSceneJson(scene);
+  zip.file("scene-layout.json", sceneJson);
 
   // Add referenced assets
   const referencedPaths = collectReferencedAssets();
@@ -110,7 +149,6 @@ export async function exportZip(): Promise<void> {
   for (const path of referencedPaths) {
     const asset = assets.find((a) => a.path === path);
     if (asset) {
-      // Read the file as ArrayBuffer
       const buffer = await asset.file.arrayBuffer();
       zip.file(path, buffer);
     }
@@ -122,7 +160,7 @@ export async function exportZip(): Promise<void> {
 
   const a = document.createElement("a");
   a.href = url;
-  a.download = "entity-visuals.zip";
+  a.download = "theme-config.zip";
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -136,15 +174,24 @@ export async function exportZip(): Promise<void> {
 /** Import an entity-visuals.json file to populate the editor. */
 export function importJson(jsonText: string): void {
   try {
-    const parsed = JSON.parse(jsonText) as { entities?: Record<string, unknown> };
-    if (!parsed.entities || typeof parsed.entities !== "object") {
-      alert("Invalid entity-visuals.json: missing 'entities' object.");
+    const parsed = JSON.parse(jsonText) as Record<string, unknown>;
+
+    // Try scene-layout.json format
+    if (parsed["sceneWidth"] !== undefined) {
+      importSceneLayout(parsed);
       return;
     }
 
+    // Try entity-visuals.json format
+    if (!parsed["entities"] || typeof parsed["entities"] !== "object") {
+      alert("Invalid JSON: expected entity-visuals.json or scene-layout.json format.");
+      return;
+    }
+
+    const rawEntities = parsed["entities"] as Record<string, unknown>;
     const entities: Record<string, EntityEntry> = {};
 
-    for (const [id, raw] of Object.entries(parsed.entities)) {
+    for (const [id, raw] of Object.entries(rawEntities)) {
       const entry = raw as Record<string, unknown>;
       const states: Record<string, VisualState> = {};
 
@@ -191,4 +238,80 @@ export function importJson(jsonText: string): void {
   } catch (e) {
     alert(`Failed to parse JSON: ${String(e)}`);
   }
+}
+
+/** Import a scene-layout.json to populate the scene editor. */
+function importSceneLayout(parsed: Record<string, unknown>): void {
+  const base = createDefaultSceneState();
+
+  const scene: SceneState = {
+    sceneWidth: Number(parsed["sceneWidth"] ?? base.sceneWidth),
+    sceneHeight: Number(parsed["sceneHeight"] ?? base.sceneHeight),
+    ground: {
+      type: ((parsed["ground"] as Record<string, unknown>)?.["type"] as "color" | "tile") ?? "color",
+      color: String((parsed["ground"] as Record<string, unknown>)?.["color"] ?? base.ground.color),
+      tileAsset: String((parsed["ground"] as Record<string, unknown>)?.["tileAsset"] ?? ""),
+      tileSize: Number((parsed["ground"] as Record<string, unknown>)?.["tileSize"] ?? 64),
+    },
+    positions: {},
+    decorations: [],
+    walls: [],
+    routes: [],
+  };
+
+  // Import positions
+  const rawPositions = parsed["positions"] as Record<string, Record<string, number>> | undefined;
+  if (rawPositions) {
+    for (const [name, pos] of Object.entries(rawPositions)) {
+      scene.positions[name] = { x: Number(pos["x"] ?? 0), y: Number(pos["y"] ?? 0) };
+    }
+  }
+
+  // Import decorations
+  const rawDecorations = parsed["decorations"] as Array<Record<string, unknown>> | undefined;
+  if (rawDecorations) {
+    for (const raw of rawDecorations) {
+      scene.decorations.push({
+        id: String(raw["id"] ?? `d${Date.now()}`),
+        asset: String(raw["asset"] ?? ""),
+        x: Number(raw["x"] ?? 0),
+        y: Number(raw["y"] ?? 0),
+        displayWidth: Number(raw["displayWidth"] ?? 64),
+        displayHeight: Number(raw["displayHeight"] ?? 64),
+        rotation: Number(raw["rotation"] ?? 0),
+        layer: Number(raw["layer"] ?? 0),
+      });
+    }
+  }
+
+  // Import walls
+  const rawWalls = parsed["walls"] as Array<Record<string, unknown>> | undefined;
+  if (rawWalls) {
+    for (const raw of rawWalls) {
+      const rawPoints = raw["points"] as Array<Record<string, number>> | undefined;
+      scene.walls.push({
+        id: String(raw["id"] ?? `w${Date.now()}`),
+        points: rawPoints?.map((p) => ({ x: Number(p["x"] ?? 0), y: Number(p["y"] ?? 0) })) ?? [],
+        thickness: Number(raw["thickness"] ?? 4),
+        color: String(raw["color"] ?? "#333333"),
+      });
+    }
+  }
+
+  // Import routes
+  const rawRoutes = parsed["routes"] as Array<Record<string, unknown>> | undefined;
+  if (rawRoutes) {
+    for (const raw of rawRoutes) {
+      scene.routes.push({
+        id: String(raw["id"] ?? `r${Date.now()}`),
+        from: String(raw["from"] ?? ""),
+        to: String(raw["to"] ?? ""),
+      });
+    }
+  }
+
+  updateState({
+    scene,
+    activeTab: "scene",
+  });
 }

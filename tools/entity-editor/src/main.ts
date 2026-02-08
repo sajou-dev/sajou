@@ -8,6 +8,7 @@
 import { initTabController } from "./tab-controller.js";
 import { initAssetsTab } from "./assets/assets-tab.js";
 import { initEntitiesTab } from "./entities/entities-tab.js";
+import { initSceneTab } from "./scene/scene-tab.js";
 import { exportZip, importJson } from "./exporter.js";
 
 // ---------------------------------------------------------------------------
@@ -103,3 +104,4 @@ jsonInput.addEventListener("change", () => {
 initTabController();
 initAssetsTab();
 initEntitiesTab();
+void initSceneTab();

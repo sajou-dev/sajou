@@ -222,7 +222,32 @@
   <!-- ================================================================== -->
   <section id="section-scene" class="tab-section" hidden>
     <div id="scene-tab-content" class="scene-tab">
-      <p class="empty-state">Scene editor coming soon...</p>
+      <!-- Toolbar -->
+      <div id="scene-toolbar" class="scene-toolbar"></div>
+
+      <!-- Main content: palette + canvas + props -->
+      <div class="scene-body">
+        <!-- Left: Asset palette -->
+        <aside class="scene-palette">
+          <div class="palette-header">
+            <h3>Palette</h3>
+          </div>
+          <input id="palette-search" type="text" class="search-input" placeholder="Search..." spellcheck="false" />
+          <div id="palette-list" class="palette-list"></div>
+        </aside>
+
+        <!-- Center: Canvas -->
+        <div id="scene-canvas-container" class="scene-canvas-container"></div>
+
+        <!-- Right: Property panel + Ground panel -->
+        <aside class="scene-props-sidebar">
+          <div class="props-header">
+            <h3>Properties</h3>
+          </div>
+          <div id="ground-panel" class="ground-panel" hidden></div>
+          <div id="scene-props" class="scene-props"></div>
+        </aside>
+      </div>
     </div>
   </section>
 

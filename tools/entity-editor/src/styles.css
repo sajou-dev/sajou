@@ -938,12 +938,220 @@ input[type="color"] {
   max-width: 100%;
 }
 
-/* --- Scene tab placeholder --------------------------------------------- */
+/* --- Scene tab --------------------------------------------------------- */
 
 .scene-tab {
   height: 100%;
   display: flex;
+  flex-direction: column;
+  background: var(--bg-primary);
+}
+
+/* Scene toolbar */
+.scene-toolbar {
+  display: flex;
+  gap: 2px;
+  padding: 6px 12px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+}
+
+.toolbar-btn {
+  padding: 4px 12px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.toolbar-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+}
+
+.toolbar-btn.active {
+  background: var(--bg-tertiary);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* Scene body: palette + canvas + props */
+.scene-body {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 200px 1fr 240px;
+  overflow: hidden;
+}
+
+/* Asset palette (left sidebar) */
+.scene-palette {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.palette-header {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.palette-header h3 {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+}
+
+.scene-palette .search-input {
+  margin: 8px;
+  flex: 0 0 auto;
+}
+
+.palette-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.palette-empty {
+  padding: 16px 12px;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.palette-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  cursor: grab;
+  border-radius: var(--radius);
+  transition: background 0.1s;
+}
+
+.palette-item:hover {
+  background: var(--bg-hover);
+}
+
+.palette-item:active {
+  cursor: grabbing;
+}
+
+.palette-thumb {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  border-radius: 3px;
+  background: var(--bg-primary);
+  flex-shrink: 0;
+}
+
+.palette-name {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Scene canvas container */
+.scene-canvas-container {
+  display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg-primary);
+  overflow: auto;
+  background: var(--preview-bg);
+  position: relative;
+}
+
+.scene-canvas-container canvas {
+  image-rendering: pixelated;
+  border: 1px solid var(--border);
+}
+
+/* Props sidebar (right) */
+.scene-props-sidebar {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-secondary);
+  border-left: 1px solid var(--border);
+  overflow-y: auto;
+}
+
+.props-header {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.props-header h3 {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+}
+
+.ground-panel {
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.ground-panel[hidden] {
+  display: none;
+}
+
+.scene-props {
+  padding: 12px;
+}
+
+.prop-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.prop-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  min-width: 50px;
+}
+
+.prop-input {
+  flex: 1;
+  max-width: 120px;
+}
+
+.prop-empty {
+  padding: 16px 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.prop-info {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.prop-delete {
+  margin-top: 12px;
+  width: 100%;
 }
