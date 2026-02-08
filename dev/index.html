@@ -18,6 +18,31 @@
       }
       h1 { font-size: 1.2rem; color: #7ac67a; }
 
+      /* Theme selector */
+      #theme-selector {
+        display: flex;
+        gap: 8px;
+      }
+      .theme-btn {
+        font-family: monospace;
+        font-size: 0.8rem;
+        padding: 6px 14px;
+        background: #1a1a2e;
+        color: #8888aa;
+        border: 1px solid #2a2a4a;
+        cursor: pointer;
+        transition: background 0.15s, color 0.15s;
+      }
+      .theme-btn:hover {
+        background: #2a2a4a;
+        color: #aaaacc;
+      }
+      .theme-btn.active {
+        background: #3a3a6a;
+        color: #fff;
+        border-color: #5a5a8a;
+      }
+
       /* Scenario buttons */
       #scenario-buttons {
         display: flex;
@@ -131,7 +156,8 @@
     </style>
   </head>
   <body>
-    <h1>Sajou — Citadel Dev Playground</h1>
+    <h1>Sajou — Dev Playground</h1>
+    <div id="theme-selector"></div>
     <div id="scenario-buttons"></div>
     <div id="resource-bar">
       <div class="resource resource-gold">
