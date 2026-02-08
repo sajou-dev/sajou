@@ -34,7 +34,8 @@ export interface StaticState {
 export interface SpritesheetState {
   type: "spritesheet";
   asset: string;
-  frameSize: number;
+  frameWidth: number;
+  frameHeight: number;
   frameCount: number;
   frameRow: number;
   fps: number;

@@ -1,10 +1,18 @@
 /**
  * Spritesheet explorer module.
  *
- * Visual grid that slices a spritesheet by frameSize, showing each row
- * with an animated mini-preview. Clicking a row auto-fills frameRow and
- * frameCount. A frameSize slider lets users find the right cell size
- * visually. Row labels are editable and stored for state-name suggestions.
+ * Visual grid that slices a spritesheet by frameWidth/frameHeight, showing
+ * each row with an animated mini-preview. Clicking a row auto-fills frameRow
+ * and frameCount. Two sliders (Frame W / Frame H) let users find the right
+ * cell size visually. Row labels are editable and stored for state-name
+ * suggestions.
+ *
+ * Single-row strips (e.g. 1728x192 = 9 frames) are supported — the explorer
+ * shows whenever at least 2 frames exist (cols > 1).
+ *
+ * Auto-detection: when an asset is first bound to a spritesheet state, if the
+ * image looks like a single horizontal strip (height <= width / 2), the
+ * explorer proposes frameHeight = imageHeight, frameWidth = imageHeight.
  */
 
 import {
@@ -73,7 +81,8 @@ function stopAnimations(): void {
 function animateRow(
   canvas: HTMLCanvasElement,
   img: HTMLImageElement,
-  frameSize: number,
+  frameWidth: number,
+  frameHeight: number,
   row: number,
   frameCount: number,
   fps: number,
@@ -94,7 +103,7 @@ function animateRow(
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(
       img,
-      frame * frameSize, row * frameSize, frameSize, frameSize,
+      frame * frameWidth, row * frameHeight, frameWidth, frameHeight,
       0, 0, canvas.width, canvas.height,
     );
     frame = (frame + 1) % frameCount;
@@ -114,25 +123,26 @@ function animateRow(
  */
 function countNonEmptyFrames(
   img: HTMLImageElement,
-  frameSize: number,
+  frameWidth: number,
+  frameHeight: number,
   row: number,
   maxCols: number,
 ): number {
   const canvas = document.createElement("canvas");
-  canvas.width = frameSize;
-  canvas.height = frameSize;
+  canvas.width = frameWidth;
+  canvas.height = frameHeight;
   const ctx = canvas.getContext("2d")!;
 
   let count = 0;
   for (let col = 0; col < maxCols; col++) {
-    ctx.clearRect(0, 0, frameSize, frameSize);
+    ctx.clearRect(0, 0, frameWidth, frameHeight);
     ctx.drawImage(
       img,
-      col * frameSize, row * frameSize, frameSize, frameSize,
-      0, 0, frameSize, frameSize,
+      col * frameWidth, row * frameHeight, frameWidth, frameHeight,
+      0, 0, frameWidth, frameHeight,
     );
 
-    const data = ctx.getImageData(0, 0, frameSize, frameSize).data;
+    const data = ctx.getImageData(0, 0, frameWidth, frameHeight).data;
     let hasPixels = false;
     // Sample every 4th pixel for speed
     for (let i = 3; i < data.length; i += 16) {
@@ -174,6 +184,37 @@ function loadImage(assetPath: string): HTMLImageElement | null {
 }
 
 // ---------------------------------------------------------------------------
+// Auto-detection
+// ---------------------------------------------------------------------------
+
+/** Track which assets have already been auto-detected to avoid re-proposing. */
+const autoDetected = new Set<string>();
+
+/**
+ * Auto-detect frame dimensions for a spritesheet asset.
+ *
+ * Heuristic: if the image looks like a single horizontal strip
+ * (height <= width / 2), propose frameHeight = imageHeight and
+ * frameWidth = imageHeight (square assumption for strips).
+ */
+function tryAutoDetect(ss: SpritesheetState, dims: { width: number; height: number }): void {
+  const key = `${ss.asset}|${dims.width}|${dims.height}`;
+  if (autoDetected.has(key)) return;
+  autoDetected.add(key);
+
+  // Only auto-detect for wide strips
+  if (dims.height <= dims.width / 2) {
+    ss.frameHeight = dims.height;
+    ss.frameWidth = dims.height; // square assumption
+    const cols = Math.floor(dims.width / ss.frameWidth);
+    if (cols > 0) {
+      ss.frameCount = cols;
+    }
+    updateState({});
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Render
 // ---------------------------------------------------------------------------
 
@@ -202,10 +243,14 @@ function render(): void {
     return;
   }
 
-  // Only show if the image has multiple rows
-  const cols = Math.floor(dims.width / ss.frameSize);
-  const rows = Math.floor(dims.height / ss.frameSize);
-  if (rows < 2 || cols < 1) {
+  // Auto-detect on first bind
+  tryAutoDetect(ss, dims);
+
+  const cols = Math.floor(dims.width / ss.frameWidth);
+  const rows = Math.floor(dims.height / ss.frameHeight);
+
+  // Show whenever at least 2 frames exist (cols > 1), even for single-row strips
+  if (cols < 2 || rows < 1) {
     explorerEl.hidden = true;
     stopAnimations();
     lastRenderKey = "";
@@ -214,7 +259,7 @@ function render(): void {
 
   // Build a render key to skip needless DOM rebuilds
   const state = getState();
-  const renderKey = `${ss.asset}|${ss.frameSize}|${ss.frameRow}|${state.selectedEntityId}|${state.selectedStateName}`;
+  const renderKey = `${ss.asset}|${ss.frameWidth}|${ss.frameHeight}|${ss.frameRow}|${state.selectedEntityId}|${state.selectedStateName}`;
   if (renderKey === lastRenderKey) return;
   lastRenderKey = renderKey;
 
@@ -222,51 +267,86 @@ function render(): void {
   explorerEl.hidden = false;
   explorerEl.innerHTML = "";
 
-  // Header with frameSize slider
+  // Header with frameWidth / frameHeight sliders
   const header = document.createElement("div");
   header.className = "ss-explorer-header";
 
   const title = document.createElement("h4");
   title.textContent = "Spritesheet Explorer";
 
-  const sizeRow = document.createElement("div");
-  sizeRow.className = "ss-explorer-size-row";
+  // Frame Width slider
+  const widthRow = document.createElement("div");
+  widthRow.className = "ss-explorer-size-row";
 
-  const sizeLabel = document.createElement("span");
-  sizeLabel.className = "label-text";
-  sizeLabel.textContent = "Frame size";
+  const widthLabel = document.createElement("span");
+  widthLabel.className = "label-text";
+  widthLabel.textContent = "Frame W";
 
-  const sizeSlider = document.createElement("input");
-  sizeSlider.type = "range";
-  sizeSlider.min = "8";
-  sizeSlider.max = String(Math.min(256, Math.min(dims.width, dims.height)));
-  sizeSlider.step = "1";
-  sizeSlider.value = String(ss.frameSize);
-  sizeSlider.className = "ss-explorer-slider";
+  const widthSlider = document.createElement("input");
+  widthSlider.type = "range";
+  widthSlider.min = "8";
+  widthSlider.max = String(Math.min(dims.width, 4096));
+  widthSlider.step = "1";
+  widthSlider.value = String(ss.frameWidth);
+  widthSlider.className = "ss-explorer-slider";
 
-  const sizeValue = document.createElement("span");
-  sizeValue.className = "val-display";
-  sizeValue.textContent = `${ss.frameSize}px`;
+  const widthValue = document.createElement("span");
+  widthValue.className = "val-display";
+  widthValue.textContent = `${ss.frameWidth}px`;
 
-  sizeSlider.addEventListener("input", () => {
-    const newSize = Math.max(1, Number(sizeSlider.value));
-    sizeValue.textContent = `${newSize}px`;
+  widthSlider.addEventListener("input", () => {
+    const newW = Math.max(1, Number(widthSlider.value));
+    widthValue.textContent = `${newW}px`;
     if (vs.type === "spritesheet") {
-      (vs as SpritesheetState).frameSize = newSize;
+      (vs as SpritesheetState).frameWidth = newW;
       updateState({});
     }
   });
+
+  widthRow.appendChild(widthLabel);
+  widthRow.appendChild(widthSlider);
+  widthRow.appendChild(widthValue);
+
+  // Frame Height slider
+  const heightRow = document.createElement("div");
+  heightRow.className = "ss-explorer-size-row";
+
+  const heightLabel = document.createElement("span");
+  heightLabel.className = "label-text";
+  heightLabel.textContent = "Frame H";
+
+  const heightSlider = document.createElement("input");
+  heightSlider.type = "range";
+  heightSlider.min = "8";
+  heightSlider.max = String(Math.min(dims.height, 4096));
+  heightSlider.step = "1";
+  heightSlider.value = String(ss.frameHeight);
+  heightSlider.className = "ss-explorer-slider";
+
+  const heightValue = document.createElement("span");
+  heightValue.className = "val-display";
+  heightValue.textContent = `${ss.frameHeight}px`;
+
+  heightSlider.addEventListener("input", () => {
+    const newH = Math.max(1, Number(heightSlider.value));
+    heightValue.textContent = `${newH}px`;
+    if (vs.type === "spritesheet") {
+      (vs as SpritesheetState).frameHeight = newH;
+      updateState({});
+    }
+  });
+
+  heightRow.appendChild(heightLabel);
+  heightRow.appendChild(heightSlider);
+  heightRow.appendChild(heightValue);
 
   const dimsInfo = document.createElement("span");
   dimsInfo.className = "ss-explorer-dims";
   dimsInfo.textContent = `${dims.width}\u00D7${dims.height}px \u2022 ${cols}\u00D7${rows} grid`;
 
-  sizeRow.appendChild(sizeLabel);
-  sizeRow.appendChild(sizeSlider);
-  sizeRow.appendChild(sizeValue);
-
   header.appendChild(title);
-  header.appendChild(sizeRow);
+  header.appendChild(widthRow);
+  header.appendChild(heightRow);
   header.appendChild(dimsInfo);
   explorerEl.appendChild(header);
 
@@ -281,20 +361,20 @@ function render(): void {
   rowList.className = "ss-explorer-rows";
 
   for (let r = 0; r < rows; r++) {
-    const nonEmpty = countNonEmptyFrames(img, ss.frameSize, r, cols);
+    const nonEmpty = countNonEmptyFrames(img, ss.frameWidth, ss.frameHeight, r, cols);
 
     const rowEl = document.createElement("div");
     rowEl.className = "ss-explorer-row";
     if (r === ss.frameRow) rowEl.classList.add("selected");
 
     // Row number / label
-    const rowLabel = document.createElement("span");
-    rowLabel.className = "ss-explorer-row-label";
+    const rowLabelEl = document.createElement("span");
+    rowLabelEl.className = "ss-explorer-row-label";
     const savedLabel = labels.get(r);
-    rowLabel.textContent = savedLabel ? `${r}: ${savedLabel}` : `Row ${r}`;
-    rowLabel.title = "Double-click to add a label";
+    rowLabelEl.textContent = savedLabel ? `${r}: ${savedLabel}` : `Row ${r}`;
+    rowLabelEl.title = "Double-click to add a label";
 
-    rowLabel.addEventListener("dblclick", (e) => {
+    rowLabelEl.addEventListener("dblclick", (e) => {
       e.stopPropagation();
       const input = document.createElement("input");
       input.type = "text";
@@ -323,20 +403,22 @@ function render(): void {
         }
       });
 
-      rowLabel.textContent = "";
-      rowLabel.appendChild(input);
+      rowLabelEl.textContent = "";
+      rowLabelEl.appendChild(input);
       input.focus();
       input.select();
     });
 
-    // Mini animated preview canvas
+    // Mini animated preview canvas (respect aspect ratio)
     const previewCanvas = document.createElement("canvas");
     previewCanvas.className = "ss-explorer-preview";
-    const previewSize = 48;
-    previewCanvas.width = previewSize;
-    previewCanvas.height = previewSize;
+    const thumbW = 48;
+    const thumbH = Math.round(48 * ss.frameHeight / ss.frameWidth);
+    const cappedH = Math.min(thumbH, 64);
+    previewCanvas.width = thumbW;
+    previewCanvas.height = cappedH;
 
-    animateRow(previewCanvas, img, ss.frameSize, r, nonEmpty, ss.fps || 10);
+    animateRow(previewCanvas, img, ss.frameWidth, ss.frameHeight, r, nonEmpty, ss.fps || 10);
 
     // Frame strip: show individual frames as small thumbnails
     const strip = document.createElement("div");
@@ -345,15 +427,16 @@ function render(): void {
     for (let c = 0; c < Math.min(nonEmpty, 16); c++) {
       const frameCanvas = document.createElement("canvas");
       frameCanvas.className = "ss-explorer-frame";
-      const thumbSize = 28;
-      frameCanvas.width = thumbSize;
-      frameCanvas.height = thumbSize;
+      const fThumbW = 28;
+      const fThumbH = Math.min(Math.round(28 * ss.frameHeight / ss.frameWidth), 48);
+      frameCanvas.width = fThumbW;
+      frameCanvas.height = fThumbH;
       const fctx = frameCanvas.getContext("2d")!;
       fctx.imageSmoothingEnabled = false;
       fctx.drawImage(
         img,
-        c * ss.frameSize, r * ss.frameSize, ss.frameSize, ss.frameSize,
-        0, 0, thumbSize, thumbSize,
+        c * ss.frameWidth, r * ss.frameHeight, ss.frameWidth, ss.frameHeight,
+        0, 0, fThumbW, fThumbH,
       );
       strip.appendChild(frameCanvas);
     }
@@ -379,7 +462,7 @@ function render(): void {
       updateState({});
     });
 
-    rowEl.appendChild(rowLabel);
+    rowEl.appendChild(rowLabelEl);
     rowEl.appendChild(previewCanvas);
     rowEl.appendChild(strip);
     rowEl.appendChild(countBadge);

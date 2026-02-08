@@ -4,7 +4,7 @@
  * Shown when a state tab is active. Controls:
  * - Type toggle (static / spritesheet)
  * - Asset binding (from asset browser selection)
- * - Spritesheet params (frameSize, frameCount, frameRow, fps, loop)
+ * - Spritesheet params (frameWidth, frameHeight, frameCount, frameRow, fps, loop)
  * - Source rect params (x, y, w, h) for static sprites
  * - Triggers preview updates on changes
  */
@@ -28,7 +28,8 @@ const stateAssetName = document.getElementById("state-asset-name")!;
 const btnClearAsset = document.getElementById("btn-clear-asset")!;
 
 const spritesheetParams = document.getElementById("spritesheet-params")!;
-const inputFrameSize = document.getElementById("input-frame-size") as HTMLInputElement;
+const inputFrameWidth = document.getElementById("input-frame-width") as HTMLInputElement;
+const inputFrameHeight = document.getElementById("input-frame-height") as HTMLInputElement;
 const inputFrameCount = document.getElementById("input-frame-count") as HTMLInputElement;
 const inputFrameRow = document.getElementById("input-frame-row") as HTMLInputElement;
 const inputFps = document.getElementById("input-fps") as HTMLInputElement;
@@ -102,19 +103,19 @@ function validateAndShowWarnings(): void {
 
     if (dims) {
       // Check frameCount vs image width
-      const expectedCols = Math.floor(dims.width / ss.frameSize);
+      const expectedCols = Math.floor(dims.width / ss.frameWidth);
       if (ss.frameCount > expectedCols) {
         warnings.push({
-          message: `frameCount is ${ss.frameCount} but the image is ${dims.width}px wide with frameSize ${ss.frameSize}px, so only ${expectedCols} columns fit. Reduce frameCount to ${expectedCols}.`,
+          message: `frameCount is ${ss.frameCount} but the image is ${dims.width}px wide with frameWidth ${ss.frameWidth}px, so only ${expectedCols} columns fit. Reduce frameCount to ${expectedCols}.`,
           isError: true,
         });
       }
 
       // Check frameRow vs image height
-      const maxRows = Math.floor(dims.height / ss.frameSize);
+      const maxRows = Math.floor(dims.height / ss.frameHeight);
       if (ss.frameRow >= maxRows) {
         warnings.push({
-          message: `frameRow is ${ss.frameRow} but the image is ${dims.height}px tall with frameSize ${ss.frameSize}px, so only rows 0-${maxRows - 1} exist.`,
+          message: `frameRow is ${ss.frameRow} but the image is ${dims.height}px tall with frameHeight ${ss.frameHeight}px, so only rows 0-${maxRows - 1} exist.`,
           isError: true,
         });
       }
@@ -122,7 +123,7 @@ function validateAndShowWarnings(): void {
       // Suggest auto-detected frame count
       if (ss.frameCount < expectedCols && expectedCols > 0) {
         warnings.push({
-          message: `Tip: image width (${dims.width}px) / frameSize (${ss.frameSize}px) = ${expectedCols} columns. You're using ${ss.frameCount}.`,
+          message: `Tip: image width (${dims.width}px) / frameWidth (${ss.frameWidth}px) = ${expectedCols} columns. You're using ${ss.frameCount}.`,
           isError: false,
         });
       }
@@ -208,7 +209,8 @@ function render(): void {
     sourceRectParams.hidden = true;
 
     const ss = visualState as SpritesheetState;
-    inputFrameSize.value = String(ss.frameSize);
+    inputFrameWidth.value = String(ss.frameWidth);
+    inputFrameHeight.value = String(ss.frameHeight);
     inputFrameCount.value = String(ss.frameCount);
     inputFrameRow.value = String(ss.frameRow);
     inputFps.value = String(ss.fps);
@@ -266,7 +268,8 @@ export function initStateConfig(): void {
         entity.states[state.selectedStateName] = {
           type: "spritesheet",
           asset: current.asset,
-          frameSize: 192,
+          frameWidth: 192,
+          frameHeight: 192,
           frameCount: 6,
           frameRow: 0,
           fps: 10,
@@ -290,11 +293,20 @@ export function initStateConfig(): void {
   });
 
   // Spritesheet params
-  inputFrameSize.addEventListener("input", () => {
+  inputFrameWidth.addEventListener("input", () => {
     mutateCurrentState(() => {
       const vs = getSelectedState();
       if (vs?.type === "spritesheet") {
-        (vs as SpritesheetState).frameSize = Math.max(1, Number(inputFrameSize.value));
+        (vs as SpritesheetState).frameWidth = Math.max(1, Number(inputFrameWidth.value));
+      }
+    });
+  });
+
+  inputFrameHeight.addEventListener("input", () => {
+    mutateCurrentState(() => {
+      const vs = getSelectedState();
+      if (vs?.type === "spritesheet") {
+        (vs as SpritesheetState).frameHeight = Math.max(1, Number(inputFrameHeight.value));
       }
     });
   });

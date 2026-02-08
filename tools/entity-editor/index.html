@@ -147,9 +147,13 @@
 
             <!-- Spritesheet params (shown when type=spritesheet) -->
             <div id="spritesheet-params" class="config-row" hidden>
-              <label title="Size of each square frame in the spritesheet, in pixels. For Tiny Swords, common values: 192 (troops), 128 (resources), 64 (small).">
-                <span class="label-text">Frame size</span>
-                <input id="input-frame-size" type="number" min="1" max="1024" value="192" class="num-input" placeholder="192" />
+              <label title="Width of each frame cell in the spritesheet, in pixels.">
+                <span class="label-text">Frame W</span>
+                <input id="input-frame-width" type="number" min="1" max="4096" value="192" class="num-input" placeholder="192" />
+              </label>
+              <label title="Height of each frame cell in the spritesheet, in pixels.">
+                <span class="label-text">Frame H</span>
+                <input id="input-frame-height" type="number" min="1" max="4096" value="192" class="num-input" placeholder="192" />
               </label>
               <label title="Number of frames in this animation row. Typically image_width / frame_size.">
                 <span class="label-text">Frames</span>

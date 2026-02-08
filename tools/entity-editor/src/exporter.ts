@@ -21,7 +21,8 @@ function stateToJson(state: VisualState): Record<string, unknown> {
     const obj: Record<string, unknown> = {
       type: "spritesheet",
       asset: state.asset,
-      frameSize: state.frameSize,
+      frameWidth: state.frameWidth,
+      frameHeight: state.frameHeight,
       frameCount: state.frameCount,
       fps: state.fps,
     };
@@ -199,10 +200,13 @@ export function importJson(jsonText: string): void {
       if (rawStates) {
         for (const [stateName, rawState] of Object.entries(rawStates)) {
           if (rawState["type"] === "spritesheet") {
+            // Backward compat: accept old `frameSize` as fallback for both dimensions
+            const legacySize = rawState["frameSize"] as number | undefined;
             states[stateName] = {
               type: "spritesheet",
               asset: String(rawState["asset"] ?? ""),
-              frameSize: Number(rawState["frameSize"] ?? 192),
+              frameWidth: Number(rawState["frameWidth"] ?? legacySize ?? 192),
+              frameHeight: Number(rawState["frameHeight"] ?? legacySize ?? 192),
               frameCount: Number(rawState["frameCount"] ?? 6),
               frameRow: Number(rawState["frameRow"] ?? 0),
               fps: Number(rawState["fps"] ?? 10),

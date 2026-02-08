@@ -94,17 +94,18 @@ async function loadTexture(url: string): Promise<Texture | null> {
 /** Slice frames from a spritesheet texture. */
 function sliceFrames(
   texture: Texture,
-  frameSize: number,
+  frameWidth: number,
+  frameHeight: number,
   frameCount: number,
   frameRow: number,
 ): Texture[] {
   const frames: Texture[] = [];
-  const y = frameRow * frameSize;
+  const y = frameRow * frameHeight;
   for (let i = 0; i < frameCount; i++) {
     frames.push(
       new Texture({
         source: texture.source,
-        frame: new Rectangle(i * frameSize, y, frameSize, frameSize),
+        frame: new Rectangle(i * frameWidth, y, frameWidth, frameHeight),
       }),
     );
   }
@@ -150,7 +151,7 @@ async function renderPreview(): Promise<void> {
 
   if (visualState.type === "spritesheet") {
     const ss = visualState as SpritesheetState;
-    const frames = sliceFrames(texture, ss.frameSize, ss.frameCount, ss.frameRow);
+    const frames = sliceFrames(texture, ss.frameWidth, ss.frameHeight, ss.frameCount, ss.frameRow);
     if (frames.length === 0) return;
 
     const anim = new AnimatedSprite(frames);
