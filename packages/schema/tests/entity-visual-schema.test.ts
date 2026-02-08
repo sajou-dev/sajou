@@ -294,6 +294,58 @@ describe("entity-visual.schema.json", () => {
     expect(valid).toBe(true);
   });
 
+  it("accepts spritesheet with frameStart", () => {
+    const config = {
+      entities: {
+        character: {
+          displayWidth: 64,
+          displayHeight: 64,
+          fallbackColor: "#44ff88",
+          states: {
+            walk: {
+              type: "spritesheet",
+              asset: "path/to/character.png",
+              frameWidth: 32,
+              frameHeight: 48,
+              frameCount: 4,
+              frameStart: 3,
+              fps: 8,
+              loop: true,
+            },
+          },
+        },
+      },
+    };
+
+    const valid = validate(config);
+    expect(valid).toBe(true);
+  });
+
+  it("accepts spritesheet without frameStart (defaults to 0)", () => {
+    const config = {
+      entities: {
+        character: {
+          displayWidth: 64,
+          displayHeight: 64,
+          fallbackColor: "#44ff88",
+          states: {
+            idle: {
+              type: "spritesheet",
+              asset: "path/to/character.png",
+              frameWidth: 32,
+              frameHeight: 48,
+              frameCount: 4,
+              fps: 8,
+            },
+          },
+        },
+      },
+    };
+
+    const valid = validate(config);
+    expect(valid).toBe(true);
+  });
+
   it("rejects invalid fallbackColor format", () => {
     const config = {
       entities: {

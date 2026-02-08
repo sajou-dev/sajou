@@ -383,7 +383,8 @@ export class PixiCommandSink implements CommandSink {
 
         if (state.type === "spritesheet") {
           const row = state.frameRow ?? 0;
-          const frames = this.sliceFrames(loaded, state.frameWidth, state.frameHeight, state.frameCount, row);
+          const start = state.frameStart ?? 0;
+          const frames = this.sliceFrames(loaded, state.frameWidth, state.frameHeight, state.frameCount, row, start);
           this.getOrCreateMap(this.animFrames, name).set(stateName, frames);
           this.getOrCreateMap(this.animFps, name).set(stateName, state.fps);
         } else if (state.sourceRect) {
@@ -409,6 +410,7 @@ export class PixiCommandSink implements CommandSink {
     frameHeight: number,
     frameCount: number,
     row = 0,
+    frameStart = 0,
   ): Texture[] {
     const frames: Texture[] = [];
     const y = row * frameHeight;
@@ -416,7 +418,7 @@ export class PixiCommandSink implements CommandSink {
       frames.push(
         new Texture({
           source: texture.source,
-          frame: new Rectangle(i * frameWidth, y, frameWidth, frameHeight),
+          frame: new Rectangle((frameStart + i) * frameWidth, y, frameWidth, frameHeight),
         }),
       );
     }

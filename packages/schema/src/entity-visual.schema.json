@@ -107,6 +107,11 @@
                 "minimum": 0,
                 "description": "Row index in the spritesheet grid (0-based). Default: 0."
               },
+              "frameStart": {
+                "type": "number",
+                "minimum": 0,
+                "description": "Column index of the first frame in the animation (0-based). Default: 0. Use with frameCount to select a sub-range within a row."
+              },
               "fps": {
                 "type": "number",
                 "minimum": 1,

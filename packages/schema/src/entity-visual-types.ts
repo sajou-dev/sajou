@@ -62,6 +62,8 @@ export interface SpritesheetVisualState {
   readonly frameCount: number;
   /** Row index in the spritesheet grid (0-based). Default: 0. */
   readonly frameRow?: number;
+  /** Column index of the first frame in the animation (0-based). Default: 0. Use with frameCount to select a sub-range within a row. */
+  readonly frameStart?: number;
   /** Playback speed in frames per second. */
   readonly fps: number;
   /** Whether the animation loops. Default: true. */
