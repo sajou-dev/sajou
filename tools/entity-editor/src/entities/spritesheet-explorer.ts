@@ -344,7 +344,13 @@ function render(): void {
   dimsInfo.className = "ss-explorer-dims";
   dimsInfo.textContent = `${dims.width}\u00D7${dims.height}px \u2022 ${cols}\u00D7${rows} grid`;
 
+  // Instruction text above the grid
+  const helpText = document.createElement("p");
+  helpText.className = "ss-explorer-help";
+  helpText.textContent = "Adjust Frame W/H to slice the spritesheet, then click a row to assign it to this state.";
+
   header.appendChild(title);
+  header.appendChild(helpText);
   header.appendChild(widthRow);
   header.appendChild(heightRow);
   header.appendChild(dimsInfo);
@@ -409,12 +415,12 @@ function render(): void {
       input.select();
     });
 
-    // Mini animated preview canvas (respect aspect ratio)
+    // Mini animated preview canvas (respect aspect ratio, large enough to see)
     const previewCanvas = document.createElement("canvas");
     previewCanvas.className = "ss-explorer-preview";
-    const thumbW = 48;
-    const thumbH = Math.round(48 * ss.frameHeight / ss.frameWidth);
-    const cappedH = Math.min(thumbH, 64);
+    const thumbW = 56;
+    const thumbH = Math.round(56 * ss.frameHeight / ss.frameWidth);
+    const cappedH = Math.min(Math.max(thumbH, 32), 72);
     previewCanvas.width = thumbW;
     previewCanvas.height = cappedH;
 
@@ -470,6 +476,20 @@ function render(): void {
   }
 
   explorerEl.appendChild(rowList);
+
+  // Selected-row info text
+  const footer = document.createElement("div");
+  footer.className = "ss-explorer-footer";
+
+  if (ss.frameRow >= 0 && ss.frameRow < rows) {
+    const rowFrames = countNonEmptyFrames(img, ss.frameWidth, ss.frameHeight, ss.frameRow, cols);
+    const info = document.createElement("p");
+    info.className = "ss-explorer-info";
+    info.textContent = `Row ${ss.frameRow} selected \u2014 ${rowFrames} frames at ${ss.fps}fps. Add more states (+) to use other rows (walk, sit, etc.)`;
+    footer.appendChild(info);
+  }
+
+  explorerEl.appendChild(footer);
 }
 
 // ---------------------------------------------------------------------------

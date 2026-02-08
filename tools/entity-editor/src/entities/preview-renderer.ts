@@ -33,6 +33,9 @@ let lastAssetKey = "";
 let lastTextureUrl = "";
 let loadedTexture: Texture | null = null;
 
+/** Monotonic generation counter — guards against async render races. */
+let renderGeneration = 0;
+
 const container = document.getElementById("preview-container")!;
 
 // ---------------------------------------------------------------------------
@@ -116,22 +119,40 @@ function sliceFrames(
 // Render preview
 // ---------------------------------------------------------------------------
 
-/** Update the preview canvas with the current state. */
+/**
+ * Update the preview canvas with the current state.
+ *
+ * Uses an explicit cache key built from individual fields (not JSON.stringify)
+ * and a generation counter to guard against async render races — if a newer
+ * renderPreview starts while an older one is awaiting, the older one bails.
+ *
+ * Spritesheet previews always loop regardless of the `loop` config so the
+ * user gets continuous visual feedback.
+ */
 async function renderPreview(): Promise<void> {
+  const gen = ++renderGeneration;
+
   if (!app) {
     app = await createApp();
+    if (gen !== renderGeneration) return;
   }
 
   const entity = getSelectedEntity();
   const visualState = getSelectedState();
-
-  // Build a cache key to avoid unnecessary reloads
   const state = getState();
-  const assetKey = JSON.stringify({
-    id: state.selectedEntityId,
-    state: state.selectedStateName,
-    vs: visualState,
-  });
+
+  // Build an explicit cache key from individual fields
+  let assetKey: string;
+  if (!entity || !visualState || !visualState.asset) {
+    assetKey = "empty";
+  } else if (visualState.type === "spritesheet") {
+    const ss = visualState as SpritesheetState;
+    assetKey = `${state.selectedEntityId}|${state.selectedStateName}|ss|${ss.asset}|${ss.frameWidth}|${ss.frameHeight}|${ss.frameCount}|${ss.frameRow}|${ss.fps}`;
+  } else {
+    const st = visualState as StaticState;
+    const sr = st.sourceRect;
+    assetKey = `${state.selectedEntityId}|${state.selectedStateName}|st|${st.asset}|${sr?.x}|${sr?.y}|${sr?.w}|${sr?.h}`;
+  }
 
   if (assetKey === lastAssetKey) return;
   lastAssetKey = assetKey;
@@ -144,6 +165,7 @@ async function renderPreview(): Promise<void> {
   if (!url) return;
 
   const texture = await loadTexture(url);
+  if (gen !== renderGeneration) return; // outdated — newer render started
   if (!texture) return;
 
   const dw = entity.displayWidth;
@@ -159,7 +181,8 @@ async function renderPreview(): Promise<void> {
     anim.height = dh;
     anim.anchor.set(0.5, 0.5);
     anim.animationSpeed = ss.fps / 60;
-    anim.loop = ss.loop;
+    // Always loop in preview — user needs continuous visual feedback
+    anim.loop = true;
     anim.position.set(app.screen.width / 2, app.screen.height / 2);
     anim.play();
 

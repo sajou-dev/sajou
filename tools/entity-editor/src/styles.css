@@ -1308,3 +1308,28 @@ input[type="color"] {
   border-radius: 10px;
   white-space: nowrap;
 }
+
+.ss-explorer-help {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin: 2px 0 6px;
+  line-height: 1.4;
+}
+
+.ss-explorer-footer {
+  padding: 6px 12px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-secondary);
+}
+
+.ss-explorer-info {
+  font-size: 11px;
+  color: var(--accent);
+  line-height: 1.4;
+}
+
+.loop-hint {
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
