@@ -1,11 +1,11 @@
 /**
- * Sajou Entity Editor — main entry point.
+ * Sajou Theme Editor — main entry point.
  *
- * Wires all modules together: asset browser, entity list,
- * entity config, state config, preview renderer, exporter,
- * and onboarding overlay.
+ * Wires all modules together: tab controller, asset browser,
+ * entity modules, exporter, and onboarding overlay.
  */
 
+import { initTabController } from "./tab-controller.js";
 import { initAssetBrowser } from "./asset-browser.js";
 import { initEntityList } from "./entity-list.js";
 import { initEntityConfig } from "./entity-config.js";
@@ -17,7 +17,7 @@ import { exportZip, importJson } from "./exporter.js";
 // Onboarding overlay
 // ---------------------------------------------------------------------------
 
-const ONBOARDING_KEY = "sajou-entity-editor-onboarding-dismissed";
+const ONBOARDING_KEY = "sajou-theme-editor-onboarding-dismissed";
 
 const onboardingOverlay = document.getElementById("onboarding-overlay")!;
 const btnOnboardingDismiss = document.getElementById("btn-onboarding-dismiss")!;
@@ -103,6 +103,7 @@ jsonInput.addEventListener("change", () => {
 // Initialize all modules
 // ---------------------------------------------------------------------------
 
+initTabController();
 initAssetBrowser();
 initEntityList();
 initEntityConfig();
