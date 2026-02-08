@@ -41,6 +41,131 @@ const inputSrX = document.getElementById("input-sr-x") as HTMLInputElement;
 const inputSrY = document.getElementById("input-sr-y") as HTMLInputElement;
 const inputSrW = document.getElementById("input-sr-w") as HTMLInputElement;
 const inputSrH = document.getElementById("input-sr-h") as HTMLInputElement;
+const validationWarnings = document.getElementById("validation-warnings")!;
+
+// ---------------------------------------------------------------------------
+// Image dimension cache (for validation)
+// ---------------------------------------------------------------------------
+
+/** Cached image dimensions, keyed by asset path. */
+const imageDimensions = new Map<string, { width: number; height: number }>();
+
+/** Load and cache image dimensions from an asset's object URL. */
+function getImageDimensions(
+  assetPath: string,
+): { width: number; height: number } | null {
+  // Return cached if available
+  const cached = imageDimensions.get(assetPath);
+  if (cached) return cached;
+
+  // Find the object URL from state
+  const asset = getState().assets.find((a) => a.path === assetPath);
+  if (!asset) return null;
+
+  // Load asynchronously and cache
+  const img = new Image();
+  img.src = asset.objectUrl;
+  img.onload = () => {
+    imageDimensions.set(assetPath, { width: img.naturalWidth, height: img.naturalHeight });
+    // Re-render to show validation after dimensions are known
+    render();
+  };
+
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// Validation
+// ---------------------------------------------------------------------------
+
+/** Validate the current state config and show warnings. */
+function validateAndShowWarnings(): void {
+  const visualState = getSelectedState();
+  if (!visualState) {
+    validationWarnings.hidden = true;
+    return;
+  }
+
+  const warnings: Array<{ message: string; isError: boolean }> = [];
+
+  // Check missing asset
+  if (!visualState.asset) {
+    warnings.push({
+      message: "No asset bound. Click a file in the Assets panel to bind it to this state.",
+      isError: false,
+    });
+  }
+
+  if (visualState.type === "spritesheet" && visualState.asset) {
+    const ss = visualState as SpritesheetState;
+    const dims = getImageDimensions(visualState.asset);
+
+    if (dims) {
+      // Check frameCount vs image width
+      const expectedCols = Math.floor(dims.width / ss.frameSize);
+      if (ss.frameCount > expectedCols) {
+        warnings.push({
+          message: `frameCount is ${ss.frameCount} but the image is ${dims.width}px wide with frameSize ${ss.frameSize}px, so only ${expectedCols} columns fit. Reduce frameCount to ${expectedCols}.`,
+          isError: true,
+        });
+      }
+
+      // Check frameRow vs image height
+      const maxRows = Math.floor(dims.height / ss.frameSize);
+      if (ss.frameRow >= maxRows) {
+        warnings.push({
+          message: `frameRow is ${ss.frameRow} but the image is ${dims.height}px tall with frameSize ${ss.frameSize}px, so only rows 0-${maxRows - 1} exist.`,
+          isError: true,
+        });
+      }
+
+      // Suggest auto-detected frame count
+      if (ss.frameCount < expectedCols && expectedCols > 0) {
+        warnings.push({
+          message: `Tip: image width (${dims.width}px) / frameSize (${ss.frameSize}px) = ${expectedCols} columns. You're using ${ss.frameCount}.`,
+          isError: false,
+        });
+      }
+    }
+  }
+
+  if (visualState.type === "static" && visualState.asset) {
+    const st = visualState as StaticState;
+    const dims = getImageDimensions(visualState.asset);
+
+    if (dims && st.sourceRect) {
+      // Check sourceRect bounds
+      if (st.sourceRect.x + st.sourceRect.w > dims.width) {
+        warnings.push({
+          message: `sourceRect exceeds image width: x(${st.sourceRect.x}) + w(${st.sourceRect.w}) = ${st.sourceRect.x + st.sourceRect.w}px but image is ${dims.width}px wide.`,
+          isError: true,
+        });
+      }
+      if (st.sourceRect.y + st.sourceRect.h > dims.height) {
+        warnings.push({
+          message: `sourceRect exceeds image height: y(${st.sourceRect.y}) + h(${st.sourceRect.h}) = ${st.sourceRect.y + st.sourceRect.h}px but image is ${dims.height}px tall.`,
+          isError: true,
+        });
+      }
+    }
+  }
+
+  if (warnings.length === 0) {
+    validationWarnings.hidden = true;
+    return;
+  }
+
+  validationWarnings.hidden = false;
+  validationWarnings.innerHTML = warnings
+    .map(
+      (w) =>
+        `<div class="validation-warning${w.isError ? " validation-error" : ""}">` +
+        `<span class="warn-icon">${w.isError ? "\u26D4" : "\u26A0"}</span>` +
+        `<span>${w.message}</span>` +
+        `</div>`,
+    )
+    .join("");
+}
 
 // ---------------------------------------------------------------------------
 // Render
@@ -69,10 +194,13 @@ function render(): void {
     stateAssetName.title = visualState.asset;
     stateAssetName.classList.add("bound");
   } else {
-    stateAssetName.textContent = "none";
-    stateAssetName.title = "Click an asset in the browser to bind it";
+    stateAssetName.textContent = "click an asset to bind";
+    stateAssetName.title = "Click an asset in the Assets panel to bind it to this state";
     stateAssetName.classList.remove("bound");
   }
+
+  // Show validation warnings
+  validateAndShowWarnings();
 
   // Show/hide type-specific params
   if (visualState.type === "spritesheet") {

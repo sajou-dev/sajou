@@ -22,6 +22,33 @@
           "frameRow": 1,
           "fps": 10,
           "loop": true
+        },
+        "attack": {
+          "type": "spritesheet",
+          "asset": "tiny-swords-update-010/Factions/Knights/Troops/Pawn/Blue/Pawn_Blue.png",
+          "frameSize": 192,
+          "frameCount": 6,
+          "frameRow": 2,
+          "fps": 10,
+          "loop": false
+        },
+        "hit": {
+          "type": "spritesheet",
+          "asset": "tiny-swords-update-010/Factions/Knights/Troops/Pawn/Blue/Pawn_Blue.png",
+          "frameSize": 192,
+          "frameCount": 6,
+          "frameRow": 4,
+          "fps": 10,
+          "loop": false
+        },
+        "death": {
+          "type": "spritesheet",
+          "asset": "tiny-swords-update-010/Factions/Knights/Troops/Pawn/Blue/Pawn_Blue.png",
+          "frameSize": 192,
+          "frameCount": 6,
+          "frameRow": 5,
+          "fps": 10,
+          "loop": false
         }
       }
     },
@@ -38,24 +65,32 @@
       }
     },
     "forge": {
-      "displayWidth": 64,
-      "displayHeight": 96,
+      "displayWidth": 128,
+      "displayHeight": 192,
       "fallbackColor": "#8b4513",
       "states": {
         "idle": {
           "type": "static",
           "asset": "tiny-swords-update-010/Factions/Knights/Buildings/House/House_Blue.png"
+        },
+        "destroyed": {
+          "type": "static",
+          "asset": "tiny-swords-update-010/Factions/Knights/Buildings/House/House_Destroyed.png"
         }
       }
     },
     "oracle": {
-      "displayWidth": 128,
-      "displayHeight": 102,
+      "displayWidth": 160,
+      "displayHeight": 128,
       "fallbackColor": "#9933cc",
       "states": {
         "idle": {
           "type": "static",
           "asset": "tiny-swords-update-010/Factions/Knights/Buildings/Castle/Castle_Blue.png"
+        },
+        "destroyed": {
+          "type": "static",
+          "asset": "tiny-swords-update-010/Factions/Knights/Buildings/Castle/Castle_Destroyed.png"
         }
       }
     },
@@ -67,6 +102,15 @@
         "idle": {
           "type": "static",
           "asset": "tiny-swords-update-010/Resources/Resources/G_Idle.png"
+        },
+        "spawn": {
+          "type": "spritesheet",
+          "asset": "tiny-swords-update-010/Resources/Resources/G_Spawn.png",
+          "frameSize": 128,
+          "frameCount": 7,
+          "frameRow": 0,
+          "fps": 10,
+          "loop": false
         }
       }
     },

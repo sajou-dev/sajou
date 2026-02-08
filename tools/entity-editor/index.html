@@ -7,13 +7,45 @@
   <link rel="stylesheet" href="/src/styles.css" />
 </head>
 <body>
+  <!-- Onboarding overlay (shown on first launch) -->
+  <div id="onboarding-overlay" class="onboarding-overlay" hidden>
+    <div class="onboarding-panel">
+      <h2>Welcome to Sajou Entity Editor</h2>
+      <p class="onboarding-subtitle">Configure visual entities for Sajou themes in 4 steps:</p>
+      <ol class="onboarding-steps">
+        <li>
+          <strong>Import assets</strong>
+          <span>Drop your sprite folder into the Assets panel (right), or click Browse. All PNG/SVG files will be scanned.</span>
+        </li>
+        <li>
+          <strong>Create entities</strong>
+          <span>Click <kbd>+</kbd> in the Entities panel (left) to add an entity. Name it with a kebab-case ID (e.g. "peon", "gold-coins").</span>
+        </li>
+        <li>
+          <strong>Configure states</strong>
+          <span>Each entity has visual states (idle, run, attack...). Select a state tab, choose Static or Spritesheet type, then click an asset to bind it. Adjust frame parameters for spritesheets.</span>
+        </li>
+        <li>
+          <strong>Export</strong>
+          <span>Click <kbd>Export .zip</kbd> to download your entity-visuals.json and referenced assets. Import existing configs with <kbd>Import JSON</kbd>.</span>
+        </li>
+      </ol>
+      <button id="btn-onboarding-dismiss" class="btn btn-primary">Got it, let's start</button>
+      <label class="checkbox-label onboarding-remember">
+        <input id="onboarding-dont-show" type="checkbox" />
+        <span>Don't show this again</span>
+      </label>
+    </div>
+  </div>
+
   <header id="header">
     <div class="header-left">
       <h1>Sajou <span class="header-accent">Entity Editor</span></h1>
+      <button id="btn-help" class="btn btn-icon btn-small" title="Show help &amp; workflow guide">?</button>
     </div>
     <div class="header-actions">
-      <button id="btn-import-json" class="btn btn-secondary" title="Import entity-visuals.json">Import JSON</button>
-      <button id="btn-export" class="btn btn-primary" title="Export entity-visuals.json + assets as zip">Export .zip</button>
+      <button id="btn-import-json" class="btn btn-secondary" title="Import an existing entity-visuals.json file to continue editing">Import JSON</button>
+      <button id="btn-export" class="btn btn-primary" title="Export entity-visuals.json + only referenced assets as a zip file">Export .zip</button>
     </div>
   </header>
 
@@ -22,7 +54,7 @@
     <aside id="panel-entities" class="panel">
       <div class="panel-header">
         <h2>Entities</h2>
-        <button id="btn-add-entity" class="btn btn-icon" title="Add entity">+</button>
+        <button id="btn-add-entity" class="btn btn-icon" title="Add a new entity (e.g. peon, forge, explosion)">+</button>
       </div>
       <ul id="entity-list" class="entity-list"></ul>
     </aside>
@@ -30,27 +62,28 @@
     <!-- Center panel: Entity config + state config + preview -->
     <section id="panel-config" class="panel">
       <div id="no-selection" class="empty-state">
-        <p>Select an entity or create one to begin.</p>
+        <p>Select an entity or click <kbd>+</kbd> to create one.</p>
+        <p class="empty-hint">Entities are visual actors in your theme: units, buildings, effects.</p>
       </div>
 
       <div id="entity-config" class="config-section" hidden>
         <div class="config-header">
-          <input id="entity-name" type="text" class="entity-name-input" placeholder="entity-id" spellcheck="false" />
-          <button id="btn-delete-entity" class="btn btn-danger btn-small" title="Delete entity">Delete</button>
+          <input id="entity-name" type="text" class="entity-name-input" placeholder="entity-id (e.g. peon, forge)" spellcheck="false" title="Unique kebab-case entity identifier. Used in choreographies to reference this entity." />
+          <button id="btn-delete-entity" class="btn btn-danger btn-small" title="Remove this entity from the configuration">Delete</button>
         </div>
 
         <div class="config-row">
-          <label>
+          <label title="Display width in pixels when rendered in the scene. Independent of the source sprite size.">
             <span class="label-text">Width</span>
             <input id="input-width" type="range" min="8" max="512" value="64" />
             <span id="val-width" class="val-display">64</span>
           </label>
-          <label>
+          <label title="Display height in pixels when rendered in the scene. Independent of the source sprite size.">
             <span class="label-text">Height</span>
             <input id="input-height" type="range" min="8" max="512" value="64" />
             <span id="val-height" class="val-display">64</span>
           </label>
-          <label>
+          <label title="Fallback color shown as a colored rectangle if the sprite asset fails to load.">
             <span class="label-text">Fallback</span>
             <input id="input-color" type="color" value="#888888" />
           </label>
@@ -60,7 +93,7 @@
         <div class="states-section">
           <div class="states-header">
             <h3>States</h3>
-            <button id="btn-add-state" class="btn btn-icon btn-small" title="Add state">+</button>
+            <button id="btn-add-state" class="btn btn-icon btn-small" title="Add a visual state (e.g. run, attack, death). Every entity needs at least an 'idle' state.">+</button>
           </div>
           <div id="state-tabs" class="state-tabs"></div>
         </div>
@@ -68,39 +101,42 @@
         <!-- State config (shown when a state tab is active) -->
         <div id="state-config" class="state-config" hidden>
           <div class="config-row">
-            <label>
+            <label title="Static = single image. Spritesheet = animated grid of frames from a single image.">
               <span class="label-text">Type</span>
               <select id="state-type" class="select-input">
                 <option value="static">Static</option>
                 <option value="spritesheet">Spritesheet</option>
               </select>
             </label>
-            <label>
+            <label title="The bound image asset. Click a file in the Assets panel to bind it.">
               <span class="label-text">Asset</span>
-              <span id="state-asset-name" class="asset-badge">none</span>
+              <span id="state-asset-name" class="asset-badge">click an asset to bind</span>
             </label>
-            <button id="btn-clear-asset" class="btn btn-small btn-secondary" title="Clear asset binding">Clear</button>
+            <button id="btn-clear-asset" class="btn btn-small btn-secondary" title="Remove the asset binding for this state">Clear</button>
           </div>
+
+          <!-- Validation warnings -->
+          <div id="validation-warnings" class="validation-warnings" hidden></div>
 
           <!-- Spritesheet params (shown when type=spritesheet) -->
           <div id="spritesheet-params" class="config-row" hidden>
-            <label>
+            <label title="Size of each square frame in the spritesheet, in pixels. For Tiny Swords, common values: 192 (troops), 128 (resources), 64 (small).">
               <span class="label-text">Frame size</span>
-              <input id="input-frame-size" type="number" min="1" max="1024" value="192" class="num-input" />
+              <input id="input-frame-size" type="number" min="1" max="1024" value="192" class="num-input" placeholder="192" />
             </label>
-            <label>
+            <label title="Number of frames in this animation row. Typically image_width / frame_size.">
               <span class="label-text">Frames</span>
-              <input id="input-frame-count" type="number" min="1" max="128" value="6" class="num-input" />
+              <input id="input-frame-count" type="number" min="1" max="128" value="6" class="num-input" placeholder="6" />
             </label>
-            <label>
+            <label title="Which row of the spritesheet to use (0-indexed). Row 0 = top row. Different rows often contain different animations (idle, run, attack...).">
               <span class="label-text">Row</span>
-              <input id="input-frame-row" type="number" min="0" max="64" value="0" class="num-input" />
+              <input id="input-frame-row" type="number" min="0" max="64" value="0" class="num-input" placeholder="0" />
             </label>
-            <label>
+            <label title="Playback speed in frames per second. Tiny Swords standard: 10 fps.">
               <span class="label-text">FPS</span>
-              <input id="input-fps" type="number" min="1" max="120" value="10" class="num-input" />
+              <input id="input-fps" type="number" min="1" max="120" value="10" class="num-input" placeholder="10" />
             </label>
-            <label class="checkbox-label">
+            <label class="checkbox-label" title="If checked, the animation loops indefinitely. Uncheck for one-shot animations (death, explosion).">
               <input id="input-loop" type="checkbox" checked />
               <span class="label-text">Loop</span>
             </label>
@@ -108,26 +144,26 @@
 
           <!-- Source rect params (shown when type=static) -->
           <div id="source-rect-params" hidden>
-            <label class="checkbox-label">
+            <label class="checkbox-label" title="Crop a sub-region from the source image. Useful when only part of the image is needed (e.g. Arrow.png top half only).">
               <input id="input-use-source-rect" type="checkbox" />
               <span class="label-text">Crop (sourceRect)</span>
             </label>
             <div id="source-rect-fields" class="config-row" hidden>
-              <label>
+              <label title="X offset in pixels from the left edge of the source image.">
                 <span class="label-text">X</span>
-                <input id="input-sr-x" type="number" min="0" max="4096" value="0" class="num-input" />
+                <input id="input-sr-x" type="number" min="0" max="4096" value="0" class="num-input" placeholder="0" />
               </label>
-              <label>
+              <label title="Y offset in pixels from the top edge of the source image.">
                 <span class="label-text">Y</span>
-                <input id="input-sr-y" type="number" min="0" max="4096" value="0" class="num-input" />
+                <input id="input-sr-y" type="number" min="0" max="4096" value="0" class="num-input" placeholder="0" />
               </label>
-              <label>
+              <label title="Width of the crop region in pixels.">
                 <span class="label-text">W</span>
-                <input id="input-sr-w" type="number" min="1" max="4096" value="64" class="num-input" />
+                <input id="input-sr-w" type="number" min="1" max="4096" value="64" class="num-input" placeholder="64" />
               </label>
-              <label>
+              <label title="Height of the crop region in pixels.">
                 <span class="label-text">H</span>
-                <input id="input-sr-h" type="number" min="1" max="4096" value="64" class="num-input" />
+                <input id="input-sr-h" type="number" min="1" max="4096" value="64" class="num-input" placeholder="64" />
               </label>
             </div>
           </div>
@@ -145,11 +181,12 @@
     <aside id="panel-assets" class="panel">
       <div class="panel-header">
         <h2>Assets</h2>
-        <button id="btn-pick-files" class="btn btn-icon btn-small" title="Open file picker">Browse</button>
+        <button id="btn-pick-files" class="btn btn-icon btn-small" title="Open file picker to select an asset folder">Browse</button>
       </div>
       <div id="asset-drop-zone" class="drop-zone">
         <p>Drop asset folder here</p>
-        <p class="drop-hint">or click Browse</p>
+        <p class="drop-hint">or click Browse to import sprites</p>
+        <p class="drop-hint">Supports PNG, SVG, JPG, WebP</p>
       </div>
       <div id="asset-tree" class="asset-tree"></div>
     </aside>
