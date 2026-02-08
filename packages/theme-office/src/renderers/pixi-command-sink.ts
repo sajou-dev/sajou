@@ -115,75 +115,75 @@ const OFFICE_FURNITURE: readonly FurniturePiece[] = [
   // ── ZONE 1: MANAGER OFFICE (top-left, x:0-290, y:0-200) ──
 
   // Tall bookshelf against the left wall
-  { single: 175, x: 55, y: 185 },
+  { single: 175, x: 55, y: 185, scale: 0.65 },
   // Second bookshelf behind desk
-  { single: 176, x: 55, y: 100 },
+  { single: 176, x: 55, y: 100, scale: 0.65 },
   // Plant in corner
-  { single: 338, x: 260, y: 75 },
+  { single: 338, x: 260, y: 75, scale: 0.45 },
   // Wall decoration (warm beige frame)
-  { single: 13, x: 160, y: 35, scale: 0.8 },
+  { single: 13, x: 160, y: 35, scale: 0.55 },
   // Small accessory on desk area
-  { single: 117, x: 210, y: 130 },
+  { single: 117, x: 210, y: 130, scale: 0.55 },
 
   // ── ZONE 2: SERVER ROOM (top-right, x:510-800, y:0-200) ──
 
   // Extra static server rack (entity server-rack at 580, these are decor)
-  { single: 276, x: 660, y: 175 },
-  { single: 311, x: 740, y: 175 },
+  { single: 276, x: 660, y: 175, scale: 0.65 },
+  { single: 311, x: 740, y: 175, scale: 0.65 },
   // Tall cabinet in server room
-  { single: 98, x: 550, y: 185 },
+  { single: 98, x: 550, y: 185, scale: 0.65 },
   // Small monitor on side
-  { single: 141, x: 770, y: 55 },
+  { single: 141, x: 770, y: 55, scale: 0.55 },
 
   // ── ZONE 3: OPEN SPACE (x:20-780, y:220-440) ──
 
   // Row 1: 4 desks with chairs (y ~ 290-310)
-  { single: 249, x: 110, y: 295 },
-  { single: 329, x: 110, y: 325 },
-  { single: 249, x: 260, y: 295 },
-  { single: 329, x: 260, y: 325 },
-  { single: 249, x: 410, y: 295 },
-  { single: 329, x: 410, y: 325 },
-  { single: 249, x: 560, y: 295 },
-  { single: 329, x: 560, y: 325 },
+  { single: 249, x: 110, y: 295, scale: 0.6 },
+  { single: 329, x: 110, y: 320, scale: 0.55 },
+  { single: 249, x: 260, y: 295, scale: 0.6 },
+  { single: 329, x: 260, y: 320, scale: 0.55 },
+  { single: 249, x: 410, y: 295, scale: 0.6 },
+  { single: 329, x: 410, y: 320, scale: 0.55 },
+  { single: 249, x: 560, y: 295, scale: 0.6 },
+  { single: 329, x: 560, y: 320, scale: 0.55 },
 
   // Row 2: 4 desks with chairs (y ~ 380-410)
-  { single: 254, x: 110, y: 385 },
-  { single: 330, x: 110, y: 415 },
-  { single: 254, x: 260, y: 385 },
-  { single: 330, x: 260, y: 415 },
-  { single: 254, x: 410, y: 385 },
-  { single: 330, x: 410, y: 415 },
-  { single: 254, x: 560, y: 385 },
-  { single: 330, x: 560, y: 415 },
+  { single: 254, x: 110, y: 385, scale: 0.6 },
+  { single: 330, x: 110, y: 410, scale: 0.55 },
+  { single: 254, x: 260, y: 385, scale: 0.6 },
+  { single: 330, x: 260, y: 410, scale: 0.55 },
+  { single: 254, x: 410, y: 385, scale: 0.6 },
+  { single: 330, x: 410, y: 410, scale: 0.55 },
+  { single: 254, x: 560, y: 385, scale: 0.6 },
+  { single: 330, x: 560, y: 410, scale: 0.55 },
 
   // Scattered decoration in open space
-  { single: 338, x: 720, y: 270 },  // Plant near wall
-  { single: 135, x: 720, y: 415 },  // Coat rack / floor lamp
+  { single: 338, x: 720, y: 270, scale: 0.45 },  // Plant near wall
+  { single: 135, x: 720, y: 415, scale: 0.6 },   // Coat rack / floor lamp
 
   // ── ZONE 4: ENTRANCE / RECEPTION (bottom-left, x:0-390, y:450-600) ──
 
   // Large reception desk
-  { single: 170, x: 200, y: 560 },
-  // Large plant at entrance
-  { single: 339, x: 55, y: 570 },
-  // Medium plant
-  { single: 338, x: 350, y: 510 },
+  { single: 170, x: 200, y: 560, scale: 0.65 },
+  // Medium plant at entrance
+  { single: 338, x: 55, y: 570, scale: 0.5 },
+  // Small plant
+  { single: 337, x: 350, y: 510, scale: 0.4 },
   // Small accessory on reception
-  { single: 118, x: 230, y: 535 },
+  { single: 118, x: 230, y: 535, scale: 0.55 },
 
   // ── ZONE 5: BREAK ROOM (bottom-right, x:410-800, y:450-600) ──
 
   // Large appliance (vending machine / copier)
-  { single: 320, x: 490, y: 575 },
+  { single: 320, x: 490, y: 575, scale: 0.65 },
   // Table with chairs
-  { single: 253, x: 630, y: 555 },
-  { single: 333, x: 605, y: 580 },
-  { single: 334, x: 660, y: 580 },
+  { single: 253, x: 630, y: 555, scale: 0.6 },
+  { single: 333, x: 605, y: 580, scale: 0.55 },
+  { single: 334, x: 660, y: 580, scale: 0.55 },
   // Small plant in corner
-  { single: 337, x: 760, y: 500 },
-  // Sofa / couch
-  { single: 164, x: 760, y: 575 },
+  { single: 337, x: 760, y: 500, scale: 0.4 },
+  // Small cabinet (replaced colorful sofa)
+  { single: 198, x: 760, y: 575, scale: 0.6 },
 ];
 
 /**
