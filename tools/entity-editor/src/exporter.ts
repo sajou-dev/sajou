@@ -8,7 +8,7 @@
 
 import JSZip from "jszip";
 import { getState, updateState, createDefaultSceneState } from "./app-state.js";
-import type { EntityEntry, VisualState } from "./app-state.js";
+import type { AssetFile, EntityEntry, VisualState } from "./app-state.js";
 import type { SceneLayoutJson, SceneState } from "./types.js";
 
 // ---------------------------------------------------------------------------
@@ -174,6 +174,71 @@ export async function exportZip(): Promise<void> {
 // ---------------------------------------------------------------------------
 // JSON import
 // ---------------------------------------------------------------------------
+
+/** Import a zip file exported by the editor (JSONs + asset files). */
+export async function importZip(file: File): Promise<void> {
+  try {
+    const zip = await JSZip.loadAsync(file);
+
+    // Extract JSON configs
+    const entityFile = zip.file("entity-visuals.json");
+    const sceneFile = zip.file("scene-layout.json");
+
+    // Extract asset files (everything that isn't a .json)
+    const assetFiles: AssetFile[] = [];
+    const promises: Promise<void>[] = [];
+
+    zip.forEach((relativePath, entry) => {
+      if (entry.dir) return;
+      if (relativePath.endsWith(".json")) return;
+
+      promises.push(
+        entry.async("blob").then((blob) => {
+          const name = relativePath.split("/").pop() ?? relativePath;
+          const mimeType = name.endsWith(".svg") ? "image/svg+xml" : `image/${name.split(".").pop()}`;
+          const assetFileObj = new File([blob], name, { type: mimeType });
+          const objectUrl = URL.createObjectURL(blob);
+          assetFiles.push({
+            path: relativePath,
+            name,
+            objectUrl,
+            file: assetFileObj,
+          });
+        }),
+      );
+    });
+
+    await Promise.all(promises);
+
+    // Merge assets into state (avoid duplicates by path)
+    const existing = getState().assets;
+    const existingPaths = new Set(existing.map((a) => a.path));
+    const merged = [...existing];
+    for (const a of assetFiles) {
+      if (!existingPaths.has(a.path)) {
+        merged.push(a);
+      }
+    }
+    updateState({ assets: merged });
+
+    // Import entity visuals
+    if (entityFile) {
+      const text = await entityFile.async("string");
+      importJson(text);
+    }
+
+    // Import scene layout
+    if (sceneFile) {
+      const text = await sceneFile.async("string");
+      const parsed = JSON.parse(text) as Record<string, unknown>;
+      if (parsed["sceneWidth"] !== undefined) {
+        importSceneLayout(parsed);
+      }
+    }
+  } catch (e) {
+    alert(`Failed to import zip: ${String(e)}`);
+  }
+}
 
 /** Import an entity-visuals.json file to populate the editor. */
 export function importJson(jsonText: string): void {

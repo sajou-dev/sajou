@@ -23,8 +23,6 @@ const entityNameInput = document.getElementById("entity-name") as HTMLInputEleme
 const btnDeleteEntity = document.getElementById("btn-delete-entity")!;
 const inputWidth = document.getElementById("input-width") as HTMLInputElement;
 const inputHeight = document.getElementById("input-height") as HTMLInputElement;
-const valWidth = document.getElementById("val-width")!;
-const valHeight = document.getElementById("val-height")!;
 const inputColor = document.getElementById("input-color") as HTMLInputElement;
 const stateTabs = document.getElementById("state-tabs")!;
 const btnAddState = document.getElementById("btn-add-state")!;
@@ -35,6 +33,9 @@ const btnAddState = document.getElementById("btn-add-state")!;
 
 /** Prevent re-entrant updates during programmatic input changes. */
 let rendering = false;
+
+/** True while an inline state-rename input is active. */
+let isEditingState = false;
 
 /** Re-render the entity config panel. */
 function render(): void {
@@ -54,13 +55,11 @@ function render(): void {
 
   entityNameInput.value = state.selectedEntityId;
   inputWidth.value = String(entity.displayWidth);
-  valWidth.textContent = String(entity.displayWidth);
   inputHeight.value = String(entity.displayHeight);
-  valHeight.textContent = String(entity.displayHeight);
   inputColor.value = entity.fallbackColor;
 
-  // Skip tab rebuild if an inline rename input is active
-  if (stateTabs.querySelector(".state-tab-rename")) {
+  // Skip tab rebuild while user is typing a rename
+  if (isEditingState) {
     rendering = false;
     return;
   }
@@ -89,7 +88,13 @@ function render(): void {
       input.value = name;
       input.spellcheck = false;
 
+      isEditingState = true;
+      let committed = false;
+
       const commit = (): void => {
+        if (committed) return; // guard against Enter→blur double-fire
+        committed = true;
+        isEditingState = false; // allow render() to rebuild tabs
         const newName = input.value.trim().toLowerCase().replace(/\s+/g, "-");
         if (newName && newName !== name && !entity.states[newName]) {
           renameState(name, newName);
@@ -265,8 +270,6 @@ export function initEntityConfig(): void {
     const entity = getSelectedEntity();
     if (entity) {
       entity.displayWidth = Number(inputWidth.value);
-      valWidth.textContent = inputWidth.value;
-      // Notify for preview update
       updateState({});
     }
   });
@@ -276,7 +279,6 @@ export function initEntityConfig(): void {
     const entity = getSelectedEntity();
     if (entity) {
       entity.displayHeight = Number(inputHeight.value);
-      valHeight.textContent = inputHeight.value;
       updateState({});
     }
   });

@@ -26,7 +26,7 @@
           <span>Build your scene layout visually: set the ground, drag decorations, place named positions, and draw routes between them.</span>
         </li>
       </ol>
-      <p class="onboarding-subtitle">Use <kbd>Export .zip</kbd> to download everything, or <kbd>Import JSON</kbd> to continue editing.</p>
+      <p class="onboarding-subtitle">Use <kbd>Export .zip</kbd> to download everything, or <kbd>Import</kbd> to reload a .zip or .json and continue editing.</p>
       <button id="btn-onboarding-dismiss" class="btn btn-primary">Got it, let's start</button>
       <label class="checkbox-label onboarding-remember">
         <input id="onboarding-dont-show" type="checkbox" />
@@ -46,7 +46,7 @@
       <button id="tab-scene" class="tab-btn" title="Build scene layout">Scene</button>
     </nav>
     <div class="header-actions">
-      <button id="btn-import-json" class="btn btn-secondary" title="Import an existing configuration file to continue editing">Import JSON</button>
+      <button id="btn-import-json" class="btn btn-secondary" title="Import a .json config or a .zip exported by this editor">Import</button>
       <button id="btn-export" class="btn btn-primary" title="Export configuration + referenced assets as a zip file">Export .zip</button>
     </div>
   </header>
@@ -99,13 +99,11 @@
           <div class="config-row">
             <label title="Display width in pixels when rendered in the scene. Independent of the source sprite size.">
               <span class="label-text">Width</span>
-              <input id="input-width" type="range" min="8" max="512" value="64" />
-              <span id="val-width" class="val-display">64</span>
+              <input id="input-width" type="number" min="1" max="2048" value="64" class="num-input" />
             </label>
             <label title="Display height in pixels when rendered in the scene. Independent of the source sprite size.">
               <span class="label-text">Height</span>
-              <input id="input-height" type="range" min="8" max="512" value="64" />
-              <span id="val-height" class="val-display">64</span>
+              <input id="input-height" type="number" min="1" max="2048" value="64" class="num-input" />
             </label>
             <label title="Fallback color shown as a colored rectangle if the sprite asset fails to load.">
               <span class="label-text">Fallback</span>

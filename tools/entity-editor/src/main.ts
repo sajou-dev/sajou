@@ -9,7 +9,7 @@ import { initTabController } from "./tab-controller.js";
 import { initAssetsTab } from "./assets/assets-tab.js";
 import { initEntitiesTab } from "./entities/entities-tab.js";
 import { initSceneTab } from "./scene/scene-tab.js";
-import { exportZip, importJson } from "./exporter.js";
+import { exportZip, importJson, importZip } from "./exporter.js";
 
 // ---------------------------------------------------------------------------
 // Onboarding overlay
@@ -72,29 +72,33 @@ btnExport.addEventListener("click", () => {
   void exportZip();
 });
 
-// Import JSON via file picker
-const jsonInput = document.createElement("input");
-jsonInput.type = "file";
-jsonInput.accept = ".json";
-jsonInput.className = "hidden-input";
-document.body.appendChild(jsonInput);
+// Import JSON or ZIP via file picker
+const importInput = document.createElement("input");
+importInput.type = "file";
+importInput.accept = ".json,.zip";
+importInput.className = "hidden-input";
+document.body.appendChild(importInput);
 
 btnImportJson.addEventListener("click", () => {
-  jsonInput.click();
+  importInput.click();
 });
 
-jsonInput.addEventListener("change", () => {
-  const file = jsonInput.files?.[0];
+importInput.addEventListener("change", () => {
+  const file = importInput.files?.[0];
   if (!file) return;
 
-  const reader = new FileReader();
-  reader.onload = () => {
-    if (typeof reader.result === "string") {
-      importJson(reader.result);
-    }
-  };
-  reader.readAsText(file);
-  jsonInput.value = "";
+  if (file.name.endsWith(".zip")) {
+    void importZip(file);
+  } else {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        importJson(reader.result);
+      }
+    };
+    reader.readAsText(file);
+  }
+  importInput.value = "";
 });
 
 // ---------------------------------------------------------------------------
