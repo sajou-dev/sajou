@@ -7,10 +7,7 @@
 
 import { initTabController } from "./tab-controller.js";
 import { initAssetBrowser } from "./asset-browser.js";
-import { initEntityList } from "./entity-list.js";
-import { initEntityConfig } from "./entity-config.js";
-import { initStateConfig } from "./state-config.js";
-import { initPreviewRenderer } from "./preview-renderer.js";
+import { initEntitiesTab } from "./entities/entities-tab.js";
 import { exportZip, importJson } from "./exporter.js";
 
 // ---------------------------------------------------------------------------
@@ -105,7 +102,4 @@ jsonInput.addEventListener("change", () => {
 
 initTabController();
 initAssetBrowser();
-initEntityList();
-initEntityConfig();
-initStateConfig();
-initPreviewRenderer();
+initEntitiesTab();

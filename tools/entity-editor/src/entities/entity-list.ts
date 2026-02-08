@@ -10,7 +10,7 @@ import {
   updateState,
   subscribe,
   createDefaultEntity,
-} from "./app-state.js";
+} from "../app-state.js";
 
 // ---------------------------------------------------------------------------
 // DOM references

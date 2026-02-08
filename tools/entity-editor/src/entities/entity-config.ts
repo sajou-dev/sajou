@@ -11,7 +11,7 @@ import {
   subscribe,
   getSelectedEntity,
   createDefaultState,
-} from "./app-state.js";
+} from "../app-state.js";
 
 // ---------------------------------------------------------------------------
 // DOM references

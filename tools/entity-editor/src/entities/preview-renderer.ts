@@ -20,8 +20,8 @@ import {
   subscribe,
   getSelectedEntity,
   getSelectedState,
-} from "./app-state.js";
-import type { SpritesheetState, StaticState } from "./app-state.js";
+} from "../app-state.js";
+import type { SpritesheetState, StaticState } from "../app-state.js";
 
 // ---------------------------------------------------------------------------
 // State
