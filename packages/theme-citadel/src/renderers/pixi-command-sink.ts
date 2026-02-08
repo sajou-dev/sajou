@@ -46,6 +46,78 @@ const TERRAIN = {
 } as const;
 
 // ---------------------------------------------------------------------------
+// Static decoration layout — fills the village with trees, rocks, fences
+// ---------------------------------------------------------------------------
+
+/** A static decorative sprite placed in the scene. */
+interface DecorationPiece {
+  /** Asset path relative to theme base. */
+  readonly asset: string;
+  /** Scene X coordinate (center of sprite). */
+  readonly x: number;
+  /** Scene Y coordinate (bottom of sprite). */
+  readonly y: number;
+  /** Display width in pixels. */
+  readonly displayWidth: number;
+  /** Display height in pixels. */
+  readonly displayHeight: number;
+  /** Optional source rectangle for extracting a portion of the image. */
+  readonly sourceRect?: { x: number; y: number; w: number; h: number };
+}
+
+/**
+ * Static village decorations placed around buildings and paths.
+ *
+ * Coordinates are in scene pixels (800x600).
+ * Anchor (0.5, 1.0): y = ground level where item sits.
+ */
+const VILLAGE_DECORATIONS: readonly DecorationPiece[] = [
+  // ── Tree stumps — vertical mass at scene edges ──
+  { asset: "tiny-swords/Terrain/Resources/Wood/Trees/Stump 1.png",
+    x: 60, y: 160, displayWidth: 56, displayHeight: 72 },
+  { asset: "tiny-swords/Terrain/Resources/Wood/Trees/Stump 2.png",
+    x: 740, y: 150, displayWidth: 56, displayHeight: 72 },
+  { asset: "tiny-swords/Terrain/Resources/Wood/Trees/Stump 3.png",
+    x: 50, y: 460, displayWidth: 56, displayHeight: 72 },
+  { asset: "tiny-swords/Terrain/Resources/Wood/Trees/Stump 1.png",
+    x: 750, y: 440, displayWidth: 56, displayHeight: 72 },
+
+  // ── Rocks — scattered along paths ──
+  { asset: "tiny-swords/Terrain/Decorations/Rocks/Rock1.png",
+    x: 280, y: 180, displayWidth: 32, displayHeight: 32 },
+  { asset: "tiny-swords/Terrain/Decorations/Rocks/Rock2.png",
+    x: 520, y: 190, displayWidth: 28, displayHeight: 28 },
+  { asset: "tiny-swords/Terrain/Decorations/Rocks/Rock3.png",
+    x: 330, y: 460, displayWidth: 30, displayHeight: 30 },
+  { asset: "tiny-swords/Terrain/Decorations/Rocks/Rock1.png",
+    x: 490, y: 480, displayWidth: 28, displayHeight: 28 },
+
+  // ── Deco sprites (update-010) — small pebbles and scatter ──
+  { asset: "tiny-swords-update-010/Deco/01.png",
+    x: 200, y: 430, displayWidth: 28, displayHeight: 28 },
+  { asset: "tiny-swords-update-010/Deco/03.png",
+    x: 600, y: 420, displayWidth: 24, displayHeight: 24 },
+  { asset: "tiny-swords-update-010/Deco/06.png",
+    x: 350, y: 250, displayWidth: 24, displayHeight: 24 },
+  { asset: "tiny-swords-update-010/Deco/09.png",
+    x: 460, y: 240, displayWidth: 24, displayHeight: 24 },
+  { asset: "tiny-swords-update-010/Deco/11.png",
+    x: 100, y: 370, displayWidth: 24, displayHeight: 24 },
+  { asset: "tiny-swords-update-010/Deco/11.png",
+    x: 700, y: 360, displayWidth: 24, displayHeight: 24 },
+
+  // ── Tall deco items — fence posts / signposts along edges ──
+  { asset: "tiny-swords-update-010/Deco/16.png",
+    x: 300, y: 135, displayWidth: 28, displayHeight: 56 },
+  { asset: "tiny-swords-update-010/Deco/17.png",
+    x: 500, y: 135, displayWidth: 28, displayHeight: 56 },
+  { asset: "tiny-swords-update-010/Deco/16.png",
+    x: 250, y: 570, displayWidth: 28, displayHeight: 56 },
+  { asset: "tiny-swords-update-010/Deco/17.png",
+    x: 550, y: 570, displayWidth: 28, displayHeight: 56 },
+];
+
+// ---------------------------------------------------------------------------
 // Animation state for in-flight actions
 // ---------------------------------------------------------------------------
 
@@ -194,6 +266,9 @@ export class PixiCommandSink implements CommandSink {
     loadPromises.push(this.loadTerrain(base));
 
     await Promise.all(loadPromises);
+
+    // Build static decoration layer (after terrain, before entities)
+    await this.buildStaticDecoration(base);
   }
 
   // =========================================================================
@@ -285,6 +360,70 @@ export class PixiCommandSink implements CommandSink {
     } catch {
       // Terrain failed to load — scene will show the solid background color
     }
+  }
+
+  /**
+   * Build the static village decoration layer.
+   *
+   * Loads tree stumps, rocks, and deco sprites, places them at
+   * hardcoded positions to give the scene a populated village feel.
+   * This layer sits between the terrain and the dynamic entities.
+   */
+  private async buildStaticDecoration(base: string): Promise<void> {
+    const decoLayer = new Container();
+
+    // Deduplicate asset loads — same asset may appear multiple times
+    const textureCache = new Map<string, Texture | null>();
+
+    const loadDeco = async (asset: string): Promise<Texture | null> => {
+      if (textureCache.has(asset)) {
+        return textureCache.get(asset) ?? null;
+      }
+      try {
+        const url = `${base}${asset}`;
+        const tex = await Assets.load<Texture>(encodeURI(url));
+        tex.source.scaleMode = "nearest";
+        textureCache.set(asset, tex);
+        return tex;
+      } catch {
+        textureCache.set(asset, null);
+        return null;
+      }
+    };
+
+    // Load all unique assets in parallel
+    const uniqueAssets = [...new Set(VILLAGE_DECORATIONS.map((d) => d.asset))];
+    await Promise.all(uniqueAssets.map((a) => loadDeco(a)));
+
+    // Place decoration sprites
+    for (const piece of VILLAGE_DECORATIONS) {
+      const tex = textureCache.get(piece.asset);
+      if (!tex) continue;
+
+      let finalTex = tex;
+      if (piece.sourceRect) {
+        finalTex = new Texture({
+          source: tex.source,
+          frame: new Rectangle(
+            piece.sourceRect.x,
+            piece.sourceRect.y,
+            piece.sourceRect.w,
+            piece.sourceRect.h,
+          ),
+        });
+      }
+
+      const sprite = new Sprite(finalTex);
+      sprite.anchor.set(0.5, 1.0);
+      sprite.width = piece.displayWidth;
+      sprite.height = piece.displayHeight;
+      sprite.position.set(piece.x, piece.y);
+      decoLayer.addChild(sprite);
+    }
+
+    // Insert decoration layer above terrain (index 1) but below entities
+    const insertIndex = Math.min(1, this.app.stage.children.length);
+    this.app.stage.addChildAt(decoLayer, insertIndex);
   }
 
   /** Get or create an inner Map inside a nested Map structure. */

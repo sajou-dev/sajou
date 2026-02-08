@@ -16,13 +16,13 @@ import { citadelEntities } from "./entities/citadel-entities.js";
  * units move between them.
  *
  * ```
- *       [Oracle]
+ *     🌲  [Oracle]  🌲
  *          |
- *    [Forge]  [Forge]
- *       \      /
- *      [Center]
+ *    [Forge]   [Center]
+ *       \       /
+ *     🪨  Path  🪨
  *       /     \
- *  [Spawn]   [Gold]
+ *  [Spawn]   [Gold]  🌲
  * ```
  */
 export const citadelManifest: ThemeManifest = {
@@ -45,12 +45,12 @@ export const citadelManifest: ThemeManifest = {
     sceneWidth: 800,
     sceneHeight: 600,
     positions: {
-      oracle: { x: 400, y: 80 },
-      forgeLeft: { x: 200, y: 220 },
-      forgeRight: { x: 600, y: 220 },
-      center: { x: 400, y: 350 },
-      spawnPoint: { x: 150, y: 500 },
-      goldPile: { x: 650, y: 500 },
+      oracle: { x: 400, y: 130 },
+      forgeLeft: { x: 160, y: 310 },
+      forgeRight: { x: 640, y: 310 },
+      center: { x: 400, y: 360 },
+      spawnPoint: { x: 130, y: 520 },
+      goldPile: { x: 670, y: 520 },
     },
   },
 
@@ -67,6 +67,19 @@ export const citadelManifest: ThemeManifest = {
       "tiny-swords-update-010/Resources/Resources/G_Spawn.png",
       "tiny-swords-update-010/Effects/Explosion/Explosions.png",
       "tiny-swords-update-010/Terrain/Ground/Tilemap_Flat.png",
+      "tiny-swords-update-010/Deco/01.png",
+      "tiny-swords-update-010/Deco/03.png",
+      "tiny-swords-update-010/Deco/06.png",
+      "tiny-swords-update-010/Deco/09.png",
+      "tiny-swords-update-010/Deco/11.png",
+      "tiny-swords-update-010/Deco/16.png",
+      "tiny-swords-update-010/Deco/17.png",
+      "tiny-swords/Terrain/Decorations/Rocks/Rock1.png",
+      "tiny-swords/Terrain/Decorations/Rocks/Rock2.png",
+      "tiny-swords/Terrain/Decorations/Rocks/Rock3.png",
+      "tiny-swords/Terrain/Resources/Wood/Trees/Stump 1.png",
+      "tiny-swords/Terrain/Resources/Wood/Trees/Stump 2.png",
+      "tiny-swords/Terrain/Resources/Wood/Trees/Stump 3.png",
       "sfx/peon-ready.ogg",
       "sfx/pigeon-coo.ogg",
       "sfx/coins-clink.ogg",

@@ -1,8 +1,8 @@
 {
   "entities": {
     "peon": {
-      "displayWidth": 64,
-      "displayHeight": 64,
+      "displayWidth": 72,
+      "displayHeight": 72,
       "fallbackColor": "#4488ff",
       "states": {
         "idle": {

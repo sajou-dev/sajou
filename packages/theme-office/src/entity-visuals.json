@@ -1,8 +1,8 @@
 {
   "entities": {
     "worker": {
-      "displayWidth": 48,
-      "displayHeight": 72,
+      "displayWidth": 40,
+      "displayHeight": 60,
       "fallbackColor": "#4488ff",
       "states": {
         "idle": {
@@ -45,8 +45,8 @@
       }
     },
     "server-rack": {
-      "displayWidth": 72,
-      "displayHeight": 108,
+      "displayWidth": 56,
+      "displayHeight": 84,
       "fallbackColor": "#37474f",
       "states": {
         "idle": {
@@ -56,8 +56,8 @@
       }
     },
     "manager-desk": {
-      "displayWidth": 96,
-      "displayHeight": 72,
+      "displayWidth": 72,
+      "displayHeight": 54,
       "fallbackColor": "#795548",
       "states": {
         "idle": {
