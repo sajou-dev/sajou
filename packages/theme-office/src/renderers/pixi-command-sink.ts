@@ -288,7 +288,6 @@ export class PixiCommandSink implements CommandSink {
   private readonly activeAnimations = new Map<string, AnimState>();
 
   /** Entity refs whose visuals were created by a flash action (temporary). */
-  private readonly flashCreatedEntities = new Set<string>();
 
   /** Loaded textures for static sprites, keyed by `${entityName}:${stateName}`. */
   private readonly stateTextures = new Map<string, Texture>();
@@ -849,27 +848,10 @@ export class PixiCommandSink implements CommandSink {
 
   private handleFlashStart(
     entityRef: string,
-    params: Readonly<Record<string, unknown>>,
+    _params: Readonly<Record<string, unknown>>,
   ): void {
-    // Flash targets a position, not necessarily a spawned entity.
-    // If the entity doesn't exist, create a temporary flash rect
-    // that will be cleaned up in handleFlashComplete.
-    let entity = this.entities.get(entityRef);
-    if (!entity) {
-      const pos = this.resolvePosition(entityRef);
-      const colorStr = params["color"] as string | undefined;
-      const colorNum = colorStr ? parseInt(colorStr.replace("#", ""), 16) : 0xffffff;
-
-      const gfx = new Graphics();
-      gfx.circle(0, 0, 32);
-      gfx.fill({ color: colorNum, alpha: 0.6 });
-      gfx.position.set(pos.x, pos.y);
-
-      this.app.stage.addChild(gfx);
-      this.entities.set(entityRef, gfx);
-      this.flashCreatedEntities.add(entityRef);
-      entity = gfx;
-    }
+    const entity = this.entities.get(entityRef);
+    if (!entity) return;
 
     entity.alpha = 1;
   }
@@ -886,16 +868,7 @@ export class PixiCommandSink implements CommandSink {
     const entity = this.entities.get(entityRef);
     if (!entity) return;
 
-    if (this.flashCreatedEntities.has(entityRef)) {
-      // Temporary flash visual — remove it entirely
-      this.app.stage.removeChild(entity);
-      entity.destroy();
-      this.entities.delete(entityRef);
-      this.flashCreatedEntities.delete(entityRef);
-    } else {
-      // Pre-existing entity (e.g. server-rack) — restore full opacity
-      entity.alpha = 1;
-    }
+    entity.alpha = 1;
   }
 
   // =========================================================================
