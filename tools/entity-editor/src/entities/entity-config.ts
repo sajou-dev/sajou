@@ -71,7 +71,42 @@ function render(): void {
     }
 
     const label = document.createElement("span");
+    label.className = "state-tab-label";
     label.textContent = name;
+
+    // Double-click to rename
+    label.addEventListener("dblclick", (e) => {
+      e.stopPropagation();
+      const input = document.createElement("input");
+      input.type = "text";
+      input.className = "state-tab-rename";
+      input.value = name;
+      input.spellcheck = false;
+
+      const commit = (): void => {
+        const newName = input.value.trim().toLowerCase().replace(/\s+/g, "-");
+        if (newName && newName !== name && !entity.states[newName]) {
+          renameState(name, newName);
+        } else {
+          render();
+        }
+      };
+
+      input.addEventListener("blur", commit);
+      input.addEventListener("keydown", (ke) => {
+        if (ke.key === "Enter") input.blur();
+        if (ke.key === "Escape") {
+          input.value = name;
+          input.blur();
+        }
+      });
+      input.addEventListener("click", (ce) => ce.stopPropagation());
+
+      label.textContent = "";
+      label.appendChild(input);
+      input.focus();
+      input.select();
+    });
 
     tab.appendChild(label);
 
@@ -161,6 +196,25 @@ function addState(): void {
 
   entity.states[stateName] = createDefaultState();
   updateState({ selectedStateName: stateName });
+}
+
+/** Rename a state on the selected entity. */
+function renameState(oldName: string, newName: string): void {
+  const state = getState();
+  const entity = getSelectedEntity();
+  if (!entity || !state.selectedEntityId) return;
+  if (oldName === newName || entity.states[newName]) return;
+
+  // Preserve insertion order: rebuild states with key replaced
+  const newStates: Record<string, import("../app-state.js").VisualState> = {};
+  for (const [key, val] of Object.entries(entity.states)) {
+    newStates[key === oldName ? newName : key] = val;
+  }
+  entity.states = newStates;
+
+  updateState({
+    selectedStateName: state.selectedStateName === oldName ? newName : state.selectedStateName,
+  });
 }
 
 /** Remove a state from the selected entity. */

@@ -437,6 +437,22 @@ input[type="color"] {
   color: var(--accent);
 }
 
+.state-tab-label {
+  cursor: default;
+}
+
+.state-tab-rename {
+  width: 80px;
+  padding: 1px 4px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  outline: none;
+}
+
 .state-tab .state-remove {
   font-size: 10px;
   opacity: 0;
