@@ -59,6 +59,12 @@ function render(): void {
   valHeight.textContent = String(entity.displayHeight);
   inputColor.value = entity.fallbackColor;
 
+  // Skip tab rebuild if an inline rename input is active
+  if (stateTabs.querySelector(".state-tab-rename")) {
+    rendering = false;
+    return;
+  }
+
   // Render state tabs
   stateTabs.innerHTML = "";
   const stateNames = Object.keys(entity.states);
@@ -123,6 +129,8 @@ function render(): void {
     }
 
     tab.addEventListener("click", () => {
+      // Skip if already selected (avoids re-render that would kill inline rename)
+      if (getState().selectedStateName === name) return;
       updateState({ selectedStateName: name });
     });
 
