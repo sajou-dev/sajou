@@ -12,17 +12,20 @@ import { officeEntities } from "./entities/office-entities.js";
 /**
  * Scene layout for the Office theme.
  *
- * The scene is a top-down modern office. Desks and servers are fixed positions,
- * workers move between them.
+ * The scene is a top-down modern office split into 4 zones:
  *
  * ```
- *     [Manager Desk]
- *          |
- *   [Server]  [Server]
- *       \       /
- *      [Open Space]
- *       /       \
- *  [Entrance]  [Accounts]
+ *  ┌─────────────────────┬────────────────────┐
+ *  │  MANAGER OFFICE     │   SERVER ROOM      │
+ *  │  [desk] [shelf]     │  [rack][rack][rack] │
+ *  ├─────────────────────┴────────────────────┤
+ *  │           OPEN SPACE                      │
+ *  │  [desk+chair] [desk+chair] [desk+chair]  │
+ *  │  [desk+chair] [desk+chair] [desk+chair]  │
+ *  ├───────────────────┬──────────────────────┤
+ *  │  ENTRANCE         │   BREAK ROOM         │
+ *  │  [reception] 🌿   │  [table] [chairs]    │
+ *  └───────────────────┴──────────────────────┘
  * ```
  */
 export const officeManifest: ThemeManifest = {
@@ -45,12 +48,12 @@ export const officeManifest: ThemeManifest = {
     sceneWidth: 800,
     sceneHeight: 600,
     positions: {
-      managerDesk: { x: 400, y: 80 },
-      serverLeft: { x: 200, y: 220 },
-      serverRight: { x: 600, y: 220 },
-      openSpace: { x: 400, y: 350 },
-      entrance: { x: 150, y: 500 },
-      accounts: { x: 650, y: 500 },
+      managerDesk: { x: 160, y: 110 },
+      serverLeft: { x: 580, y: 110 },
+      serverRight: { x: 700, y: 110 },
+      openSpace: { x: 350, y: 330 },
+      entrance: { x: 180, y: 530 },
+      accounts: { x: 620, y: 530 },
     },
   },
 

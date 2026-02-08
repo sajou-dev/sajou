@@ -50,6 +50,164 @@ const TERRAIN = {
 } as const;
 
 // ---------------------------------------------------------------------------
+// Static furniture layout — fills the office with decorative sprites
+// ---------------------------------------------------------------------------
+
+/**
+ * A static decorative sprite placed in the scene.
+ *
+ * Uses LimeZu Modern Office Singles (48x48 pack, files numbered 1-339).
+ * Each file is 96x144px (2x3 tiles), content centered with transparency.
+ */
+interface FurniturePiece {
+  /** Singles sprite number (1-339). */
+  readonly single: number;
+  /** Scene X coordinate (center of sprite). */
+  readonly x: number;
+  /** Scene Y coordinate (bottom of sprite for floor items). */
+  readonly y: number;
+  /** Display scale multiplier (default: 1). */
+  readonly scale?: number;
+}
+
+/**
+ * A partition wall segment drawn as a colored rectangle.
+ * Visually separates office zones.
+ */
+interface WallSegment {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+/** Path template for Singles assets (48x48 variant). */
+const SINGLES_PATH = "modern-office/4_Modern_Office_singles/48x48/Modern_Office_Singles_48x48_";
+
+/*
+ * Furniture identification (from pixel content analysis of 339 Singles):
+ *
+ *   249,254,259,264,269 — Large desk composites (5 wood colors)
+ *   248,253,258,263,268 — Medium desks (same 5 colors)
+ *   129-134             — Blue office chairs (dark & light variants)
+ *   329-336             — Chairs in 4 colors (blue, red, gray, brown)
+ *   275,276,311,312     — Server racks
+ *   337,338,339         — Plants (small, medium, large — GREEN)
+ *   175,176             — Tall bookcases
+ *   98                  — Tall cabinet/shelf
+ *   170-172             — Large reception/conference desks
+ *   141-146             — Computer monitors
+ *   164                 — Sofa/couch
+ *   117-118             — Small box accessories
+ *   320-322             — Large appliances (vending, copier)
+ *   135,137             — Tall narrow items (coat rack/floor lamp)
+ *   190                 — Manager desk (also used as entity)
+ *   196-199             — Small cabinets / TV screens
+ */
+
+/**
+ * Static furniture placements for the 4 office zones.
+ *
+ * Coordinates are in scene pixels (800x600).
+ * anchor (0.5, 1.0): y = floor level where item sits.
+ */
+const OFFICE_FURNITURE: readonly FurniturePiece[] = [
+  // ── ZONE 1: MANAGER OFFICE (top-left, x:0-290, y:0-200) ──
+
+  // Tall bookshelf against the left wall
+  { single: 175, x: 55, y: 185 },
+  // Second bookshelf behind desk
+  { single: 176, x: 55, y: 100 },
+  // Plant in corner
+  { single: 338, x: 260, y: 75 },
+  // Wall decoration (warm beige frame)
+  { single: 13, x: 160, y: 35, scale: 0.8 },
+  // Small accessory on desk area
+  { single: 117, x: 210, y: 130 },
+
+  // ── ZONE 2: SERVER ROOM (top-right, x:510-800, y:0-200) ──
+
+  // Extra static server rack (entity server-rack at 580, these are decor)
+  { single: 276, x: 660, y: 175 },
+  { single: 311, x: 740, y: 175 },
+  // Tall cabinet in server room
+  { single: 98, x: 550, y: 185 },
+  // Small monitor on side
+  { single: 141, x: 770, y: 55 },
+
+  // ── ZONE 3: OPEN SPACE (x:20-780, y:220-440) ──
+
+  // Row 1: 4 desks with chairs (y ~ 290-310)
+  { single: 249, x: 110, y: 295 },
+  { single: 329, x: 110, y: 325 },
+  { single: 249, x: 260, y: 295 },
+  { single: 329, x: 260, y: 325 },
+  { single: 249, x: 410, y: 295 },
+  { single: 329, x: 410, y: 325 },
+  { single: 249, x: 560, y: 295 },
+  { single: 329, x: 560, y: 325 },
+
+  // Row 2: 4 desks with chairs (y ~ 380-410)
+  { single: 254, x: 110, y: 385 },
+  { single: 330, x: 110, y: 415 },
+  { single: 254, x: 260, y: 385 },
+  { single: 330, x: 260, y: 415 },
+  { single: 254, x: 410, y: 385 },
+  { single: 330, x: 410, y: 415 },
+  { single: 254, x: 560, y: 385 },
+  { single: 330, x: 560, y: 415 },
+
+  // Scattered decoration in open space
+  { single: 338, x: 720, y: 270 },  // Plant near wall
+  { single: 135, x: 720, y: 415 },  // Coat rack / floor lamp
+
+  // ── ZONE 4: ENTRANCE / RECEPTION (bottom-left, x:0-390, y:450-600) ──
+
+  // Large reception desk
+  { single: 170, x: 200, y: 560 },
+  // Large plant at entrance
+  { single: 339, x: 55, y: 570 },
+  // Medium plant
+  { single: 338, x: 350, y: 510 },
+  // Small accessory on reception
+  { single: 118, x: 230, y: 535 },
+
+  // ── ZONE 5: BREAK ROOM (bottom-right, x:410-800, y:450-600) ──
+
+  // Large appliance (vending machine / copier)
+  { single: 320, x: 490, y: 575 },
+  // Table with chairs
+  { single: 253, x: 630, y: 555 },
+  { single: 333, x: 605, y: 580 },
+  { single: 334, x: 660, y: 580 },
+  // Small plant in corner
+  { single: 337, x: 760, y: 500 },
+  // Sofa / couch
+  { single: 164, x: 760, y: 575 },
+];
+
+/**
+ * Partition wall segments that visually separate office zones.
+ * Drawn as colored rectangles to suggest office partitions.
+ */
+const PARTITION_WALLS: readonly WallSegment[] = [
+  // Manager office — right wall (vertical)
+  { x: 290, y: 0, width: 6, height: 205 },
+  // Manager office — bottom wall (horizontal)
+  { x: 0, y: 200, width: 296, height: 6 },
+  // Server room — left wall (vertical)
+  { x: 510, y: 0, width: 6, height: 205 },
+  // Server room — bottom wall (horizontal)
+  { x: 510, y: 200, width: 290, height: 6 },
+  // Hallway between manager and server (top center)
+  { x: 296, y: 200, width: 214, height: 6 },
+  // Bottom zone — top wall (horizontal, full width)
+  { x: 0, y: 445, width: 800, height: 6 },
+  // Break room — left wall (vertical)
+  { x: 400, y: 451, width: 6, height: 149 },
+];
+
+// ---------------------------------------------------------------------------
 // Animation state for in-flight actions
 // ---------------------------------------------------------------------------
 
@@ -198,6 +356,9 @@ export class PixiCommandSink implements CommandSink {
     loadPromises.push(this.loadTerrain(base));
 
     await Promise.all(loadPromises);
+
+    // Build static furniture layer (after terrain, before entities)
+    await this.buildStaticFurniture(base);
   }
 
   // =========================================================================
@@ -289,6 +450,66 @@ export class PixiCommandSink implements CommandSink {
     } catch {
       // Terrain failed to load — scene will show the solid background color
     }
+  }
+
+  /**
+   * Build the static office furniture layer.
+   *
+   * Loads Singles PNGs, places furniture sprites at hardcoded positions,
+   * and draws partition walls to divide the office into zones.
+   * This layer sits between the terrain floor and the dynamic entities.
+   */
+  private async buildStaticFurniture(base: string): Promise<void> {
+    const furnitureLayer = new Container();
+
+    // Deduplicate asset loads — same single number used for multiple desks/chairs
+    const textureCache = new Map<number, Texture | null>();
+
+    const loadSingle = async (num: number): Promise<Texture | null> => {
+      if (textureCache.has(num)) {
+        return textureCache.get(num) ?? null;
+      }
+      try {
+        const url = `${base}${SINGLES_PATH}${String(num)}.png`;
+        const tex = await Assets.load<Texture>(encodeURI(url));
+        tex.source.scaleMode = "nearest";
+        textureCache.set(num, tex);
+        return tex;
+      } catch {
+        textureCache.set(num, null);
+        return null;
+      }
+    };
+
+    // Load all unique singles in parallel
+    const uniqueSingles = [...new Set(OFFICE_FURNITURE.map((f) => f.single))];
+    await Promise.all(uniqueSingles.map((n) => loadSingle(n)));
+
+    // Place furniture sprites
+    for (const piece of OFFICE_FURNITURE) {
+      const tex = textureCache.get(piece.single);
+      if (!tex) continue;
+
+      const sprite = new Sprite(tex);
+      sprite.anchor.set(0.5, 1.0);
+      sprite.position.set(piece.x, piece.y);
+      if (piece.scale !== undefined) {
+        sprite.scale.set(piece.scale);
+      }
+      furnitureLayer.addChild(sprite);
+    }
+
+    // Draw partition walls
+    const walls = new Graphics();
+    for (const seg of PARTITION_WALLS) {
+      walls.rect(seg.x, seg.y, seg.width, seg.height);
+    }
+    walls.fill(0x6b7b8d);
+    furnitureLayer.addChild(walls);
+
+    // Insert furniture layer above terrain (index 1) but below entities
+    const insertIndex = Math.min(1, this.app.stage.children.length);
+    this.app.stage.addChildAt(furnitureLayer, insertIndex);
   }
 
   /** Get or create an inner Map inside a nested Map structure. */
