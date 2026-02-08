@@ -665,9 +665,12 @@ export class PixiCommandSink implements CommandSink {
         anim.animationSpeed = fps / 60;
         anim.loop = isLoop;
 
-        // One-shot animations auto-destroy when finished
+        // One-shot animations: hide immediately on last frame, then destroy.
+        // Setting visible=false prevents the fallback rectangle flash that
+        // occurs if a render pass happens between onComplete and destroy.
         if (!isLoop) {
           anim.onComplete = () => {
+            anim.visible = false;
             this.handleDestroy(entityRef);
           };
         }
@@ -746,6 +749,7 @@ export class PixiCommandSink implements CommandSink {
   private handleDestroy(entityRef: string): void {
     const entity = this.entities.get(entityRef);
     if (entity) {
+      entity.visible = false;
       this.app.stage.removeChild(entity);
       entity.destroy();
       this.entities.delete(entityRef);
