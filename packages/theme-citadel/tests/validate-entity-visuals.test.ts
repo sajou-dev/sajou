@@ -21,7 +21,8 @@ function validConfig(): EntityVisualConfig {
           idle: {
             type: "spritesheet",
             asset: "peon.png",
-            frameSize: 192,
+            frameWidth: 192,
+            frameHeight: 192,
             frameCount: 6,
             fps: 10,
           },
@@ -74,7 +75,8 @@ describe("validateEntityVisuals", () => {
             run: {
               type: "spritesheet",
               asset: "peon.png",
-              frameSize: 192,
+              frameWidth: 192,
+              frameHeight: 192,
               frameCount: 6,
               fps: 10,
             },
@@ -96,12 +98,20 @@ describe("validateEntityVisuals", () => {
     expect(result.warnings.some((w) => w.includes("type"))).toBe(true);
   });
 
-  it("warns on spritesheet missing frameSize", () => {
+  it("warns on spritesheet missing frameWidth", () => {
     const config = validConfig();
-    (config.entities["peon"]!.states["idle"] as Record<string, unknown>)["frameSize"] = undefined;
+    (config.entities["peon"]!.states["idle"] as Record<string, unknown>)["frameWidth"] = undefined;
     const result = validateEntityVisuals(config);
     expect(result.valid).toBe(false);
-    expect(result.warnings.some((w) => w.includes("frameSize"))).toBe(true);
+    expect(result.warnings.some((w) => w.includes("frameWidth"))).toBe(true);
+  });
+
+  it("warns on spritesheet missing frameHeight", () => {
+    const config = validConfig();
+    (config.entities["peon"]!.states["idle"] as Record<string, unknown>)["frameHeight"] = undefined;
+    const result = validateEntityVisuals(config);
+    expect(result.valid).toBe(false);
+    expect(result.warnings.some((w) => w.includes("frameHeight"))).toBe(true);
   });
 
   it("warns on spritesheet missing frameCount", () => {

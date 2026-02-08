@@ -26,7 +26,7 @@ export interface ValidationResult {
  * - Every entity has `displayWidth`, `displayHeight`, `fallbackColor`, and `states`
  * - Every entity has at least an `"idle"` state
  * - Every state has `type` and `asset`
- * - Spritesheet states have `frameSize`, `frameCount`, and `fps`
+ * - Spritesheet states have `frameWidth`, `frameHeight`, `frameCount`, and `fps`
  *
  * @returns Validation result with warnings (empty if all valid)
  */
@@ -77,8 +77,11 @@ export function validateEntityVisuals(config: EntityVisualConfig): ValidationRes
       }
 
       if (state.type === "spritesheet") {
-        if (typeof state.frameSize !== "number" || state.frameSize <= 0) {
-          warnings.push(`Entity '${entityId}' state '${stateName}': spritesheet missing valid 'frameSize'.`);
+        if (typeof state.frameWidth !== "number" || state.frameWidth <= 0) {
+          warnings.push(`Entity '${entityId}' state '${stateName}': spritesheet missing valid 'frameWidth'.`);
+        }
+        if (typeof state.frameHeight !== "number" || state.frameHeight <= 0) {
+          warnings.push(`Entity '${entityId}' state '${stateName}': spritesheet missing valid 'frameHeight'.`);
         }
         if (typeof state.frameCount !== "number" || state.frameCount <= 0) {
           warnings.push(`Entity '${entityId}' state '${stateName}': spritesheet missing valid 'frameCount'.`);

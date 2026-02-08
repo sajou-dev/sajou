@@ -46,7 +46,7 @@ export interface StaticVisualState {
 /**
  * A spritesheet visual state — animated frame sequence from a grid.
  *
- * The spritesheet is a grid of square cells. A row contains one animation,
+ * The spritesheet is a grid of cells. A row contains one animation,
  * and `frameRow` selects which row.
  */
 export interface SpritesheetVisualState {
@@ -54,8 +54,10 @@ export interface SpritesheetVisualState {
   readonly type: "spritesheet";
   /** Asset path relative to the theme's asset base path. */
   readonly asset: string;
-  /** Size of each frame cell in pixels (square frames). */
-  readonly frameSize: number;
+  /** Width of each frame cell in pixels. */
+  readonly frameWidth: number;
+  /** Height of each frame cell in pixels. */
+  readonly frameHeight: number;
   /** Number of frames in this animation row. */
   readonly frameCount: number;
   /** Row index in the spritesheet grid (0-based). Default: 0. */

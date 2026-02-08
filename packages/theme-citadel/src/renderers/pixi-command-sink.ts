@@ -293,7 +293,7 @@ export class PixiCommandSink implements CommandSink {
 
         if (state.type === "spritesheet") {
           const row = state.frameRow ?? 0;
-          const frames = this.sliceFrames(loaded, state.frameSize, state.frameCount, row);
+          const frames = this.sliceFrames(loaded, state.frameWidth, state.frameHeight, state.frameCount, row);
           this.getOrCreateMap(this.animFrames, name).set(stateName, frames);
           this.getOrCreateMap(this.animFps, name).set(stateName, state.fps);
         } else if (state.sourceRect) {
@@ -315,17 +315,18 @@ export class PixiCommandSink implements CommandSink {
   /** Slice a spritesheet row into individual frame textures. */
   private sliceFrames(
     texture: Texture,
-    frameSize: number,
+    frameWidth: number,
+    frameHeight: number,
     frameCount: number,
     row = 0,
   ): Texture[] {
     const frames: Texture[] = [];
-    const y = row * frameSize;
+    const y = row * frameHeight;
     for (let i = 0; i < frameCount; i++) {
       frames.push(
         new Texture({
           source: texture.source,
-          frame: new Rectangle(i * frameSize, y, frameSize, frameSize),
+          frame: new Rectangle(i * frameWidth, y, frameWidth, frameHeight),
         }),
       );
     }

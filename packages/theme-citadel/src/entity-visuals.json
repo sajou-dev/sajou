@@ -8,7 +8,8 @@
         "idle": {
           "type": "spritesheet",
           "asset": "tiny-swords-update-010/Factions/Knights/Troops/Pawn/Blue/Pawn_Blue.png",
-          "frameSize": 192,
+          "frameWidth": 192,
+          "frameHeight": 192,
           "frameCount": 6,
           "frameRow": 0,
           "fps": 10,
@@ -17,7 +18,8 @@
         "run": {
           "type": "spritesheet",
           "asset": "tiny-swords-update-010/Factions/Knights/Troops/Pawn/Blue/Pawn_Blue.png",
-          "frameSize": 192,
+          "frameWidth": 192,
+          "frameHeight": 192,
           "frameCount": 6,
           "frameRow": 1,
           "fps": 10,
@@ -26,7 +28,8 @@
         "attack": {
           "type": "spritesheet",
           "asset": "tiny-swords-update-010/Factions/Knights/Troops/Pawn/Blue/Pawn_Blue.png",
-          "frameSize": 192,
+          "frameWidth": 192,
+          "frameHeight": 192,
           "frameCount": 6,
           "frameRow": 2,
           "fps": 10,
@@ -35,7 +38,8 @@
         "hit": {
           "type": "spritesheet",
           "asset": "tiny-swords-update-010/Factions/Knights/Troops/Pawn/Blue/Pawn_Blue.png",
-          "frameSize": 192,
+          "frameWidth": 192,
+          "frameHeight": 192,
           "frameCount": 6,
           "frameRow": 4,
           "fps": 10,
@@ -44,7 +48,8 @@
         "death": {
           "type": "spritesheet",
           "asset": "tiny-swords-update-010/Factions/Knights/Troops/Pawn/Blue/Pawn_Blue.png",
-          "frameSize": 192,
+          "frameWidth": 192,
+          "frameHeight": 192,
           "frameCount": 6,
           "frameRow": 5,
           "fps": 10,
@@ -106,7 +111,8 @@
         "spawn": {
           "type": "spritesheet",
           "asset": "tiny-swords-update-010/Resources/Resources/G_Spawn.png",
-          "frameSize": 128,
+          "frameWidth": 128,
+          "frameHeight": 128,
           "frameCount": 7,
           "frameRow": 0,
           "fps": 10,
@@ -122,7 +128,8 @@
         "idle": {
           "type": "spritesheet",
           "asset": "tiny-swords-update-010/Effects/Explosion/Explosions.png",
-          "frameSize": 192,
+          "frameWidth": 192,
+          "frameHeight": 192,
           "frameCount": 9,
           "frameRow": 0,
           "fps": 10,

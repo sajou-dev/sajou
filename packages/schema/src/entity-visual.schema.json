@@ -83,14 +83,19 @@
             "properties": { "type": { "const": "spritesheet" } }
           },
           "then": {
-            "required": ["frameSize", "frameCount", "fps"],
+            "required": ["frameWidth", "frameHeight", "frameCount", "fps"],
             "properties": {
               "type": true,
               "asset": true,
-              "frameSize": {
+              "frameWidth": {
                 "type": "number",
                 "minimum": 1,
-                "description": "Size of each frame cell in pixels. Frames are square (frameSize x frameSize)."
+                "description": "Width of each frame cell in pixels."
+              },
+              "frameHeight": {
+                "type": "number",
+                "minimum": 1,
+                "description": "Height of each frame cell in pixels."
               },
               "frameCount": {
                 "type": "number",

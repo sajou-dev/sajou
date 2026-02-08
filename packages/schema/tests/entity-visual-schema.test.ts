@@ -35,7 +35,8 @@ describe("entity-visual.schema.json", () => {
             idle: {
               type: "spritesheet",
               asset: "path/to/peon.png",
-              frameSize: 192,
+              frameWidth: 192,
+              frameHeight: 192,
               frameCount: 6,
               frameRow: 0,
               fps: 10,
@@ -44,7 +45,8 @@ describe("entity-visual.schema.json", () => {
             run: {
               type: "spritesheet",
               asset: "path/to/peon.png",
-              frameSize: 192,
+              frameWidth: 192,
+              frameHeight: 192,
               frameCount: 6,
               frameRow: 1,
               fps: 10,
@@ -170,7 +172,7 @@ describe("entity-visual.schema.json", () => {
     expect(valid).toBe(false);
   });
 
-  it("rejects spritesheet without frameSize", () => {
+  it("rejects spritesheet without frameWidth", () => {
     const config = {
       entities: {
         broken: {
@@ -181,6 +183,31 @@ describe("entity-visual.schema.json", () => {
             idle: {
               type: "spritesheet",
               asset: "test.png",
+              frameHeight: 192,
+              frameCount: 6,
+              fps: 10,
+            },
+          },
+        },
+      },
+    };
+
+    const valid = validate(config);
+    expect(valid).toBe(false);
+  });
+
+  it("rejects spritesheet without frameHeight", () => {
+    const config = {
+      entities: {
+        broken: {
+          displayWidth: 64,
+          displayHeight: 64,
+          fallbackColor: "#ff0000",
+          states: {
+            idle: {
+              type: "spritesheet",
+              asset: "test.png",
+              frameWidth: 192,
               frameCount: 6,
               fps: 10,
             },
@@ -204,7 +231,8 @@ describe("entity-visual.schema.json", () => {
             idle: {
               type: "spritesheet",
               asset: "test.png",
-              frameSize: 192,
+              frameWidth: 192,
+              frameHeight: 192,
               fps: 10,
             },
           },
@@ -227,7 +255,8 @@ describe("entity-visual.schema.json", () => {
             idle: {
               type: "spritesheet",
               asset: "test.png",
-              frameSize: 192,
+              frameWidth: 192,
+              frameHeight: 192,
               frameCount: 6,
             },
           },
@@ -237,6 +266,32 @@ describe("entity-visual.schema.json", () => {
 
     const valid = validate(config);
     expect(valid).toBe(false);
+  });
+
+  it("accepts spritesheet with rectangular frames", () => {
+    const config = {
+      entities: {
+        character: {
+          displayWidth: 32,
+          displayHeight: 48,
+          fallbackColor: "#44ff88",
+          states: {
+            idle: {
+              type: "spritesheet",
+              asset: "path/to/character.png",
+              frameWidth: 32,
+              frameHeight: 48,
+              frameCount: 4,
+              fps: 8,
+              loop: true,
+            },
+          },
+        },
+      },
+    };
+
+    const valid = validate(config);
+    expect(valid).toBe(true);
   });
 
   it("rejects invalid fallbackColor format", () => {
