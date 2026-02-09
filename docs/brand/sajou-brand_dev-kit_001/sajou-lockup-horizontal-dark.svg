@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="380" height="80" viewBox="0 0 380 80" fill="none">
+  <!-- Sajou Lockup Horizontal — On Dark -->
+  <!-- Logomark -->
+  <rect x="20" y="26" width="34" height="34" rx="10" stroke="#E8A851" stroke-width="2.2" fill="none" opacity="0.85"/>
+  <circle cx="32" cy="40" r="2.5" fill="#E8A851"/>
+  <rect x="25" y="18" width="7" height="9" rx="3.5" stroke="#E8A851" stroke-width="1.3" fill="none" opacity="0.3"/>
+  <rect x="42" y="18" width="7" height="9" rx="3.5" stroke="#E8A851" stroke-width="1.3" fill="none" opacity="0.3"/>
+  <path d="M 54 46 C 66 50, 74 42, 76 34 C 78 26, 88 22, 94 30" stroke="#E8A851" stroke-width="2.2" stroke-linecap="round" fill="none"/>
+  <circle cx="94" cy="30" r="3.5" fill="#E8A851" opacity="0.9"/>
+  <!-- Divider -->
+  <line x1="112" y1="16" x2="112" y2="64" stroke="#E8A851" opacity="0.1" stroke-width="1"/>
+  <!-- Text -->
+  <text x="128" y="50" font-family="Sora, sans-serif" font-weight="500" font-size="32" fill="#E8A851" letter-spacing="-0.5">sajou</text>
+  <text x="128" y="24" font-family="JetBrains Mono, monospace" font-weight="400" font-size="8.5" fill="#6e6e8a" letter-spacing="2">VISUAL CHOREOGRAPHER</text>
+</svg>

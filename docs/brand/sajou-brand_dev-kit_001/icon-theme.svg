@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48" fill="none">
+  <!-- Sajou Icon: Theme — stacked scene layers with entity -->
+  <!-- Back layer (dimmest) -->
+  <rect x="6" y="12" width="28" height="24" rx="4" stroke="currentColor" stroke-width="1.5" fill="none" opacity="0.25"/>
+  <!-- Mid layer -->
+  <rect x="10" y="10" width="28" height="24" rx="4" stroke="currentColor" stroke-width="1.8" fill="none" opacity="0.5"/>
+  <!-- Front layer (brightest) -->
+  <rect x="14" y="8" width="28" height="24" rx="4" stroke="currentColor" stroke-width="2.2" fill="none" opacity="0.85"/>
+  <!-- Entity dot -->
+  <circle cx="24" cy="20" r="3" fill="currentColor"/>
+  <!-- Sparkle -->
+  <line x1="34" y1="14" x2="36" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
+  <line x1="36" y1="14" x2="34" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
+</svg>

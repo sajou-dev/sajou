@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="240" height="48" viewBox="0 0 240 48" fill="none">
+  <!-- Sajou Logotype — On Light -->
+  <text x="8" y="36" font-family="Sora, sans-serif" font-weight="500" font-size="36" fill="#1a1a2e" letter-spacing="-1">sajou</text>
+  <path d="M 10 42 C 40 47, 100 40, 150 44 C 172 45, 184 42, 188 38" stroke="#1a1a2e" stroke-width="1.5" stroke-linecap="round" fill="none" opacity="0.25"/>
+</svg>
