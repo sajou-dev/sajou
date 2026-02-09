@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>sajou — Scene Builder</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Sora:wght@300;400;500;600;700&family=DM+Sans:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/src/styles.css" />
+</head>
+<body>
+  <header id="header">
+    <div class="header-left">
+      <svg class="header-logo" width="24" height="24" viewBox="0 0 160 160" fill="none">
+        <rect x="26" y="30" width="50" height="50" rx="15" stroke="#E8A851" stroke-width="8" fill="none"/>
+        <circle cx="46" cy="52" r="8" fill="#E8A851"/>
+        <path d="M 74 60 C 90 66, 100 52, 104 40 C 108 28, 122 24, 132 34" stroke="#E8A851" stroke-width="8" stroke-linecap="round" fill="none"/>
+        <circle cx="132" cy="34" r="12" fill="#E8A851"/>
+      </svg>
+      <h1>sajou <span class="header-subtitle">Scene Builder</span></h1>
+    </div>
+    <div class="header-right">
+      <button id="btn-import" class="header-btn">Import</button>
+      <button id="btn-export" class="header-btn header-btn--primary">Export</button>
+    </div>
+  </header>
+
+  <div id="workspace">
+    <aside id="toolbar"></aside>
+    <div id="canvas-container"></div>
+    <div id="zoom-bar">
+      <button id="zoom-out" class="zoom-btn" title="Zoom out (-)">&#8722;</button>
+      <button id="zoom-level" class="zoom-level" title="Click for presets">100%</button>
+      <button id="zoom-in" class="zoom-btn" title="Zoom in (+)">&#43;</button>
+      <div id="zoom-presets" class="zoom-presets" hidden>
+        <button data-zoom="0.25">25%</button>
+        <button data-zoom="0.5">50%</button>
+        <button data-zoom="1">100%</button>
+        <button data-zoom="2">200%</button>
+        <button data-zoom="fit">Fit</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
