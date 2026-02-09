@@ -14,7 +14,12 @@ import type { SceneState } from "../types.js";
 function createDefault(): SceneState {
   return {
     dimensions: { width: 960, height: 640 },
-    background: { type: "solid", color: "#1a1a2e" },
+    background: { color: "#1a1a2e" },
+    layers: [
+      { id: "background", name: "Background", order: 0, visible: true, locked: false },
+      { id: "midground", name: "Midground", order: 1, visible: true, locked: false },
+      { id: "foreground", name: "Foreground", order: 2, visible: true, locked: false },
+    ],
     entities: [],
     positions: [],
     routes: [],

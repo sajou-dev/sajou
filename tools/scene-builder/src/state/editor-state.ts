@@ -30,6 +30,8 @@ function createDefault(): EditorState {
     gridEnabled: true,
     gridSize: 32,
     snapToGrid: true,
+    placingEntityId: null,
+    activeLayerId: "midground",
   };
 }
 
@@ -79,11 +81,32 @@ export function togglePanel(panelId: PanelId): void {
   notify();
 }
 
+/** Ensure a panel is visible (show without toggling). */
+export function showPanel(panelId: PanelId): void {
+  const layouts = { ...state.panelLayouts };
+  if (layouts[panelId].visible) return;
+  layouts[panelId] = { ...layouts[panelId], visible: true };
+  state = { ...state, panelLayouts: layouts };
+  notify();
+}
+
 /** Update a panel's layout (position/size). */
 export function updatePanelLayout(panelId: PanelId, partial: Partial<PanelLayout>): void {
   const layouts = { ...state.panelLayouts };
   layouts[panelId] = { ...layouts[panelId], ...partial };
   state = { ...state, panelLayouts: layouts };
+  notify();
+}
+
+/** Set the entity to place on next canvas click. */
+export function setPlacingEntity(id: string | null): void {
+  state = { ...state, placingEntityId: id };
+  notify();
+}
+
+/** Set the active layer for new content placement. */
+export function setActiveLayer(layerId: string | null): void {
+  state = { ...state, activeLayerId: layerId };
   notify();
 }
 

@@ -16,11 +16,30 @@ export interface SceneDimensions {
   height: number;
 }
 
-/** Background configuration. */
+/** Background configuration — just a base fill color. */
 export interface SceneBackground {
-  type: "solid" | "tiled";
-  color?: string;
-  assetPath?: string;
+  /** Base fill color (always rendered underneath all layers). */
+  color: string;
+}
+
+/**
+ * A generic scene layer (Photoshop/Tiled-style).
+ *
+ * A layer is a Z-group: a named, ordered, hideable, lockable container.
+ * Content (entities, background images, routes...) is placed on layers.
+ * The Layers panel manages the layer stack — not the content on it.
+ */
+export interface SceneLayer {
+  /** Unique layer ID. */
+  id: string;
+  /** Display name in the Layers panel. */
+  name: string;
+  /** Layer order (higher = rendered on top). */
+  order: number;
+  /** Whether the layer is visible. */
+  visible: boolean;
+  /** Whether the layer is locked (prevents selection/editing of its contents). */
+  locked: boolean;
 }
 
 /**
@@ -41,7 +60,8 @@ export interface PlacedEntity {
   scale: number;
   /** Rotation in degrees. */
   rotation: number;
-  layer: "background" | "midground" | "foreground";
+  /** Reference to SceneLayer.id. Determines rendering order group. */
+  layerId: string;
   /** Opacity 0-1. */
   opacity: number;
   flipH: boolean;
@@ -99,6 +119,8 @@ export interface SceneRoute {
 export interface SceneState {
   dimensions: SceneDimensions;
   background: SceneBackground;
+  /** Scene layers — ordered Z-groups that content is placed on. */
+  layers: SceneLayer[];
   entities: PlacedEntity[];
   positions: ScenePosition[];
   routes: SceneRoute[];
@@ -131,6 +153,10 @@ export interface EditorState {
   gridEnabled: boolean;
   gridSize: number;
   snapToGrid: boolean;
+  /** Entity ID to place on next canvas click (null = not placing). */
+  placingEntityId: string | null;
+  /** The active layer for new content placement. */
+  activeLayerId: string | null;
 }
 
 // ---------------------------------------------------------------------------

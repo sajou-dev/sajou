@@ -185,16 +185,18 @@ export function initToolbar(): void {
 function initZoomBar(): void {
   const zoomOutBtn = document.getElementById("zoom-out");
   const zoomInBtn = document.getElementById("zoom-in");
-  const zoomLevelBtn = document.getElementById("zoom-level");
   const presetsEl = document.getElementById("zoom-presets");
 
   zoomOutBtn?.addEventListener("click", () => zoomOut());
   zoomInBtn?.addEventListener("click", () => zoomIn());
 
-  // Toggle presets dropdown
-  zoomLevelBtn?.addEventListener("click", () => {
-    if (!presetsEl) return;
-    presetsEl.hidden = !presetsEl.hidden;
+  // Show presets on hover
+  const zoomBar = document.getElementById("zoom-bar");
+  zoomBar?.addEventListener("mouseenter", () => {
+    if (presetsEl) presetsEl.hidden = false;
+  });
+  zoomBar?.addEventListener("mouseleave", () => {
+    if (presetsEl) presetsEl.hidden = true;
   });
 
   // Preset buttons
@@ -208,15 +210,6 @@ function initZoomBar(): void {
     } else {
       setZoomLevel(parseFloat(val));
     }
-    presetsEl.hidden = true;
-  });
-
-  // Close presets on outside click
-  document.addEventListener("mousedown", (e) => {
-    if (!presetsEl || presetsEl.hidden) return;
-    const target = e.target as HTMLElement;
-    if (target.closest("#zoom-bar")) return;
-    presetsEl.hidden = true;
   });
 }
 

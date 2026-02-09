@@ -25,6 +25,13 @@ export interface SceneLayers {
   selection: Container;
 }
 
+/** Interface for canvas tool event handlers. */
+export interface CanvasToolHandler {
+  onMouseDown?(e: MouseEvent, scenePos: { x: number; y: number }): void;
+  onMouseMove?(e: MouseEvent, scenePos: { x: number; y: number }): void;
+  onMouseUp?(e: MouseEvent, scenePos: { x: number; y: number }): void;
+}
+
 // ---------------------------------------------------------------------------
 // Cursor map per tool
 // ---------------------------------------------------------------------------
@@ -47,6 +54,7 @@ let layers: SceneLayers | null = null;
 let sceneRoot: Container | null = null;
 let gridGraphics: Graphics | null = null;
 let sceneBoundary: Graphics | null = null;
+let toolHandler: CanvasToolHandler | null = null;
 
 const canvasContainer = document.getElementById("canvas-container")!;
 const zoomLevelBtn = document.getElementById("zoom-level")!;
@@ -61,6 +69,16 @@ let panning: { startX: number; startY: number; origPanX: number; origPanY: numbe
 // ---------------------------------------------------------------------------
 // Getters
 // ---------------------------------------------------------------------------
+
+/** Set the active tool handler for canvas events. */
+export function setToolHandler(handler: CanvasToolHandler | null): void {
+  toolHandler = handler;
+}
+
+/** Get the scene root container (for hit-testing). */
+export function getSceneRoot(): Container | null {
+  return sceneRoot;
+}
 
 /** Get the PixiJS Application instance. */
 export function getApp(): Application | null {
@@ -334,9 +352,11 @@ export async function initCanvas(): Promise<void> {
   // Scene layers
   const ground = new Container();
   ground.label = "ground";
+  ground.sortableChildren = true;
 
   const objects = new Container();
   objects.label = "objects";
+  objects.sortableChildren = true;
 
   const positions = new Container();
   positions.label = "positions";
@@ -370,6 +390,21 @@ export async function initCanvas(): Promise<void> {
   // Prevent default middle-click scroll
   canvasContainer.addEventListener("auxclick", (e) => {
     if (e.button === 1) e.preventDefault();
+  });
+
+  // Tool handler forwarding (only when not panning, left-click only)
+  canvasContainer.addEventListener("mousedown", (e) => {
+    if (e.button !== 0 || spaceDown || panning) return;
+    if (getEditorState().activeTool === "hand") return;
+    toolHandler?.onMouseDown?.(e, screenToScene(e));
+  });
+  document.addEventListener("mousemove", (e) => {
+    if (panning) return;
+    toolHandler?.onMouseMove?.(e, screenToScene(e));
+  });
+  document.addEventListener("mouseup", (e) => {
+    if (e.button !== 0) return;
+    toolHandler?.onMouseUp?.(e, screenToScene(e));
   });
 
   // Redraw when state changes
