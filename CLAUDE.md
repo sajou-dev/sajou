@@ -273,6 +273,39 @@ pnpm init
 
 ---
 
+## Brand Guidelines
+
+**The brand guide is the single source of truth for all visual and identity decisions.** Read and follow [docs/brand/sajou-brand_dev-kit_001/SAJOU-BRAND.md](./docs/brand/sajou-brand_dev-kit_001/SAJOU-BRAND.md) before any UI, documentation, or marketing work.
+
+### Key Rules
+- Always write "sajou" in **lowercase** — never "Sajou", "SAJOU", or "SaJou" (except at sentence start where unavoidable).
+- Use the **SVG assets** provided in `docs/brand/sajou-brand_dev-kit_001/` (logomark, logotype, lockup, favicon, layer icons). Never recreate or approximate them.
+- Respect the **color palette** (Ember theme): accent `#E8A851`, dark backgrounds `#07070C`/`#0E0E16`/`#14141F`, never pure black `#000000`.
+- Use the **typography stack**: Sora (display), JetBrains Mono (code/labels), DM Sans (body).
+- Use the **3 custom layer icons** (`icon-signal.svg`, `icon-choreographer.svg`, `icon-theme.svg`) to represent the architecture layers. For generic UI icons, use **Lucide Icons**.
+- Follow the **logomark size rules**: full version ≥96px, simplified ears 48–96px, no ears 32–48px, favicon ≤32px.
+- Apply the **UI component specs** (badges, cards, buttons, border-radius scale) defined in the brand guide.
+
+### Available Brand Assets
+```
+docs/brand/sajou-brand_dev-kit_001/
+├── SAJOU-BRAND.md                    # Full brand guide (source of truth)
+├── sajou-favicon.svg                 # 32×32 simplified logomark
+├── sajou-logomark-dark.svg           # Logomark for dark backgrounds
+├── sajou-logomark-light.svg          # Logomark for light backgrounds
+├── sajou-logotype-dark.svg           # Wordmark for dark backgrounds
+├── sajou-logotype-light.svg          # Wordmark for light backgrounds
+├── sajou-lockup-horizontal-dark.svg  # Logo + tagline for dark backgrounds
+├── sajou-lockup-horizontal-light.svg # Logo + tagline for light backgrounds
+├── icon-signal.svg                   # Signal layer icon
+├── icon-choreographer.svg            # Choreographer layer icon
+└── icon-theme.svg                    # Theme layer icon
+```
+
+When in doubt about any visual decision, defer to the brand guide.
+
+---
+
 ## What NOT to do
 
 - **Don't couple core to any rendering library** — no Three.js, no PixiJS, no DOM in `@sajou/core`
@@ -283,3 +316,4 @@ pnpm init
 - **Don't modify `@sajou/schema` without coordination** — it's the shared contract
 - **Don't add dependencies to `@sajou/core`** — zero deps means zero deps
 - **Don't commit without tests** — if you write runtime logic, test it
+- **Don't deviate from the brand guide** — colors, typography, logo usage, and icon choices are defined in `docs/brand/sajou-brand_dev-kit_001/SAJOU-BRAND.md`. Don't invent new colors, swap fonts, or recreate logo assets
