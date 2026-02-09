@@ -2,7 +2,8 @@
  * Property panel module (scene tab right sidebar).
  *
  * Shows editable properties for the currently selected scene element:
- * x, y, size, rotation, layer, name. Includes a delete button.
+ * x, y, size, rotation, layer, name, color. Includes a delete button.
+ * When nothing is selected, shows scene settings (dimensions).
  */
 
 import { getState, updateState, subscribe } from "../app-state.js";
@@ -62,6 +63,27 @@ function textRow(label: string, value: string, onChange: (v: string) => void): H
   return row;
 }
 
+/** Create a labeled color input row. */
+function colorRow(label: string, value: string, onChange: (v: string) => void): HTMLElement {
+  const row = document.createElement("div");
+  row.className = "prop-row";
+
+  const lbl = document.createElement("label");
+  lbl.className = "prop-label";
+  lbl.textContent = label;
+
+  const input = document.createElement("input");
+  input.type = "color";
+  input.value = value;
+  input.addEventListener("input", () => {
+    onChange(input.value);
+  });
+
+  row.appendChild(lbl);
+  row.appendChild(input);
+  return row;
+}
+
 // ---------------------------------------------------------------------------
 // Render
 // ---------------------------------------------------------------------------
@@ -71,7 +93,20 @@ function render(): void {
   const { scene, sceneEditor } = getState();
   panel.innerHTML = "";
 
+  // No selection — show scene settings
   if (sceneEditor.selectedIds.length === 0 || !sceneEditor.selectedType) {
+    const title = document.createElement("p");
+    title.className = "prop-section-title";
+    title.textContent = "Scene";
+    panel.appendChild(title);
+
+    panel.appendChild(numRow("Width", scene.sceneWidth, (v) => {
+      updateState({ scene: { ...getState().scene, sceneWidth: Math.max(100, v) } });
+    }));
+    panel.appendChild(numRow("Height", scene.sceneHeight, (v) => {
+      updateState({ scene: { ...getState().scene, sceneHeight: Math.max(100, v) } });
+    }));
+
     const hint = document.createElement("p");
     hint.className = "prop-empty";
     hint.textContent = "Select an element to edit its properties.";
@@ -110,17 +145,20 @@ function render(): void {
       updateState({});
     }));
 
-    const deleteBtn = document.createElement("button");
-    deleteBtn.className = "btn btn-danger btn-small prop-delete";
-    deleteBtn.textContent = "Delete";
-    deleteBtn.addEventListener("click", () => {
+    // Asset path (read-only info)
+    const assetInfo = document.createElement("p");
+    assetInfo.className = "prop-info";
+    assetInfo.textContent = decor.asset.split("/").pop() ?? decor.asset;
+    assetInfo.title = decor.asset;
+    panel.appendChild(assetInfo);
+
+    appendDeleteButton(() => {
       const decorations = getState().scene.decorations.filter((d) => d.id !== id);
       updateState({
         scene: { ...getState().scene, decorations },
         sceneEditor: { ...getState().sceneEditor, selectedIds: [], selectedType: null },
       });
     });
-    panel.appendChild(deleteBtn);
   }
 
   if (sceneEditor.selectedType === "position") {
@@ -132,7 +170,6 @@ function render(): void {
       const positions = { ...scene.positions };
       positions[newName] = positions[id]!;
       delete positions[id];
-      // Update routes referencing old name
       const routes = scene.routes.map((r) => ({
         ...r,
         from: r.from === id ? newName : r.from,
@@ -151,21 +188,20 @@ function render(): void {
       pos.y = v;
       updateState({});
     }));
+    panel.appendChild(colorRow("Color", pos.color ?? "#f0c040", (v) => {
+      pos.color = v;
+      updateState({});
+    }));
 
-    const deleteBtn = document.createElement("button");
-    deleteBtn.className = "btn btn-danger btn-small prop-delete";
-    deleteBtn.textContent = "Delete";
-    deleteBtn.addEventListener("click", () => {
+    appendDeleteButton(() => {
       const positions = { ...getState().scene.positions };
       delete positions[id];
-      // Remove routes referencing this position
       const routes = getState().scene.routes.filter((r) => r.from !== id && r.to !== id);
       updateState({
         scene: { ...getState().scene, positions, routes },
         sceneEditor: { ...getState().sceneEditor, selectedIds: [], selectedType: null },
       });
     });
-    panel.appendChild(deleteBtn);
   }
 
   if (sceneEditor.selectedType === "wall") {
@@ -176,39 +212,28 @@ function render(): void {
       wall.thickness = Math.max(1, v);
       updateState({});
     }));
-
-    const colorRow = document.createElement("div");
-    colorRow.className = "prop-row";
-    const colorLabel = document.createElement("label");
-    colorLabel.className = "prop-label";
-    colorLabel.textContent = "Color";
-    const colorInput = document.createElement("input");
-    colorInput.type = "color";
-    colorInput.value = wall.color;
-    colorInput.addEventListener("input", () => {
-      wall.color = colorInput.value;
+    panel.appendChild(colorRow("Color", wall.color, (v) => {
+      wall.color = v;
       updateState({});
-    });
-    colorRow.appendChild(colorLabel);
-    colorRow.appendChild(colorInput);
-    panel.appendChild(colorRow);
+    }));
 
-    const deleteBtn = document.createElement("button");
-    deleteBtn.className = "btn btn-danger btn-small prop-delete";
-    deleteBtn.textContent = "Delete";
-    deleteBtn.addEventListener("click", () => {
+    appendDeleteButton(() => {
       const walls = getState().scene.walls.filter((w) => w.id !== id);
       updateState({
         scene: { ...getState().scene, walls },
         sceneEditor: { ...getState().sceneEditor, selectedIds: [], selectedType: null },
       });
     });
-    panel.appendChild(deleteBtn);
   }
 
   if (sceneEditor.selectedType === "route") {
     const route = scene.routes.find((r) => r.id === id);
     if (!route) return;
+
+    panel.appendChild(textRow("Name", route.name ?? "", (v) => {
+      route.name = v || undefined;
+      updateState({});
+    }));
 
     const infoFrom = document.createElement("p");
     infoFrom.className = "prop-info";
@@ -220,18 +245,23 @@ function render(): void {
     infoTo.textContent = `To: ${route.to}`;
     panel.appendChild(infoTo);
 
-    const deleteBtn = document.createElement("button");
-    deleteBtn.className = "btn btn-danger btn-small prop-delete";
-    deleteBtn.textContent = "Delete";
-    deleteBtn.addEventListener("click", () => {
+    appendDeleteButton(() => {
       const routes = getState().scene.routes.filter((r) => r.id !== id);
       updateState({
         scene: { ...getState().scene, routes },
         sceneEditor: { ...getState().sceneEditor, selectedIds: [], selectedType: null },
       });
     });
-    panel.appendChild(deleteBtn);
   }
+}
+
+/** Append a delete button to the panel. */
+function appendDeleteButton(onDelete: () => void): void {
+  const deleteBtn = document.createElement("button");
+  deleteBtn.className = "btn btn-danger btn-small prop-delete";
+  deleteBtn.textContent = "Delete";
+  deleteBtn.addEventListener("click", onDelete);
+  panel.appendChild(deleteBtn);
 }
 
 // ---------------------------------------------------------------------------

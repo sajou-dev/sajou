@@ -1447,6 +1447,69 @@ input[type="color"] {
   font-weight: 600;
 }
 
+.toolbar-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-right: 2px;
+  align-self: center;
+}
+
+.toolbar-color {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  cursor: pointer;
+  margin-right: 8px;
+}
+
+/* Palette category filter pills */
+.palette-categories {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px 0 8px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+
+.palette-cat-btn {
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: all 0.1s;
+}
+
+.palette-cat-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--text-muted);
+}
+
+.palette-cat-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+/* Prop section title */
+.prop-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
 /* Scene body: palette + canvas + props */
 .scene-body {
   flex: 1;
@@ -1537,7 +1600,7 @@ input[type="color"] {
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: auto;
+  overflow: hidden;
   background: var(--preview-bg);
   position: relative;
 }
@@ -1620,6 +1683,52 @@ input[type="color"] {
 .prop-delete {
   margin-top: 12px;
   width: 100%;
+}
+
+/* Toolbar extras */
+.toolbar-select {
+  padding: 3px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 11px;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  outline: none;
+}
+
+.toolbar-select:focus {
+  border-color: var(--accent);
+}
+
+/* (Ground layers CSS removed — ground is now just a color fill) */
+
+/* Asset badge (ground tile name) */
+.asset-badge {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.asset-badge-set {
+  color: var(--accent);
+  font-weight: 500;
+}
+
+/* Active palette item (selected tile) */
+.palette-item-active {
+  background: var(--bg-active);
+  border-left: 3px solid var(--accent);
+  padding-left: 5px;
+}
+
+.palette-item-active .palette-name {
+  color: var(--accent);
+  font-weight: 600;
 }
 
 /* --- Spritesheet explorer --------------------------------------------- */

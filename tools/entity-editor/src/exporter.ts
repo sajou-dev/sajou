@@ -90,7 +90,7 @@ function generateSceneJson(scene: SceneState): string {
   const layout: SceneLayoutJson = {
     sceneWidth: scene.sceneWidth,
     sceneHeight: scene.sceneHeight,
-    ground: { ...scene.ground },
+    ground: { color: scene.ground.color },
     positions: { ...scene.positions },
     decorations: scene.decorations.map((d) => ({ ...d })),
     walls: scene.walls.map((w) => ({ ...w, points: w.points.map((p) => ({ ...p })) })),
@@ -125,10 +125,7 @@ function collectReferencedAssets(): Set<string> {
     }
   }
 
-  // Scene ground tile asset
-  if (scene.ground.type === "tile" && scene.ground.tileAsset) {
-    paths.add(scene.ground.tileAsset);
-  }
+  // (Ground is just a color — no asset references)
 
   return paths;
 }
@@ -350,15 +347,16 @@ export function importJson(jsonText: string): void {
 function importSceneLayout(parsed: Record<string, unknown>): void {
   const base = createDefaultSceneState();
 
+  const rawGround = parsed["ground"] as Record<string, unknown> | undefined;
+  const sceneW = Number(parsed["sceneWidth"] ?? base.sceneWidth);
+  const sceneH = Number(parsed["sceneHeight"] ?? base.sceneHeight);
+
+  const groundColor = String(rawGround?.["color"] ?? base.ground.color);
+
   const scene: SceneState = {
-    sceneWidth: Number(parsed["sceneWidth"] ?? base.sceneWidth),
-    sceneHeight: Number(parsed["sceneHeight"] ?? base.sceneHeight),
-    ground: {
-      type: ((parsed["ground"] as Record<string, unknown>)?.["type"] as "color" | "tile") ?? "color",
-      color: String((parsed["ground"] as Record<string, unknown>)?.["color"] ?? base.ground.color),
-      tileAsset: String((parsed["ground"] as Record<string, unknown>)?.["tileAsset"] ?? ""),
-      tileSize: Number((parsed["ground"] as Record<string, unknown>)?.["tileSize"] ?? 64),
-    },
+    sceneWidth: sceneW,
+    sceneHeight: sceneH,
+    ground: { color: groundColor },
     positions: {},
     decorations: [],
     walls: [],
@@ -369,7 +367,12 @@ function importSceneLayout(parsed: Record<string, unknown>): void {
   const rawPositions = parsed["positions"] as Record<string, Record<string, number>> | undefined;
   if (rawPositions) {
     for (const [name, pos] of Object.entries(rawPositions)) {
-      scene.positions[name] = { x: Number(pos["x"] ?? 0), y: Number(pos["y"] ?? 0) };
+      const color = (pos as Record<string, unknown>)["color"];
+      scene.positions[name] = {
+        x: Number(pos["x"] ?? 0),
+        y: Number(pos["y"] ?? 0),
+        ...(color ? { color: String(color) } : {}),
+      };
     }
   }
 
@@ -408,10 +411,12 @@ function importSceneLayout(parsed: Record<string, unknown>): void {
   const rawRoutes = parsed["routes"] as Array<Record<string, unknown>> | undefined;
   if (rawRoutes) {
     for (const raw of rawRoutes) {
+      const routeName = raw["name"] as string | undefined;
       scene.routes.push({
         id: String(raw["id"] ?? `r${Date.now()}`),
         from: String(raw["from"] ?? ""),
         to: String(raw["to"] ?? ""),
+        ...(routeName ? { name: routeName } : {}),
       });
     }
   }

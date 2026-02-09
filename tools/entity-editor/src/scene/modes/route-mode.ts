@@ -6,7 +6,7 @@
  */
 
 import { getState, updateState } from "../../app-state.js";
-import { getCanvasContainer } from "../scene-canvas.js";
+import { getCanvasContainer, canvasCoords, isPanning } from "../scene-canvas.js";
 import { executeCommand } from "../undo-manager.js";
 
 // ---------------------------------------------------------------------------
@@ -31,15 +31,6 @@ function hitTestPosition(px: number, py: number): string | null {
   return null;
 }
 
-/** Get canvas-relative coords from a mouse event. */
-function canvasCoords(e: MouseEvent): { x: number; y: number } {
-  const container = getCanvasContainer();
-  const canvas = container.querySelector("canvas");
-  if (!canvas) return { x: 0, y: 0 };
-  const rect = canvas.getBoundingClientRect();
-  return { x: e.clientX - rect.left, y: e.clientY - rect.top };
-}
-
 // ---------------------------------------------------------------------------
 // Event handlers
 // ---------------------------------------------------------------------------
@@ -48,6 +39,7 @@ function canvasCoords(e: MouseEvent): { x: number; y: number } {
 function handleMouseDown(e: MouseEvent): void {
   const state = getState();
   if (state.activeTab !== "scene" || state.sceneEditor.mode !== "routes") return;
+  if (isPanning()) return;
 
   const { x, y } = canvasCoords(e);
   const hitName = hitTestPosition(x, y);

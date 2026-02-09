@@ -3,6 +3,7 @@
  *
  * Syncs SceneState to PixiJS display objects. Subscribes to state
  * changes and diffs the display list to update the canvas.
+ * Includes grid overlay and scene boundary.
  */
 
 import { Graphics, Sprite, Texture, Text, TextStyle, Assets } from "pixi.js";
@@ -40,12 +41,12 @@ async function loadTexture(assetPath: string): Promise<Texture | null> {
 }
 
 // ---------------------------------------------------------------------------
-// Ground rendering
+// Ground rendering (simple color fill)
 // ---------------------------------------------------------------------------
 
 let groundGraphics: Graphics | null = null;
 
-/** Render the ground layer. */
+/** Render the ground layer as a solid color fill. */
 function renderGround(): void {
   const layers = getLayers();
   if (!layers) return;
@@ -56,13 +57,67 @@ function renderGround(): void {
     groundGraphics = new Graphics();
     layers.ground.addChild(groundGraphics);
   }
-
   groundGraphics.clear();
+  groundGraphics.rect(0, 0, scene.sceneWidth, scene.sceneHeight);
+  groundGraphics.fill(scene.ground.color);
+}
 
-  if (scene.ground.type === "color") {
-    groundGraphics.rect(0, 0, scene.sceneWidth, scene.sceneHeight);
-    groundGraphics.fill(scene.ground.color);
+// ---------------------------------------------------------------------------
+// Scene boundary
+// ---------------------------------------------------------------------------
+
+let boundaryGraphics: Graphics | null = null;
+
+/** Render the scene boundary outline. */
+function renderBoundary(): void {
+  const layers = getLayers();
+  if (!layers) return;
+
+  const { scene } = getState();
+
+  if (!boundaryGraphics) {
+    boundaryGraphics = new Graphics();
+    layers.selection.addChild(boundaryGraphics);
   }
+
+  boundaryGraphics.clear();
+  boundaryGraphics.rect(0, 0, scene.sceneWidth, scene.sceneHeight);
+  boundaryGraphics.stroke({ width: 1, color: "#555555", alpha: 0.5 });
+}
+
+// ---------------------------------------------------------------------------
+// Grid rendering
+// ---------------------------------------------------------------------------
+
+let gridGraphics: Graphics | null = null;
+
+/** Render grid overlay if enabled. */
+function renderGrid(): void {
+  const layers = getLayers();
+  if (!layers) return;
+
+  const { scene, sceneEditor } = getState();
+
+  if (!gridGraphics) {
+    gridGraphics = new Graphics();
+    layers.selection.addChild(gridGraphics);
+  }
+
+  gridGraphics.clear();
+
+  if (!sceneEditor.showGrid) return;
+
+  const size = sceneEditor.gridSize;
+
+  for (let x = 0; x <= scene.sceneWidth; x += size) {
+    gridGraphics.moveTo(x, 0);
+    gridGraphics.lineTo(x, scene.sceneHeight);
+  }
+  for (let y = 0; y <= scene.sceneHeight; y += size) {
+    gridGraphics.moveTo(0, y);
+    gridGraphics.lineTo(scene.sceneWidth, y);
+  }
+  gridGraphics.stroke({ width: 0.5, color: "#ffffff", alpha: 0.12 });
 }
 
 // ---------------------------------------------------------------------------
@@ -152,6 +207,9 @@ function renderPositions(): void {
     let marker = positionMarkers.get(name);
 
     const isSelected = sceneEditor.selectedType === "position" && sceneEditor.selectedIds.includes(name);
+    const markerColor = pos.color ?? "#f0c040";
+    const strokeColor = isSelected ? "#79c0ff" : "#ffffff";
+    const fillColor = isSelected ? "#58a6ff" : markerColor;
 
     if (!marker) {
       const circle = new Graphics();
@@ -165,8 +223,8 @@ function renderPositions(): void {
 
     marker.circle.clear();
     marker.circle.circle(0, 0, 8);
-    marker.circle.fill(isSelected ? "#58a6ff" : "#f0c040");
-    marker.circle.stroke({ width: 2, color: isSelected ? "#79c0ff" : "#ffffff" });
+    marker.circle.fill(fillColor);
+    marker.circle.stroke({ width: 2, color: strokeColor });
     marker.circle.position.set(pos.x, pos.y);
 
     marker.label.text = name;
@@ -218,7 +276,7 @@ function renderRoutes(): void {
 }
 
 // ---------------------------------------------------------------------------
-// Wall rendering
+// Wall rendering (legacy)
 // ---------------------------------------------------------------------------
 
 let wallGraphics: Graphics | null = null;
@@ -278,6 +336,18 @@ function renderSelection(): void {
       const hh = decor.displayHeight / 2;
       selectionGraphics.rect(decor.x - hw - 2, decor.y - hh - 2, decor.displayWidth + 4, decor.displayHeight + 4);
       selectionGraphics.stroke({ width: 1, color: "#58a6ff" });
+
+      // Resize handles (4 corners)
+      const corners = [
+        { x: decor.x - hw, y: decor.y - hh },
+        { x: decor.x + hw, y: decor.y - hh },
+        { x: decor.x - hw, y: decor.y + hh },
+        { x: decor.x + hw, y: decor.y + hh },
+      ];
+      for (const c of corners) {
+        selectionGraphics.rect(c.x - 3, c.y - 3, 6, 6);
+        selectionGraphics.fill("#58a6ff");
+      }
     }
   }
 
@@ -312,6 +382,8 @@ function scheduleRender(): void {
     renderRoutes();
     renderWalls();
     renderSelection();
+    renderBoundary();
+    renderGrid();
   });
 }
 

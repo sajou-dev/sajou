@@ -29,12 +29,9 @@ export type ActiveTab = "assets" | "entities" | "scene";
 // Scene types
 // ---------------------------------------------------------------------------
 
-/** Ground fill configuration. */
+/** Ground fill configuration: simple background color. */
 export interface GroundConfig {
-  type: "color" | "tile";
   color: string;
-  tileAsset: string;
-  tileSize: number;
 }
 
 /** A placed decoration in the scene. */
@@ -49,7 +46,7 @@ export interface SceneDecoration {
   layer: number;
 }
 
-/** A wall segment defined by a polyline. */
+/** A wall segment defined by a polyline (legacy — kept for backward compat). */
 export interface SceneWall {
   id: string;
   points: Array<{ x: number; y: number }>;
@@ -62,6 +59,14 @@ export interface SceneRoute {
   id: string;
   from: string;
   to: string;
+  name?: string;
+}
+
+/** A named position marker in the scene. */
+export interface ScenePosition {
+  x: number;
+  y: number;
+  color?: string;
 }
 
 /** The complete scene layout state. */
@@ -69,7 +74,7 @@ export interface SceneState {
   sceneWidth: number;
   sceneHeight: number;
   ground: GroundConfig;
-  positions: Record<string, { x: number; y: number }>;
+  positions: Record<string, ScenePosition>;
   decorations: SceneDecoration[];
   walls: SceneWall[];
   routes: SceneRoute[];
@@ -77,9 +82,7 @@ export interface SceneState {
 
 /** Editor mode for the scene tab. */
 export type SceneEditorMode =
-  | "ground"
-  | "decor"
-  | "walls"
+  | "build"
   | "positions"
   | "routes"
   | "select";
@@ -89,6 +92,10 @@ export interface SceneEditorState {
   mode: SceneEditorMode;
   selectedIds: string[];
   selectedType: "decoration" | "wall" | "position" | "route" | null;
+  showGrid: boolean;
+  gridSize: number;
+  clipboard: SceneDecoration[];
+  activeAssetPath: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -99,8 +106,8 @@ export interface SceneEditorState {
 export interface SceneLayoutJson {
   sceneWidth: number;
   sceneHeight: number;
-  ground: GroundConfig;
-  positions: Record<string, { x: number; y: number }>;
+  ground: { color: string };
+  positions: Record<string, { x: number; y: number; color?: string }>;
   decorations: Array<{
     id: string;
     asset: string;
@@ -121,5 +128,6 @@ export interface SceneLayoutJson {
     id: string;
     from: string;
     to: string;
+    name?: string;
   }>;
 }

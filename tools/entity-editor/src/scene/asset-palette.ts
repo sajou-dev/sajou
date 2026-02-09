@@ -1,11 +1,12 @@
 /**
  * Asset palette module (scene tab left sidebar).
  *
- * Scrollable list of asset thumbnails with search. Items are
- * draggable for placement onto the scene canvas.
+ * Scrollable list of asset thumbnails with search and category filter.
+ * In build mode, clicking an asset sets it as the active placement asset.
+ * Items are draggable for placement onto the scene canvas.
  */
 
-import { getState, subscribe } from "../app-state.js";
+import { getState, updateState, subscribe } from "../app-state.js";
 
 // ---------------------------------------------------------------------------
 // DOM references
@@ -19,14 +20,15 @@ const paletteList = document.getElementById("palette-list")!;
 // ---------------------------------------------------------------------------
 
 let searchTerm = "";
+let categoryFilter: string | null = null;
 
 // ---------------------------------------------------------------------------
 // Render
 // ---------------------------------------------------------------------------
 
-/** Render the palette thumbnails. */
+/** Render the palette filter bar and thumbnails. */
 function render(): void {
-  const { assets } = getState();
+  const { assets, sceneEditor, assetCategories } = getState();
   paletteList.innerHTML = "";
 
   if (assets.length === 0) {
@@ -37,14 +39,43 @@ function render(): void {
     return;
   }
 
-  const filtered = searchTerm
-    ? assets.filter((a) =>
-        a.path.toLowerCase().includes(searchTerm) ||
-        a.name.toLowerCase().includes(searchTerm),
-      )
-    : assets;
+  // Category filter pills (only if categories exist)
+  if (assetCategories.length > 0) {
+    const filterRow = document.createElement("div");
+    filterRow.className = "palette-categories";
+
+    const allBtn = document.createElement("button");
+    allBtn.className = "palette-cat-btn" + (categoryFilter === null ? " active" : "");
+    allBtn.textContent = "All";
+    allBtn.addEventListener("click", () => { categoryFilter = null; render(); });
+    filterRow.appendChild(allBtn);
+
+    for (const cat of assetCategories) {
+      const btn = document.createElement("button");
+      btn.className = "palette-cat-btn" + (categoryFilter === cat ? " active" : "");
+      btn.textContent = cat;
+      btn.addEventListener("click", () => { categoryFilter = cat; render(); });
+      filterRow.appendChild(btn);
+    }
+
+    paletteList.appendChild(filterRow);
+  }
+
+  // Filter by search and category
+  let filtered = assets;
+  if (searchTerm) {
+    filtered = filtered.filter((a) =>
+      a.path.toLowerCase().includes(searchTerm) ||
+      a.name.toLowerCase().includes(searchTerm),
+    );
+  }
+  if (categoryFilter) {
+    filtered = filtered.filter((a) => a.category === categoryFilter);
+  }
 
   const sorted = [...filtered].sort((a, b) => a.name.localeCompare(b.name));
+
+  const isBuild = sceneEditor.mode === "build";
 
   for (const asset of sorted) {
     const item = document.createElement("div");
@@ -52,9 +83,28 @@ function render(): void {
     item.draggable = true;
     item.title = asset.path;
 
+    // Highlight active asset in build mode
+    if (isBuild && sceneEditor.activeAssetPath === asset.path) {
+      item.classList.add("palette-item-active");
+    }
+
     item.addEventListener("dragstart", (e) => {
       e.dataTransfer?.setData("text/plain", asset.path);
       e.dataTransfer?.setData("application/x-sajou-asset", asset.path);
+    });
+
+    // In build mode, clicking sets active asset
+    item.addEventListener("click", () => {
+      const state = getState();
+      if (state.sceneEditor.mode === "build") {
+        const current = state.sceneEditor.activeAssetPath;
+        updateState({
+          sceneEditor: {
+            ...state.sceneEditor,
+            activeAssetPath: current === asset.path ? null : asset.path,
+          },
+        });
+      }
     });
 
     const thumb = document.createElement("img");

@@ -105,7 +105,7 @@ export function createDefaultSceneState(): SceneState {
   return {
     sceneWidth: 800,
     sceneHeight: 600,
-    ground: { type: "color", color: "#3a7a2a", tileAsset: "", tileSize: 64 },
+    ground: { color: "#3a7a2a" },
     positions: {},
     decorations: [],
     walls: [],
@@ -119,6 +119,10 @@ export function createDefaultSceneEditorState(): SceneEditorState {
     mode: "select",
     selectedIds: [],
     selectedType: null,
+    showGrid: false,
+    gridSize: 32,
+    clipboard: [],
+    activeAssetPath: null,
   };
 }
 

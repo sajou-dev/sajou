@@ -6,7 +6,7 @@
  */
 
 import { getState, updateState } from "../../app-state.js";
-import { getCanvasContainer } from "../scene-canvas.js";
+import { getCanvasContainer, canvasCoords, isPanning } from "../scene-canvas.js";
 import { executeCommand } from "../undo-manager.js";
 
 // ---------------------------------------------------------------------------
@@ -25,15 +25,6 @@ function nextName(): string {
     name = `pos-${posCounter}`;
   }
   return name;
-}
-
-/** Get canvas-relative coords from a mouse event. */
-function canvasCoords(e: MouseEvent): { x: number; y: number } {
-  const container = getCanvasContainer();
-  const canvas = container.querySelector("canvas");
-  if (!canvas) return { x: 0, y: 0 };
-  const rect = canvas.getBoundingClientRect();
-  return { x: e.clientX - rect.left, y: e.clientY - rect.top };
 }
 
 /** Hit-test for positions (12px radius). */
@@ -61,6 +52,7 @@ let dragging: { name: string; startX: number; startY: number; origX: number; ori
 function handleMouseDown(e: MouseEvent): void {
   const state = getState();
   if (state.activeTab !== "scene" || state.sceneEditor.mode !== "positions") return;
+  if (isPanning()) return;
 
   const { x, y } = canvasCoords(e);
   const hitName = hitTestPosition(x, y);
@@ -159,7 +151,7 @@ function handleKeyDown(e: KeyboardEvent): void {
   if ((e.key === "Delete" || e.key === "Backspace") && state.sceneEditor.selectedType === "position") {
     e.preventDefault();
     const names = [...state.sceneEditor.selectedIds];
-    const removed: Record<string, { x: number; y: number }> = {};
+    const removed: Record<string, { x: number; y: number; color?: string }> = {};
     for (const name of names) {
       const pos = state.scene.positions[name];
       if (pos) removed[name] = { ...pos };

@@ -11,11 +11,9 @@ import { initSceneRenderer } from "./scene-renderer.js";
 import { initAssetPalette } from "./asset-palette.js";
 import { initPropertyPanel } from "./property-panel.js";
 import { initUndoManager } from "./undo-manager.js";
-import { initGroundMode } from "./modes/ground-mode.js";
-import { initDecorMode } from "./modes/decor-mode.js";
+import { initBuildMode } from "./modes/build-mode.js";
 import { initPositionMode } from "./modes/position-mode.js";
 import { initRouteMode } from "./modes/route-mode.js";
-import { initWallMode } from "./modes/wall-mode.js";
 import { initSelectMode } from "./modes/select-mode.js";
 
 /** Initialize the entire scene tab. */
@@ -26,10 +24,8 @@ export async function initSceneTab(): Promise<void> {
   initAssetPalette();
   initPropertyPanel();
   initUndoManager();
-  initGroundMode();
-  initDecorMode();
+  initBuildMode();
   initPositionMode();
   initRouteMode();
-  initWallMode();
   initSelectMode();
 }
