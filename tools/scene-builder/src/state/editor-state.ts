@@ -34,6 +34,7 @@ function createDefault(): EditorState {
     snapToGrid: true,
     placingEntityId: null,
     activeLayerId: "midground",
+    routeCreationPreview: null,
   };
 }
 

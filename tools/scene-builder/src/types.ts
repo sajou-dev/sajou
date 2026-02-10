@@ -185,6 +185,17 @@ export interface PanelLayout {
   visible: boolean;
 }
 
+/**
+ * Live preview state for route creation.
+ * Stored in editor state so the renderer can draw the in-progress path.
+ */
+export interface RouteCreationPreview {
+  /** Points placed so far. */
+  points: Array<{ x: number; y: number; cornerStyle: "sharp" | "smooth" }>;
+  /** Current cursor position (for the dashed preview line from last point). */
+  cursor: { x: number; y: number } | null;
+}
+
 /** Editor UI state (transient, not saved to scene file). */
 export interface EditorState {
   activeTool: ToolId;
@@ -202,6 +213,8 @@ export interface EditorState {
   placingEntityId: string | null;
   /** The active layer for new content placement. */
   activeLayerId: string | null;
+  /** Live preview for route creation (null = not creating). */
+  routeCreationPreview: RouteCreationPreview | null;
 }
 
 // ---------------------------------------------------------------------------

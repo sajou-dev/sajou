@@ -38,7 +38,7 @@ function initToolSwitching(): void {
   const placeTool = createPlaceTool();
   const backgroundTool = createBackgroundTool();
   const positionTool = createPositionTool();
-  const routeTool = createRouteTool();
+  const { handler: routeTool, cancelCreation: cancelRouteCreation } = createRouteTool();
 
   function syncTool(): void {
     const { activeTool } = getEditorState();
@@ -72,7 +72,7 @@ function initToolSwitching(): void {
   initPlaceToolKeyboard();
   initBackgroundToolLifecycle();
   initPositionToolKeyboard();
-  initRouteToolKeyboard();
+  initRouteToolKeyboard(cancelRouteCreation);
 }
 
 // ---------------------------------------------------------------------------

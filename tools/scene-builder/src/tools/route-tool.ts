@@ -14,6 +14,7 @@ import {
   getEditorState,
   setRouteSelection,
   showPanel,
+  updateEditorState,
 } from "../state/editor-state.js";
 import {
   getSceneState,
@@ -161,10 +162,38 @@ interface RouteCreation {
   points: RoutePoint[];
 }
 
+/** Publish current creation preview to editor state (triggers render). */
+function publishPreview(creating: RouteCreation | null, cursor: { x: number; y: number } | null): void {
+  if (!creating) {
+    updateEditorState({ routeCreationPreview: null });
+    return;
+  }
+  updateEditorState({
+    routeCreationPreview: {
+      points: creating.points.map((p) => ({
+        x: p.x,
+        y: p.y,
+        cornerStyle: p.cornerStyle,
+      })),
+      cursor,
+    },
+  });
+}
+
+/** Result of createRouteTool: the handler + a cancel function. */
+export interface RouteToolResult {
+  handler: CanvasToolHandler;
+  /** Cancel any in-progress route creation. */
+  cancelCreation: () => void;
+}
+
 /** Create the Route tool handler. */
-export function createRouteTool(): CanvasToolHandler {
+export function createRouteTool(): RouteToolResult {
   /** Active route creation state (null = not creating). */
   let creating: RouteCreation | null = null;
+
+  /** Last known cursor position (for preview). */
+  let lastCursor: { x: number; y: number } | null = null;
 
   /** Point drag state. */
   let draggingPt: {
@@ -174,7 +203,7 @@ export function createRouteTool(): CanvasToolHandler {
     startY: number;
   } | null = null;
 
-  return {
+  const handler: CanvasToolHandler = {
     onMouseDown(e: MouseEvent, scenePos: { x: number; y: number }) {
       const { selectedRouteIds } = getEditorState();
 
@@ -206,13 +235,12 @@ export function createRouteTool(): CanvasToolHandler {
 
       // --- Route creation mode (adding points) ---
       if (creating) {
-        // Double-click finishes creation (handled via dblclick,
-        // but single-click adds a point)
         creating.points.push({
           x: snap(scenePos.x),
           y: snap(scenePos.y),
           cornerStyle: e.shiftKey ? "smooth" : "sharp",
         });
+        publishPreview(creating, lastCursor);
         return;
       }
 
@@ -241,10 +269,19 @@ export function createRouteTool(): CanvasToolHandler {
           cornerStyle: e.shiftKey ? "smooth" : "sharp",
         }],
       };
+      lastCursor = scenePos;
       setRouteSelection([]);
+      publishPreview(creating, lastCursor);
     },
 
     onMouseMove(_e: MouseEvent, scenePos: { x: number; y: number }) {
+      // Update cursor preview during creation
+      if (creating) {
+        lastCursor = scenePos;
+        publishPreview(creating, lastCursor);
+        return;
+      }
+
       if (!draggingPt) return;
 
       const x = snap(scenePos.x);
@@ -313,9 +350,20 @@ export function createRouteTool(): CanvasToolHandler {
       if (creating) {
         finishCreation(creating);
         creating = null;
+        publishPreview(null, null);
       }
     },
   };
+
+  /** Cancel any in-progress route creation. */
+  function cancelCreation(): void {
+    if (creating) {
+      creating = null;
+      publishPreview(null, null);
+    }
+  }
+
+  return { handler, cancelCreation };
 
   // ── Internal helpers ──
 
@@ -396,14 +444,25 @@ export function createRouteTool(): CanvasToolHandler {
   }
 }
 
-/** Initialize Route tool keyboard shortcuts (Delete, Escape, Enter). */
-export function initRouteToolKeyboard(): void {
+/** Initialize Route tool keyboard shortcuts (Delete, Escape). */
+export function initRouteToolKeyboard(cancelCreation: () => void): void {
   document.addEventListener("keydown", (e) => {
     const tag = (e.target as HTMLElement).tagName;
     if (tag === "INPUT" || tag === "TEXTAREA") return;
 
-    const { activeTool, selectedRouteIds } = getEditorState();
+    const { activeTool, selectedRouteIds, routeCreationPreview } = getEditorState();
     if (activeTool !== "route") return;
+
+    if (e.key === "Escape") {
+      e.preventDefault();
+      // Cancel in-progress creation first, otherwise deselect
+      if (routeCreationPreview) {
+        cancelCreation();
+      } else {
+        setRouteSelection([]);
+      }
+      return;
+    }
 
     if (e.key === "Delete" || e.key === "Backspace") {
       if (selectedRouteIds.length === 0) return;
@@ -429,10 +488,6 @@ export function initRouteToolKeyboard(): void {
         description: `Delete ${idsToRemove.length} route(s)`,
       };
       executeCommand(cmd);
-    }
-
-    if (e.key === "Escape") {
-      setRouteSelection([]);
     }
   });
 }

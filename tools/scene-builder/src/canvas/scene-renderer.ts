@@ -682,6 +682,69 @@ function renderRoutes(): void {
 }
 
 // ---------------------------------------------------------------------------
+// Route creation preview (in-progress path drawing)
+// ---------------------------------------------------------------------------
+
+let routePreviewGraphics: Graphics | null = null;
+
+/** Render the live preview during route creation. */
+function renderRouteCreationPreview(): void {
+  const sceneLayers = getLayers();
+  if (!sceneLayers) return;
+
+  if (!routePreviewGraphics) {
+    routePreviewGraphics = new Graphics();
+    routePreviewGraphics.label = "route-creation-preview";
+    sceneLayers.routes.addChild(routePreviewGraphics);
+  }
+
+  routePreviewGraphics.clear();
+
+  const { routeCreationPreview } = getEditorState();
+  if (!routeCreationPreview) return;
+
+  const { points, cursor } = routeCreationPreview;
+  if (points.length === 0) return;
+
+  const previewColor = 0xe8a851; // Ember accent
+
+  // Draw placed segments
+  routePreviewGraphics.moveTo(points[0]!.x, points[0]!.y);
+  for (let i = 1; i < points.length; i++) {
+    routePreviewGraphics.lineTo(points[i]!.x, points[i]!.y);
+  }
+  routePreviewGraphics.stroke({ color: previewColor, width: 2, alpha: 0.9 });
+
+  // Dashed line from last placed point to cursor
+  if (cursor && points.length > 0) {
+    const last = points[points.length - 1]!;
+    routePreviewGraphics.moveTo(last.x, last.y);
+    routePreviewGraphics.lineTo(cursor.x, cursor.y);
+    routePreviewGraphics.stroke({ color: previewColor, width: 1, alpha: 0.4 });
+  }
+
+  // Draw point handles
+  for (let i = 0; i < points.length; i++) {
+    const pt = points[i]!;
+    const isFirst = i === 0;
+    const handleSize = isFirst ? 5 : 4;
+
+    if (pt.cornerStyle === "smooth") {
+      routePreviewGraphics.circle(pt.x, pt.y, handleSize);
+    } else {
+      routePreviewGraphics.rect(
+        pt.x - handleSize,
+        pt.y - handleSize,
+        handleSize * 2,
+        handleSize * 2,
+      );
+    }
+    routePreviewGraphics.fill({ color: isFirst ? previewColor : 0xffffff, alpha: 1 });
+    routePreviewGraphics.stroke({ color: previewColor, width: 1.5, alpha: 1 });
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Actor badges (◆ indicator for entities with semanticId)
 // ---------------------------------------------------------------------------
 
@@ -745,6 +808,7 @@ function scheduleRender(): void {
     void renderEntities();
     renderPositions();
     renderRoutes();
+    renderRouteCreationPreview();
     renderSelection();
     renderActorBadges();
   });
