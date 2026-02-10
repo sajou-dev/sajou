@@ -212,30 +212,11 @@ function initZoomBar(): void {
   const zoomOutBtn = document.getElementById("zoom-out");
   const zoomInBtn = document.getElementById("zoom-in");
   const presetsEl = document.getElementById("zoom-presets");
-  const zoomBar = document.getElementById("zoom-bar");
 
   zoomOutBtn?.addEventListener("click", () => zoomOut());
   zoomInBtn?.addEventListener("click", () => zoomIn());
 
-  // Show/hide presets on hover with a small delay to avoid flicker
-  let hideTimer = 0;
-
-  function showPresets(): void {
-    clearTimeout(hideTimer);
-    if (presetsEl) presetsEl.hidden = false;
-  }
-
-  function scheduleHide(): void {
-    clearTimeout(hideTimer);
-    hideTimer = window.setTimeout(() => {
-      if (presetsEl) presetsEl.hidden = true;
-    }, 120);
-  }
-
-  zoomBar?.addEventListener("mouseenter", showPresets);
-  zoomBar?.addEventListener("mouseleave", scheduleHide);
-
-  // Preset buttons — close menu on selection
+  // Preset buttons (hover show/hide is handled by pure CSS)
   presetsEl?.addEventListener("click", (e) => {
     const btn = (e.target as HTMLElement).closest("button");
     if (!btn) return;
@@ -246,8 +227,6 @@ function initZoomBar(): void {
     } else {
       setZoomLevel(parseFloat(val));
     }
-    // Close menu immediately after selection
-    if (presetsEl) presetsEl.hidden = true;
   });
 }
 

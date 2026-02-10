@@ -331,7 +331,13 @@ button {
   position: absolute;
   bottom: 100%;
   left: 0;
-  margin-bottom: 4px;
+  padding-bottom: 4px;
+  display: none;
+  flex-direction: column;
+  min-width: 80px;
+}
+
+.zoom-presets-inner {
   display: flex;
   flex-direction: column;
   background: var(--color-surface);
@@ -339,10 +345,13 @@ button {
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow);
   overflow: hidden;
-  min-width: 80px;
 }
 
-.zoom-presets button {
+#zoom-bar:hover .zoom-presets {
+  display: flex;
+}
+
+.zoom-presets-inner button {
   padding: 5px 12px;
   font-family: var(--font-mono);
   font-size: 12px;
@@ -351,7 +360,7 @@ button {
   white-space: nowrap;
 }
 
-.zoom-presets button:hover {
+.zoom-presets-inner button:hover {
   background: var(--color-border-hover);
   color: var(--color-text);
 }
