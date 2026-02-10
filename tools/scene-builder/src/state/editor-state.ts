@@ -19,6 +19,8 @@ function createDefault(): EditorState {
   return {
     activeTool: "select",
     selectedIds: [],
+    selectedPositionIds: [],
+    selectedRouteIds: [],
     panelLayouts: {
       "entity-palette": defaultPanelLayout(60, 60, 250, 400),
       "asset-manager": defaultPanelLayout(100, 80, 500, 450),
@@ -107,6 +109,18 @@ export function setPlacingEntity(id: string | null): void {
 /** Set the active layer for new content placement. */
 export function setActiveLayer(layerId: string | null): void {
   state = { ...state, activeLayerId: layerId };
+  notify();
+}
+
+/** Set selected position IDs (position tool). */
+export function setPositionSelection(ids: string[]): void {
+  state = { ...state, selectedPositionIds: ids };
+  notify();
+}
+
+/** Set selected route IDs (route tool). */
+export function setRouteSelection(ids: string[]): void {
+  state = { ...state, selectedRouteIds: ids };
   notify();
 }
 

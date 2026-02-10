@@ -30,6 +30,7 @@ export interface CanvasToolHandler {
   onMouseDown?(e: MouseEvent, scenePos: { x: number; y: number }): void;
   onMouseMove?(e: MouseEvent, scenePos: { x: number; y: number }): void;
   onMouseUp?(e: MouseEvent, scenePos: { x: number; y: number }): void;
+  onDoubleClick?(e: MouseEvent, scenePos: { x: number; y: number }): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -405,6 +406,11 @@ export async function initCanvas(): Promise<void> {
   document.addEventListener("mouseup", (e) => {
     if (e.button !== 0) return;
     toolHandler?.onMouseUp?.(e, screenToScene(e));
+  });
+  canvasContainer.addEventListener("dblclick", (e) => {
+    if (e.button !== 0 || spaceDown || panning) return;
+    if (getEditorState().activeTool === "hand") return;
+    toolHandler?.onDoubleClick?.(e, screenToScene(e));
   });
 
   // Redraw when state changes

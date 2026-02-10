@@ -70,6 +70,13 @@ export interface PlacedEntity {
   visible: boolean;
   /** Which visual state to display (e.g., "idle", "walk"). */
   activeState: string;
+  /**
+   * Optional semantic identifier for choreographies.
+   * When set, this entity becomes an "actor" — choreographies can target it
+   * by this name (e.g. setState "door-kitchen" → "open").
+   * Must be unique across all placed entities. Undefined = passive decor.
+   */
+  semanticId?: string;
 }
 
 /** Position type hints for choreography semantics. */
@@ -97,18 +104,51 @@ export interface ScenePosition {
 }
 
 /**
- * A route connecting two positions.
+ * A point along a route path.
  *
- * Routes are semantic paths that entities can follow. In the runtime,
- * a choreography `move` action animates an entity along a route.
+ * Routes are standalone vector paths defined by an ordered sequence of points.
+ * Each point has a corner style that determines how the path bends:
+ * - "sharp": hard angle (corridor corner, right-angle turn)
+ * - "smooth": quadratic curve through this point (natural outdoor path)
+ */
+export interface RoutePoint {
+  /** Position in scene coordinates. */
+  x: number;
+  /** Position in scene coordinates. */
+  y: number;
+  /**
+   * Corner style at this point.
+   * - "sharp": hard angle (right-angle turn, corridor corner)
+   * - "smooth": quadratic curve through this point (natural outdoor path)
+   */
+  cornerStyle: "sharp" | "smooth";
+  /**
+   * Curve tension for "smooth" corners. 0 = straight, 1 = maximum curve.
+   * Ignored for "sharp" corners. Default: 0.5
+   */
+  tension?: number;
+}
+
+/**
+ * A standalone navigable path on the scene.
+ *
+ * Routes are freeform vector paths that entities can follow during
+ * choreographed animations. A route is self-contained — it does not
+ * depend on position markers. The path is defined by an ordered sequence
+ * of points. A route needs at least 2 points.
+ *
+ * Routes can optionally be named for choreography reference
+ * (e.g., "corridor-north", "bridge-path").
  */
 export interface SceneRoute {
   id: string;
+  /** Semantic name for choreographies. */
   name: string;
-  /** Position ID of the start point. */
-  from: string;
-  /** Position ID of the end point. */
-  to: string;
+  /**
+   * Ordered points that define the path geometry.
+   * Minimum 2 points. The path follows: points[0] → points[1] → ... → points[N].
+   */
+  points: RoutePoint[];
   style: "solid" | "dashed";
   color: string;
   /** If true, the route can be traversed in both directions. */
@@ -148,7 +188,12 @@ export interface PanelLayout {
 /** Editor UI state (transient, not saved to scene file). */
 export interface EditorState {
   activeTool: ToolId;
+  /** Selected entity instance IDs (select tool). */
   selectedIds: string[];
+  /** Selected position IDs (position tool). */
+  selectedPositionIds: string[];
+  /** Selected route IDs (route tool). */
+  selectedRouteIds: string[];
   panelLayouts: Record<PanelId, PanelLayout>;
   gridEnabled: boolean;
   gridSize: number;

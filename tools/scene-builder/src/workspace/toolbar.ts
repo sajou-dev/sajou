@@ -94,7 +94,6 @@ const TOOLS: ToolDef[] = [
   { id: "select", label: "Select", iconKey: "select", shortcut: "V" },
   { id: "hand", label: "Hand", iconKey: "hand", shortcut: "H" },
   { id: "background", label: "Background", iconKey: "background", shortcut: "B" },
-  { id: "place", label: "Place", iconKey: "place", shortcut: "O" },
   { id: "position", label: "Position", iconKey: "position", shortcut: "P" },
   { id: "route", label: "Route", iconKey: "route", shortcut: "R" },
 ];

@@ -282,62 +282,49 @@ const POSITION_COLORS = [
 
 ### 2.1 What a Route Is
 
-A **navigable path** between two positions. When a choreography says `"move peon to forge"`, the runtime needs to know *how* the peon gets there — not just the destination, but the path it follows.
+A **standalone navigable vector path** on the scene. Routes are self-contained — they don't require position markers. When a choreography says `"move peon along corridor-north"`, the runtime follows the route's path geometry.
 
-A straight line between two points is unrealistic for most scenes. An entity navigating a citadel scene needs to:
+Routes are freeform: click to place points, double-click to finish. No dependency on positions.
+
+An entity navigating a citadel scene needs to:
 - Walk around buildings
 - Follow corridors
 - Turn corners (right angles for indoor, curves for outdoor)
 - Navigate between obstacles
 
-**A route is a polyline with waypoints**, optionally smoothed into curves.
+**A route is a polyline defined by ordered points**, optionally smoothed into curves.
 
-### 2.2 Types — Updated
-
-The current `SceneRoute` type is too simple (just `from`/`to`). It needs **waypoints** for real navigation paths:
+### 2.2 Types — Updated (V3 — standalone paths)
 
 ```typescript
-/** A waypoint along a route path. */
-interface RouteWaypoint {
-  /** Position in scene coordinates. */
+/** A point along a route path. */
+interface RoutePoint {
   x: number;
   y: number;
   /**
-   * Corner style at this waypoint.
+   * Corner style at this point.
    * - "sharp": hard angle (right-angle turn, corridor corner)
-   * - "smooth": Bezier curve through this point (natural outdoor path)
+   * - "smooth": quadratic curve through this point (natural outdoor path)
    */
   cornerStyle: "sharp" | "smooth";
-  /**
-   * Curve tension for "smooth" corners. 0 = straight, 1 = maximum curve.
-   * Ignored for "sharp" corners. Default: 0.5
-   */
+  /** Curve tension for smooth corners. Default: 0.5 */
   tension?: number;
 }
 
-/** A route connecting two positions via a path. */
+/** A standalone navigable path on the scene. */
 interface SceneRoute {
   id: string;
+  /** Semantic name for choreographies. */
   name: string;
-  /** Position ID of the start. */
-  from: string;
-  /** Position ID of the end. */
-  to: string;
-  /**
-   * Intermediate waypoints between `from` and `to`.
-   * The full path is: from → waypoints[0] → waypoints[1] → ... → to
-   * Empty array = straight line (no intermediate points).
-   */
-  waypoints: RouteWaypoint[];
+  /** Ordered points defining the path. Minimum 2. */
+  points: RoutePoint[];
   style: "solid" | "dashed";
   color: string;
   bidirectional: boolean;
 }
 ```
 
-**The full path geometry** is: `[fromPosition] → waypoints[0] → waypoints[1] → ... → [toPosition]`.
-
-An empty `waypoints` array = straight line (simple case).
+**The path geometry** is: `points[0] → points[1] → ... → points[N]`. Minimum 2 points.
 
 ### 2.3 How Path Geometry Works
 
@@ -377,24 +364,22 @@ A single route can mix sharp and smooth waypoints:
 #### Creating a route
 
 1. Activate Route tool (R).
-2. **Click on a position marker** → locks "from". The position highlights with a pulse.
-3. **Click on empty canvas** → adds a waypoint at that point. A line segment appears from the previous point.
-4. **Click on another position marker** → completes the route with that as "to". Done.
-5. **Escape** → cancels route creation, removes any waypoints added.
-6. **Right-click / double-click on last waypoint** → undo the last waypoint added.
+2. **Click on empty canvas** → places the first point. A route starts.
+3. **Click again** → adds more points. Hold **Shift** to create smooth points.
+4. **Double-click** → finishes the route (minimum 2 points).
+5. **Escape** → cancels route creation.
 
-The creation flow is: **click position → click, click, click (waypoints) → click position**.
+The creation flow is: **click, click, click (points) → double-click to finish**.
 
-This gives the designer full control over the path geometry during creation.
+This gives the designer full control over the path geometry during creation. Routes are standalone — no position markers needed.
 
 #### Default values
 
 - `id`: `route-${Date.now().toString(36)}`
-- `name`: `"fromName → toName"` (auto-generated, editable)
-- `waypoints`: collected during creation
-- All waypoints default to `cornerStyle: "sharp"` (can be changed in inspector)
+- `name`: auto-incremented (`route-1`, `route-2`, ...)
+- All points default to `cornerStyle: "sharp"` (hold Shift for smooth)
 - `style`: `"solid"`
-- `color`: `"#555555"`
+- `color`: cycles through 8-color palette
 - `bidirectional`: `false`
 
 #### Visual feedback during creation

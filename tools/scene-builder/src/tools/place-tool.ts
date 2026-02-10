@@ -11,18 +11,12 @@ import { getEditorState, setPlacingEntity } from "../state/editor-state.js";
 import { getSceneState, updateSceneState } from "../state/scene-state.js";
 import { getEntityStore } from "../state/entity-store.js";
 import { executeCommand } from "../state/undo.js";
+import { snap } from "./snap.js";
 import type { PlacedEntity, UndoableCommand, SceneLayer } from "../types.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-/** Snap a value to the grid if snapping is enabled. */
-function snap(value: number): number {
-  const { snapToGrid, gridSize } = getEditorState();
-  if (!snapToGrid) return value;
-  return Math.round(value / gridSize) * gridSize;
-}
 
 /** Generate a unique placed entity ID. */
 function generatePlacedId(entityId: string): string {

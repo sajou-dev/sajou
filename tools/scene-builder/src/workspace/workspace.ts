@@ -25,6 +25,8 @@ import { initLayersPanel } from "../panels/layers-panel.js";
 import { createSelectTool, initSelectToolKeyboard } from "../tools/select-tool.js";
 import { createPlaceTool, initPlaceToolKeyboard } from "../tools/place-tool.js";
 import { createBackgroundTool, initBackgroundToolLifecycle } from "../tools/background-tool.js";
+import { createPositionTool, initPositionToolKeyboard } from "../tools/position-tool.js";
+import { createRouteTool, initRouteToolKeyboard } from "../tools/route-tool.js";
 
 // ---------------------------------------------------------------------------
 // Tool switching
@@ -35,6 +37,8 @@ function initToolSwitching(): void {
   const selectTool = createSelectTool();
   const placeTool = createPlaceTool();
   const backgroundTool = createBackgroundTool();
+  const positionTool = createPositionTool();
+  const routeTool = createRouteTool();
 
   function syncTool(): void {
     const { activeTool } = getEditorState();
@@ -47,6 +51,12 @@ function initToolSwitching(): void {
         break;
       case "background":
         setToolHandler(backgroundTool);
+        break;
+      case "position":
+        setToolHandler(positionTool);
+        break;
+      case "route":
+        setToolHandler(routeTool);
         break;
       default:
         setToolHandler(null);
@@ -61,6 +71,8 @@ function initToolSwitching(): void {
   initSelectToolKeyboard();
   initPlaceToolKeyboard();
   initBackgroundToolLifecycle();
+  initPositionToolKeyboard();
+  initRouteToolKeyboard();
 }
 
 // ---------------------------------------------------------------------------

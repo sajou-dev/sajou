@@ -10,13 +10,14 @@
  * for the entity-centric PlacedEntity model with generic scene layers.
  */
 
-import { Graphics, Sprite, Texture, ImageSource, Rectangle } from "pixi.js";
+import { Container, Graphics, Sprite, Text, TextStyle, Texture, ImageSource, Rectangle } from "pixi.js";
 import { getSceneState, subscribeScene } from "../state/scene-state.js";
 import { getEditorState, subscribeEditor } from "../state/editor-state.js";
 import { getEntityStore, subscribeEntities } from "../state/entity-store.js";
 import { getAssetStore, subscribeAssets } from "../state/asset-store.js";
 import { getLayers } from "./canvas.js";
 import type { PlacedEntity, EntityEntry, SceneLayer } from "../types.js";
+import { buildPathPoints } from "../tools/route-tool.js";
 
 // ---------------------------------------------------------------------------
 // Texture cache
@@ -370,6 +371,365 @@ function renderSelection(): void {
 }
 
 // ---------------------------------------------------------------------------
+// Position markers
+// ---------------------------------------------------------------------------
+
+/** Type hint badge letters. */
+const TYPE_HINT_BADGES: Record<string, string> = {
+  spawn: "S",
+  waypoint: "W",
+  destination: "D",
+};
+
+/** Label text style (shared). */
+const LABEL_STYLE = new TextStyle({
+  fontFamily: "JetBrains Mono, monospace",
+  fontSize: 10,
+  fill: "#ffffff",
+});
+
+const positionContainers = new Map<string, Container>();
+
+/** Render position markers in the positions layer. */
+function renderPositions(): void {
+  const sceneLayers = getLayers();
+  if (!sceneLayers) return;
+
+  const { positions } = getSceneState();
+  const { activeTool, selectedPositionIds } = getEditorState();
+  const isPositionTool = activeTool === "position";
+  const currentIds = new Set(positions.map((p) => p.id));
+
+  // Remove orphaned containers
+  for (const [id, container] of positionContainers) {
+    if (!currentIds.has(id)) {
+      sceneLayers.positions.removeChild(container);
+      container.destroy({ children: true });
+      positionContainers.delete(id);
+    }
+  }
+
+  // Add/update position markers
+  for (const pos of positions) {
+    let container = positionContainers.get(pos.id);
+    const isSelected = selectedPositionIds.includes(pos.id);
+
+    if (!container) {
+      container = new Container();
+      container.label = pos.id;
+      sceneLayers.positions.addChild(container);
+      positionContainers.set(pos.id, container);
+    }
+
+    // Clear and redraw
+    container.removeChildren();
+
+    // Diamond marker
+    const size = isSelected ? 8 : 6; // half-size
+    const diamond = new Graphics();
+    diamond.moveTo(0, -size);
+    diamond.lineTo(size, 0);
+    diamond.lineTo(0, size);
+    diamond.lineTo(-size, 0);
+    diamond.closePath();
+    diamond.fill({ color: pos.color, alpha: 1 });
+
+    if (isSelected) {
+      diamond.stroke({ color: 0x58a6ff, width: 2, alpha: 1 });
+    } else {
+      diamond.stroke({ color: darkenColor(pos.color, 0.3), width: 1, alpha: 1 });
+    }
+    container.addChild(diamond);
+
+    // Type hint badge
+    const badge = TYPE_HINT_BADGES[pos.typeHint];
+    if (badge) {
+      const badgeText = new Text({ text: badge, style: new TextStyle({
+        fontFamily: "JetBrains Mono, monospace",
+        fontSize: 7,
+        fill: "#000000",
+        fontWeight: "bold",
+      }) });
+      badgeText.anchor.set(0.5);
+      badgeText.y = 0;
+      container.addChild(badgeText);
+    }
+
+    // Name label above
+    const label = new Text({ text: pos.name, style: LABEL_STYLE });
+    label.anchor.set(0.5, 1);
+    label.y = -(size + 4);
+
+    // Label pill background
+    const pad = 3;
+    const pillW = label.width + pad * 2;
+    const pillH = label.height + pad;
+    const pill = new Graphics();
+    pill.roundRect(
+      -pillW / 2,
+      label.y - label.height / 2 - pad / 2,
+      pillW,
+      pillH,
+      3,
+    );
+    pill.fill({ color: isSelected ? 0x58a6ff : 0x0e0e16, alpha: 0.85 });
+    container.addChild(pill);
+    container.addChild(label);
+
+    // Position
+    container.x = pos.x;
+    container.y = pos.y;
+
+    // Ghost mode: dim when not position tool
+    container.alpha = isPositionTool ? 1 : 0.4;
+  }
+}
+
+/** Darken a hex color by a factor (0-1). */
+function darkenColor(hex: string, factor: number): number {
+  const clean = hex.replace("#", "");
+  const r = Math.max(0, Math.round(parseInt(clean.slice(0, 2), 16) * (1 - factor)));
+  const g = Math.max(0, Math.round(parseInt(clean.slice(2, 4), 16) * (1 - factor)));
+  const b = Math.max(0, Math.round(parseInt(clean.slice(4, 6), 16) * (1 - factor)));
+  return (r << 16) | (g << 8) | b;
+}
+
+// ---------------------------------------------------------------------------
+// Route rendering
+// ---------------------------------------------------------------------------
+
+/** Parse a hex color string to a numeric value. */
+function parseColor(hex: string): number {
+  const clean = hex.replace("#", "");
+  return parseInt(clean, 16);
+}
+
+/** Draw an arrowhead at a given point, pointing in direction (dx, dy). */
+function drawArrowhead(
+  gfx: Graphics,
+  tipX: number, tipY: number,
+  fromX: number, fromY: number,
+  size: number,
+  color: number,
+  alpha: number,
+): void {
+  const dx = tipX - fromX;
+  const dy = tipY - fromY;
+  const len = Math.hypot(dx, dy);
+  if (len === 0) return;
+
+  const ux = dx / len;
+  const uy = dy / len;
+  // Perpendicular
+  const px = -uy;
+  const py = ux;
+
+  const baseX = tipX - ux * size;
+  const baseY = tipY - uy * size;
+
+  gfx.moveTo(tipX, tipY);
+  gfx.lineTo(baseX + px * size * 0.5, baseY + py * size * 0.5);
+  gfx.lineTo(baseX - px * size * 0.5, baseY - py * size * 0.5);
+  gfx.closePath();
+  gfx.fill({ color, alpha });
+}
+
+const routeContainers = new Map<string, Container>();
+
+/** Render routes in the routes layer. */
+function renderRoutes(): void {
+  const sceneLayers = getLayers();
+  if (!sceneLayers) return;
+
+  const { routes } = getSceneState();
+  const { activeTool, selectedRouteIds } = getEditorState();
+  const isRouteTool = activeTool === "route";
+  const currentIds = new Set(routes.map((r) => r.id));
+
+  // Remove orphaned containers
+  for (const [id, container] of routeContainers) {
+    if (!currentIds.has(id)) {
+      sceneLayers.routes.removeChild(container);
+      container.destroy({ children: true });
+      routeContainers.delete(id);
+    }
+  }
+
+  // Add/update route visuals
+  for (const route of routes) {
+    const points = buildPathPoints(route);
+    if (points.length < 2) continue;
+
+    const isSelected = selectedRouteIds.includes(route.id);
+    const color = parseColor(route.color);
+
+    let container = routeContainers.get(route.id);
+    if (!container) {
+      container = new Container();
+      container.label = route.id;
+      sceneLayers.routes.addChild(container);
+      routeContainers.set(route.id, container);
+    }
+
+    // Clear previous drawing
+    container.removeChildren();
+
+    // --- Path line ---
+    const pathGfx = new Graphics();
+    const lineWidth = isSelected ? 2.5 : 1.5;
+    const lineAlpha = isSelected ? 1 : 0.8;
+
+    pathGfx.moveTo(points[0]!.x, points[0]!.y);
+
+    for (let i = 1; i < points.length; i++) {
+      const curr = points[i]!;
+      const rp = route.points[i]!;
+
+      if (rp.cornerStyle === "smooth" && i < points.length - 1) {
+        // Quadratic curve: use this point as control point, midpoint as anchor
+        const next = points[i + 1]!;
+        const midX = (curr.x + next.x) / 2;
+        const midY = (curr.y + next.y) / 2;
+        pathGfx.quadraticCurveTo(curr.x, curr.y, midX, midY);
+      } else {
+        pathGfx.lineTo(curr.x, curr.y);
+      }
+    }
+
+    pathGfx.stroke({ color, width: lineWidth, alpha: lineAlpha });
+    container.addChild(pathGfx);
+
+    // --- Arrowhead at end ---
+    const lastPt = points[points.length - 1]!;
+    const prevPt = points[points.length - 2]!;
+    const arrowGfx = new Graphics();
+    drawArrowhead(arrowGfx, lastPt.x, lastPt.y, prevPt.x, prevPt.y, 8, color, lineAlpha);
+
+    // Bidirectional: arrow at start too
+    if (route.bidirectional) {
+      const firstPt = points[0]!;
+      const secondPt = points[1]!;
+      drawArrowhead(arrowGfx, firstPt.x, firstPt.y, secondPt.x, secondPt.y, 8, color, lineAlpha);
+    }
+
+    container.addChild(arrowGfx);
+
+    // --- Point handles (only when route tool active and route selected) ---
+    if (isRouteTool && isSelected) {
+      for (let pi = 0; pi < route.points.length; pi++) {
+        const rp = route.points[pi]!;
+        const handleGfx = new Graphics();
+        const handleSize = 4;
+        const isEndpoint = pi === 0 || pi === route.points.length - 1;
+
+        if (rp.cornerStyle === "smooth") {
+          // Circle handle for smooth
+          handleGfx.circle(rp.x, rp.y, handleSize);
+        } else {
+          // Square handle for sharp
+          handleGfx.rect(
+            rp.x - handleSize,
+            rp.y - handleSize,
+            handleSize * 2,
+            handleSize * 2,
+          );
+        }
+
+        // Endpoints are filled with route color, intermediate with white
+        handleGfx.fill({ color: isEndpoint ? color : 0xffffff, alpha: 1 });
+        handleGfx.stroke({ color, width: 1.5, alpha: 1 });
+        container.addChild(handleGfx);
+      }
+    }
+
+    // --- Route name label (when selected) ---
+    if (isSelected) {
+      // Place label at midpoint of the path
+      const midIdx = Math.floor(points.length / 2);
+      const midPt = points[midIdx]!;
+      const nameLabel = new Text({
+        text: route.name,
+        style: new TextStyle({
+          fontFamily: "JetBrains Mono, monospace",
+          fontSize: 9,
+          fill: "#ffffff",
+        }),
+      });
+      nameLabel.anchor.set(0.5, 1);
+      nameLabel.x = midPt.x;
+      nameLabel.y = midPt.y - 8;
+
+      // Label background pill
+      const pad = 3;
+      const pillW = nameLabel.width + pad * 2;
+      const pillH = nameLabel.height + pad;
+      const pill = new Graphics();
+      pill.roundRect(
+        midPt.x - pillW / 2,
+        nameLabel.y - nameLabel.height / 2 - pad / 2,
+        pillW,
+        pillH,
+        3,
+      );
+      pill.fill({ color: 0x0e0e16, alpha: 0.85 });
+      container.addChild(pill);
+      container.addChild(nameLabel);
+    }
+
+    // Ghost mode: dim when not route tool
+    container.alpha = isRouteTool ? 1 : 0.3;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Actor badges (◆ indicator for entities with semanticId)
+// ---------------------------------------------------------------------------
+
+let actorBadgeGraphics: Graphics | null = null;
+
+/** Render small diamond badges on entities that have a semanticId (actors). */
+function renderActorBadges(): void {
+  const sceneLayers = getLayers();
+  if (!sceneLayers) return;
+
+  if (!actorBadgeGraphics) {
+    actorBadgeGraphics = new Graphics();
+    actorBadgeGraphics.label = "actor-badges";
+    sceneLayers.selection.addChild(actorBadgeGraphics);
+  }
+
+  actorBadgeGraphics.clear();
+
+  const { entities } = getSceneState();
+  const entityStore = getEntityStore();
+
+  for (const placed of entities) {
+    if (!placed.semanticId || !placed.visible) continue;
+
+    const def = entityStore.entities[placed.entityId];
+    const w = (def?.displayWidth ?? 32) * placed.scale;
+    const h = (def?.displayHeight ?? 32) * placed.scale;
+    const ax = def?.defaults.anchor?.[0] ?? 0.5;
+    const ay = def?.defaults.anchor?.[1] ?? 0.5;
+
+    // Badge at top-right corner of entity bounds
+    const right = placed.x + w * (1 - ax);
+    const top = placed.y - h * ay;
+    const bx = right - 2;
+    const by = top + 2;
+    const bs = 4; // badge half-size
+
+    // Diamond shape
+    actorBadgeGraphics.moveTo(bx, by - bs);
+    actorBadgeGraphics.lineTo(bx + bs, by);
+    actorBadgeGraphics.lineTo(bx, by + bs);
+    actorBadgeGraphics.lineTo(bx - bs, by);
+    actorBadgeGraphics.closePath();
+    actorBadgeGraphics.fill({ color: 0xe8a851, alpha: 0.9 });
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Full render
 // ---------------------------------------------------------------------------
 
@@ -383,7 +743,10 @@ function scheduleRender(): void {
     renderScheduled = false;
     renderBackground();
     void renderEntities();
+    renderPositions();
+    renderRoutes();
     renderSelection();
+    renderActorBadges();
   });
 }
 
