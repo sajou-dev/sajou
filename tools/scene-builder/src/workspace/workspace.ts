@@ -21,6 +21,7 @@ import { initEntityEditorPanel } from "../panels/entity-editor-panel.js";
 import { initEntityPalettePanel } from "../panels/entity-palette-panel.js";
 import { initInspectorPanel } from "../panels/inspector-panel.js";
 import { initLayersPanel } from "../panels/layers-panel.js";
+import { initSettingsPanel } from "../panels/settings-panel.js";
 
 // Tools
 import { createSelectTool, initSelectToolKeyboard } from "../tools/select-tool.js";
@@ -125,5 +126,5 @@ export async function initWorkspace(): Promise<void> {
   initEntityEditorPanel(entityEditor.contentEl);
 
   const settings = createPanel({ id: "settings", title: "Settings", minWidth: 280, minHeight: 200 });
-  settings.contentEl.innerHTML = '<p class="panel-placeholder">Scene settings.</p>';
+  initSettingsPanel(settings.contentEl);
 }

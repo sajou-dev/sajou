@@ -131,6 +131,18 @@ export function toggleGrid(): void {
   notify();
 }
 
+/** Set grid cell size (clamped 4–128). */
+export function setGridSize(size: number): void {
+  state = { ...state, gridSize: Math.max(4, Math.min(128, size)) };
+  notify();
+}
+
+/** Enable or disable snap-to-grid. */
+export function setSnapToGrid(enabled: boolean): void {
+  state = { ...state, snapToGrid: enabled };
+  notify();
+}
+
 /** Subscribe to editor state changes. Returns unsubscribe function. */
 export function subscribeEditor(fn: Listener): () => void {
   listeners.push(fn);
