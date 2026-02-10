@@ -164,7 +164,7 @@ button {
 #workspace {
   position: relative;
   display: flex;
-  height: calc(100vh - 40px);
+  height: calc(100vh - 40px - 24px);
   overflow: hidden;
 }
 
@@ -223,6 +223,13 @@ button {
 
 .toolbar-btn--active:hover {
   background: var(--color-accent-light);
+}
+
+/* Help toggle pinned to bottom of toolbar */
+.toolbar-btn--help {
+  margin-top: auto;
+  margin-bottom: 2px;
+  align-self: center;
 }
 
 /* Panel-open indicator dot */
@@ -1735,4 +1742,51 @@ button {
   background: var(--color-error);
   color: white;
   border-color: var(--color-error);
+}
+
+/* ---------------------------------------------------------------------------
+ * Help Bar — contextual tool hints at the bottom of the workspace
+ * --------------------------------------------------------------------------- */
+
+#help-bar {
+  display: flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-muted);
+  user-select: none;
+  white-space: nowrap;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+#help-bar.help-bar--hidden {
+  display: none;
+}
+
+.hb-tool {
+  color: var(--color-accent);
+  font-weight: 600;
+  margin-right: 6px;
+}
+
+.hb-sep {
+  margin: 0 6px;
+  color: var(--color-text-dim);
+}
+
+#help-bar kbd {
+  display: inline-block;
+  background: var(--color-border);
+  color: var(--color-text);
+  border-radius: 3px;
+  padding: 0 4px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 16px;
+  vertical-align: baseline;
 }

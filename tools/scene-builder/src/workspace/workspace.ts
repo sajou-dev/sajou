@@ -10,6 +10,7 @@ import { initSceneRenderer } from "../canvas/scene-renderer.js";
 import { initCanvasDropHandler } from "../canvas/canvas-drop-handler.js";
 import { initToolbar } from "./toolbar.js";
 import { initHeader } from "./header.js";
+import { initHelpBar } from "./help-bar.js";
 import { initUndoManager } from "../state/undo.js";
 import { getEditorState, subscribeEditor } from "../state/editor-state.js";
 import { createPanel } from "./panel.js";
@@ -91,6 +92,9 @@ export async function initWorkspace(): Promise<void> {
 
   // Toolbar (tools + panel toggles)
   initToolbar();
+
+  // Help bar (contextual tool hints at bottom)
+  initHelpBar();
 
   // PixiJS canvas (async — waits for app.init)
   await initCanvas();

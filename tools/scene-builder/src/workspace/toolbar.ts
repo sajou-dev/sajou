@@ -10,6 +10,7 @@
 import type { ToolId, PanelId } from "../types.js";
 import { getEditorState, setActiveTool, togglePanel, subscribeEditor, toggleGrid } from "../state/editor-state.js";
 import { zoomIn, zoomOut, setZoomLevel, fitToView } from "../canvas/canvas.js";
+import { toggleHelpBar, isHelpBarVisible } from "./help-bar.js";
 
 // ---------------------------------------------------------------------------
 // Lucide SVG icons (inline, stroke="currentColor")
@@ -70,6 +71,11 @@ const ICON = {
     '<path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/>' +
     '<circle cx="12" cy="12" r="3"/>'
   ),
+  help: lucide(
+    '<circle cx="12" cy="12" r="10"/>' +
+    '<path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>' +
+    '<path d="M12 17h.01"/>'
+  ),
 };
 
 // ---------------------------------------------------------------------------
@@ -104,6 +110,16 @@ const PANEL_TOGGLES: PanelToggleDef[] = [
   { panelId: "layers", label: "Layers", iconKey: "layers", shortcut: "L" },
   { panelId: "settings", label: "Settings", iconKey: "settings", shortcut: "" },
 ];
+
+// ---------------------------------------------------------------------------
+// Help button sync
+// ---------------------------------------------------------------------------
+
+/** Update help toggle button active state from current visibility. */
+function syncHelpBtn(): void {
+  const btn = document.querySelector<HTMLButtonElement>(".toolbar-btn--help");
+  if (btn) btn.classList.toggle("toolbar-btn--panel-open", isHelpBarVisible());
+}
 
 // ---------------------------------------------------------------------------
 // Build DOM
@@ -146,9 +162,20 @@ export function initToolbar(): void {
     panelSection.appendChild(btn);
   }
 
+  // Help toggle button
+  const helpBtn = document.createElement("button");
+  helpBtn.className = "toolbar-btn toolbar-btn--help";
+  helpBtn.title = "Toggle help bar (?)";
+  helpBtn.innerHTML = ICON.help;
+  helpBtn.addEventListener("click", () => {
+    toggleHelpBar();
+    syncHelpBtn();
+  });
+
   toolbar.appendChild(toolSection);
   toolbar.appendChild(divider);
   toolbar.appendChild(panelSection);
+  toolbar.appendChild(helpBtn);
 
   // Sync active states
   function syncState(): void {
@@ -255,6 +282,12 @@ function initShortcuts(): void {
 
       // Grid
       case "g": case "G": toggleGrid(); break;
+
+      // Help bar
+      case "?":
+        toggleHelpBar();
+        syncHelpBtn();
+        break;
 
       // Zoom
       case "+": case "=": zoomIn(); break;
