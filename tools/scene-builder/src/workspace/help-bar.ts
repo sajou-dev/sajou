@@ -35,8 +35,10 @@ const TOOL_HINTS: Record<ToolId, () => string> = {
     toolLabel("Select") +
     hint("Click to select") + sep() +
     hint("Drag to move") + sep() +
-    hint("<kbd>Shift</kbd>+click multi-select") + sep() +
-    hint("<kbd>Delete</kbd> to remove"),
+    hint("<kbd>Ctrl</kbd>+click toggle") + sep() +
+    hint("Double-click to edit") + sep() +
+    hint("<kbd>Delete</kbd> remove") + sep() +
+    hint("<kbd>Ctrl+Z</kbd> undo"),
 
   hand: () =>
     toolLabel("Hand") +
@@ -46,8 +48,8 @@ const TOOL_HINTS: Record<ToolId, () => string> = {
 
   background: () =>
     toolLabel("Background") +
-    hint("Click canvas to set background color") + sep() +
-    hint("Use toolbar color picker"),
+    hint("Set scene dimensions and color") + sep() +
+    hint("Use the popover controls above"),
 
   place: () =>
     toolLabel("Place") +
@@ -55,29 +57,30 @@ const TOOL_HINTS: Record<ToolId, () => string> = {
 
   position: () =>
     toolLabel("Position") +
-    hint("Click to create marker") + sep() +
+    hint("Click to create") + sep() +
     hint("Drag to move") + sep() +
-    hint("<kbd>Alt</kbd>+click to delete") + sep() +
-    hint("<kbd>Delete</kbd> to remove selected"),
+    hint("<kbd>Ctrl</kbd>+click toggle") + sep() +
+    hint("<kbd>Delete</kbd> remove selected") + sep() +
+    hint("<kbd>Escape</kbd> deselect"),
 
   route: () => {
     const { routeCreationPreview } = getEditorState();
     if (routeCreationPreview) {
       return (
         toolLabel("Route") +
-        hint("Adding points\u2026") + sep() +
-        hint("<kbd>Shift</kbd>+click for smooth corner") + sep() +
+        hint("Click to add point") + sep() +
+        hint("<kbd>Shift</kbd>+click smooth corner") + sep() +
         hint("Double-click to finish") + sep() +
-        hint("<kbd>Escape</kbd> to cancel")
+        hint("<kbd>Escape</kbd> cancel")
       );
     }
     return (
       toolLabel("Route") +
-      hint("Click to place points") + sep() +
-      hint("<kbd>Shift</kbd>+click for smooth corner") + sep() +
-      hint("Double-click to finish") + sep() +
-      hint("<kbd>Escape</kbd> to cancel") + sep() +
-      hint("<kbd>Delete</kbd> to remove selected")
+      hint("Click to start drawing") + sep() +
+      hint("<kbd>Shift</kbd>+click smooth corner") + sep() +
+      hint("Drag handle to edit") + sep() +
+      hint("<kbd>Alt</kbd>+click handle to delete point") + sep() +
+      hint("<kbd>Delete</kbd> remove selected")
     );
   },
 };
