@@ -41,6 +41,12 @@ export function redo(): void {
   undoStack.push(cmd);
 }
 
+/** Clear all undo/redo history. Called on scene import to prevent stale references. */
+export function clearHistory(): void {
+  undoStack.length = 0;
+  redoStack.length = 0;
+}
+
 // ---------------------------------------------------------------------------
 // Keyboard shortcuts
 // ---------------------------------------------------------------------------

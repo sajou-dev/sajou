@@ -79,6 +79,20 @@ export function addCategory(name: string): void {
   notify();
 }
 
+/** Clear all assets. Revokes all object URLs to free memory. */
+export function resetAssets(): void {
+  for (const asset of state.assets) {
+    URL.revokeObjectURL(asset.objectUrl);
+  }
+  state = {
+    assets: [],
+    categories: [],
+    selectedAssetPath: null,
+    categoryFilter: null,
+  };
+  notify();
+}
+
 /** Subscribe to asset store changes. Returns unsubscribe function. */
 export function subscribeAssets(fn: Listener): () => void {
   listeners.push(fn);

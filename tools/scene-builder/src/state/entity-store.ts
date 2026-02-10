@@ -73,6 +73,16 @@ export function selectStateName(name: string | null): void {
   notify();
 }
 
+/** Clear all entity definitions and selection. */
+export function resetEntities(): void {
+  state = {
+    entities: {},
+    selectedEntityId: null,
+    selectedStateName: null,
+  };
+  notify();
+}
+
 /** Subscribe to entity store changes. Returns unsubscribe function. */
 export function subscribeEntities(fn: Listener): () => void {
   listeners.push(fn);
