@@ -534,6 +534,126 @@ function drawArrowhead(
   gfx.fill({ color, alpha });
 }
 
+// ---------------------------------------------------------------------------
+// Dashed line helpers
+// ---------------------------------------------------------------------------
+
+/** Sample a quadratic Bézier curve into straight segments. */
+function sampleQuadratic(
+  x0: number, y0: number,
+  cx: number, cy: number,
+  x1: number, y1: number,
+  step: number,
+): Array<{ x: number; y: number }> {
+  const dist = Math.hypot(cx - x0, cy - y0) + Math.hypot(x1 - cx, y1 - cy);
+  const segments = Math.max(2, Math.ceil(dist / step));
+  const pts: Array<{ x: number; y: number }> = [];
+  for (let i = 1; i <= segments; i++) {
+    const t = i / segments;
+    const mt = 1 - t;
+    pts.push({
+      x: mt * mt * x0 + 2 * mt * t * cx + t * t * x1,
+      y: mt * mt * y0 + 2 * mt * t * cy + t * t * y1,
+    });
+  }
+  return pts;
+}
+
+/**
+ * Flatten a route into a polyline of evenly-spaced sample points.
+ * Handles both sharp (lineTo) and smooth (quadratic curve) segments.
+ */
+function flattenRoutePath(
+  points: Array<{ x: number; y: number }>,
+  routePoints: Array<{ cornerStyle: "sharp" | "smooth" }>,
+): Array<{ x: number; y: number }> {
+  if (points.length < 2) return [...points];
+
+  const result: Array<{ x: number; y: number }> = [{ x: points[0]!.x, y: points[0]!.y }];
+
+  for (let i = 1; i < points.length; i++) {
+    const curr = points[i]!;
+    const rp = routePoints[i]!;
+
+    if (rp.cornerStyle === "smooth" && i < points.length - 1) {
+      const next = points[i + 1]!;
+      const midX = (curr.x + next.x) / 2;
+      const midY = (curr.y + next.y) / 2;
+      const prev = result[result.length - 1]!;
+      const sampled = sampleQuadratic(prev.x, prev.y, curr.x, curr.y, midX, midY, 4);
+      result.push(...sampled);
+    } else {
+      result.push({ x: curr.x, y: curr.y });
+    }
+  }
+
+  return result;
+}
+
+/** Draw a dashed polyline into a Graphics object. */
+function drawDashedPolyline(
+  gfx: Graphics,
+  pts: Array<{ x: number; y: number }>,
+  dashLen: number,
+  gapLen: number,
+  color: number,
+  width: number,
+  alpha: number,
+): void {
+  if (pts.length < 2) return;
+
+  let drawing = true; // true = dash, false = gap
+  let remain = dashLen;
+  let cx = pts[0]!.x;
+  let cy = pts[0]!.y;
+
+  gfx.moveTo(cx, cy);
+
+  for (let i = 1; i < pts.length; i++) {
+    const tx = pts[i]!.x;
+    const ty = pts[i]!.y;
+    let dx = tx - cx;
+    let dy = ty - cy;
+    let segLen = Math.hypot(dx, dy);
+
+    while (segLen > 0) {
+      const step = Math.min(remain, segLen);
+      const ratio = segLen > 0 ? step / segLen : 0;
+
+      const nx = cx + dx * ratio;
+      const ny = cy + dy * ratio;
+
+      if (drawing) {
+        gfx.lineTo(nx, ny);
+      } else {
+        gfx.moveTo(nx, ny);
+      }
+
+      remain -= step;
+      segLen -= step;
+      cx = nx;
+      cy = ny;
+      dx = tx - cx;
+      dy = ty - cy;
+
+      if (remain <= 0) {
+        drawing = !drawing;
+        remain = drawing ? dashLen : gapLen;
+        // Start new stroke segment after a gap
+        if (drawing) {
+          gfx.stroke({ color, width, alpha });
+          gfx.moveTo(cx, cy);
+        }
+      }
+    }
+  }
+
+  // Final stroke for any remaining dash
+  if (drawing) {
+    gfx.stroke({ color, width, alpha });
+  }
+}
+
 const routeContainers = new Map<string, Container>();
 
 /** Render routes in the routes layer. */
@@ -579,24 +699,29 @@ function renderRoutes(): void {
     const lineWidth = isSelected ? 2.5 : 1.5;
     const lineAlpha = isSelected ? 1 : 0.8;
 
-    pathGfx.moveTo(points[0]!.x, points[0]!.y);
+    if (route.style === "dashed") {
+      // Flatten curves into polyline, then draw dashed
+      const flat = flattenRoutePath(points, route.points);
+      drawDashedPolyline(pathGfx, flat, 8, 5, color, lineWidth, lineAlpha);
+    } else {
+      pathGfx.moveTo(points[0]!.x, points[0]!.y);
 
-    for (let i = 1; i < points.length; i++) {
-      const curr = points[i]!;
-      const rp = route.points[i]!;
+      for (let i = 1; i < points.length; i++) {
+        const curr = points[i]!;
+        const rp = route.points[i]!;
 
-      if (rp.cornerStyle === "smooth" && i < points.length - 1) {
-        // Quadratic curve: use this point as control point, midpoint as anchor
-        const next = points[i + 1]!;
-        const midX = (curr.x + next.x) / 2;
-        const midY = (curr.y + next.y) / 2;
-        pathGfx.quadraticCurveTo(curr.x, curr.y, midX, midY);
-      } else {
-        pathGfx.lineTo(curr.x, curr.y);
+        if (rp.cornerStyle === "smooth" && i < points.length - 1) {
+          const next = points[i + 1]!;
+          const midX = (curr.x + next.x) / 2;
+          const midY = (curr.y + next.y) / 2;
+          pathGfx.quadraticCurveTo(curr.x, curr.y, midX, midY);
+        } else {
+          pathGfx.lineTo(curr.x, curr.y);
+        }
       }
-    }
 
-    pathGfx.stroke({ color, width: lineWidth, alpha: lineAlpha });
+      pathGfx.stroke({ color, width: lineWidth, alpha: lineAlpha });
+    }
     container.addChild(pathGfx);
 
     // --- Arrowhead at end ---
@@ -708,10 +833,18 @@ function renderRouteCreationPreview(): void {
 
   const previewColor = 0xe8a851; // Ember accent
 
-  // Draw placed segments
+  // Draw placed segments (with smooth curve support matching renderRoutes)
   routePreviewGraphics.moveTo(points[0]!.x, points[0]!.y);
   for (let i = 1; i < points.length; i++) {
-    routePreviewGraphics.lineTo(points[i]!.x, points[i]!.y);
+    const curr = points[i]!;
+    if (curr.cornerStyle === "smooth" && i < points.length - 1) {
+      const next = points[i + 1]!;
+      const midX = (curr.x + next.x) / 2;
+      const midY = (curr.y + next.y) / 2;
+      routePreviewGraphics.quadraticCurveTo(curr.x, curr.y, midX, midY);
+    } else {
+      routePreviewGraphics.lineTo(curr.x, curr.y);
+    }
   }
   routePreviewGraphics.stroke({ color: previewColor, width: 2, alpha: 0.9 });
 

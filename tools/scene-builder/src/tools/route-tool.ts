@@ -3,8 +3,13 @@
  *
  * Click on the canvas to start a new route path, keep clicking to add
  * points, double-click or press Enter to finish. Click to select existing
- * routes, drag point handles to edit path geometry. Alt+click on a point
- * to delete it. All mutations go through the undo system.
+ * routes, drag point handles to edit path geometry.
+ *
+ * Point editing (when a route is selected):
+ * - Drag handle to move point
+ * - Shift+click handle to toggle sharp↔smooth
+ * - Alt+click handle to delete point (minimum 2 enforced)
+ * - Double-click on segment to insert a new point
  *
  * Routes are standalone vector paths — they don't require position markers.
  */
@@ -131,6 +136,29 @@ function hitTestPoint(
   return null;
 }
 
+/**
+ * Hit-test against segments of a specific route.
+ * Returns the index of the first point of the hit segment, or null.
+ */
+function hitTestSegment(
+  sx: number, sy: number, routeId: string,
+): { routeId: string; segmentIndex: number } | null {
+  const { routes } = getSceneState();
+  const route = routes.find((r) => r.id === routeId);
+  if (!route) return null;
+
+  const points = buildPathPoints(route);
+  if (points.length < 2) return null;
+
+  for (let j = 0; j < points.length - 1; j++) {
+    const a = points[j]!;
+    const b = points[j + 1]!;
+    const dist = pointToSegmentDist(sx, sy, a.x, a.y, b.x, b.y);
+    if (dist <= ROUTE_HIT_DISTANCE) return { routeId, segmentIndex: j };
+  }
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -215,6 +243,11 @@ export function createRouteTool(): RouteToolResult {
           const route = routes.find((r) => r.id === ptHit.routeId);
           const pt = route?.points[ptHit.pointIndex];
           if (pt) {
+            // Shift+click = toggle sharp↔smooth
+            if (e.shiftKey) {
+              toggleCornerStyle(ptHit.routeId, ptHit.pointIndex);
+              return;
+            }
             // Alt+click = delete point (minimum 2 points)
             if (e.altKey) {
               if (route!.points.length > 2) {
@@ -345,7 +378,25 @@ export function createRouteTool(): RouteToolResult {
       draggingPt = null;
     },
 
-    onDoubleClick(_e: MouseEvent, _scenePos: { x: number; y: number }) {
+    onDoubleClick(e: MouseEvent, scenePos: { x: number; y: number }) {
+      // --- Insert point on segment (when route selected, not creating) ---
+      if (!creating) {
+        const { selectedRouteIds } = getEditorState();
+        if (selectedRouteIds.length === 1) {
+          const segHit = hitTestSegment(scenePos.x, scenePos.y, selectedRouteIds[0]!);
+          if (segHit) {
+            insertPoint(
+              segHit.routeId,
+              segHit.segmentIndex + 1,
+              snap(scenePos.x),
+              snap(scenePos.y),
+              e.shiftKey ? "smooth" : "sharp",
+            );
+            return;
+          }
+        }
+      }
+
       // Finish route creation on double-click
       if (creating) {
         finishCreation(creating);
@@ -407,6 +458,80 @@ export function createRouteTool(): RouteToolResult {
 
     setRouteSelection([newRoute.id]);
     showPanel("inspector");
+  }
+
+  function insertPoint(
+    routeId: string,
+    insertIndex: number,
+    x: number,
+    y: number,
+    cornerStyle: "sharp" | "smooth",
+  ): void {
+    const newPt: RoutePoint = { x, y, cornerStyle };
+
+    const cmd: UndoableCommand = {
+      execute() {
+        const { routes: cur } = getSceneState();
+        updateSceneState({
+          routes: cur.map((r) => {
+            if (r.id !== routeId) return r;
+            const pts = [...r.points];
+            pts.splice(insertIndex, 0, newPt);
+            return { ...r, points: pts };
+          }),
+        });
+      },
+      undo() {
+        const { routes: cur } = getSceneState();
+        updateSceneState({
+          routes: cur.map((r) => {
+            if (r.id !== routeId) return r;
+            const pts = r.points.filter((_, i) => i !== insertIndex);
+            return { ...r, points: pts };
+          }),
+        });
+      },
+      description: "Insert route point",
+    };
+    executeCommand(cmd);
+  }
+
+  function toggleCornerStyle(routeId: string, pointIndex: number): void {
+    const { routes } = getSceneState();
+    const route = routes.find((r) => r.id === routeId);
+    if (!route) return;
+    const pt = route.points[pointIndex];
+    if (!pt) return;
+
+    const oldStyle = pt.cornerStyle;
+    const newStyle: "sharp" | "smooth" = oldStyle === "sharp" ? "smooth" : "sharp";
+
+    const cmd: UndoableCommand = {
+      execute() {
+        const { routes: cur } = getSceneState();
+        updateSceneState({
+          routes: cur.map((r) => {
+            if (r.id !== routeId) return r;
+            const pts = [...r.points];
+            pts[pointIndex] = { ...pts[pointIndex]!, cornerStyle: newStyle };
+            return { ...r, points: pts };
+          }),
+        });
+      },
+      undo() {
+        const { routes: cur } = getSceneState();
+        updateSceneState({
+          routes: cur.map((r) => {
+            if (r.id !== routeId) return r;
+            const pts = [...r.points];
+            pts[pointIndex] = { ...pts[pointIndex]!, cornerStyle: oldStyle };
+            return { ...r, points: pts };
+          }),
+        });
+      },
+      description: `Toggle point to ${newStyle}`,
+    };
+    executeCommand(cmd);
   }
 
   function deletePoint(routeId: string, pointIndex: number): void {
