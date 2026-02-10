@@ -122,12 +122,17 @@ export function initAssetManagerPanel(contentEl: HTMLElement): void {
   searchInput.className = "am-search";
   searchInput.placeholder = "Search assets\u2026";
 
-  const pickBtn = document.createElement("button");
-  pickBtn.className = "am-btn";
-  pickBtn.textContent = "Import\u2026";
+  const pickFilesBtn = document.createElement("button");
+  pickFilesBtn.className = "am-btn";
+  pickFilesBtn.textContent = "Files\u2026";
+
+  const pickFolderBtn = document.createElement("button");
+  pickFolderBtn.className = "am-btn";
+  pickFolderBtn.textContent = "Folder\u2026";
 
   toolbar.appendChild(searchInput);
-  toolbar.appendChild(pickBtn);
+  toolbar.appendChild(pickFilesBtn);
+  toolbar.appendChild(pickFolderBtn);
 
   // Category bar
   const categoryBar = document.createElement("div");
@@ -168,21 +173,32 @@ export function initAssetManagerPanel(contentEl: HTMLElement): void {
   const fileInput = document.createElement("input");
   fileInput.type = "file";
   fileInput.style.display = "none";
-  fileInput.setAttribute("webkitdirectory", "");
+  fileInput.accept = "image/png,image/svg+xml,image/webp,image/gif,image/jpeg";
   fileInput.multiple = true;
   contentEl.appendChild(fileInput);
 
-  pickBtn.addEventListener("click", () => fileInput.click());
+  const folderInput = document.createElement("input");
+  folderInput.type = "file";
+  folderInput.style.display = "none";
+  folderInput.setAttribute("webkitdirectory", "");
+  folderInput.multiple = true;
+  contentEl.appendChild(folderInput);
 
-  fileInput.addEventListener("change", () => {
-    if (fileInput.files && fileInput.files.length > 0) {
-      const assets = importFiles(fileInput.files);
+  pickFilesBtn.addEventListener("click", () => fileInput.click());
+  pickFolderBtn.addEventListener("click", () => folderInput.click());
+
+  /** Handle file selection from either input. */
+  function handleFileSelection(input: HTMLInputElement): void {
+    if (input.files && input.files.length > 0) {
+      const assets = importFiles(input.files);
       addAssets(assets);
-      // Enrich metadata in background
       for (const a of assets) void enrichAssetMetadata(a);
-      fileInput.value = "";
+      input.value = "";
     }
-  });
+  }
+
+  fileInput.addEventListener("change", () => handleFileSelection(fileInput));
+  folderInput.addEventListener("change", () => handleFileSelection(folderInput));
 
   // ---------------------------------------------------------------------------
   // Drag & drop
