@@ -79,9 +79,8 @@ const TOOL_HINTS: Record<ToolId, () => string> = {
       hint("Click to start drawing") + sep() +
       hint("Drag handle to move") + sep() +
       hint("<kbd>Shift</kbd>+click handle sharp\u2194smooth") + sep() +
-      hint("<kbd>Alt</kbd>+click handle delete") + sep() +
       hint("Double-click segment to insert") + sep() +
-      hint("<kbd>Delete</kbd> remove")
+      hint("<kbd>Delete</kbd> point or route")
     );
   },
 };

@@ -8,7 +8,7 @@
  * Point editing (when a route is selected):
  * - Drag handle to move point
  * - Shift+click handle to toggle sharp↔smooth
- * - Alt+click handle to delete point (minimum 2 enforced)
+ * - Delete/Backspace when hovering a handle to delete point (min 2 enforced)
  * - Double-click on segment to insert a new point
  *
  * Routes are standalone vector paths — they don't require position markers.
@@ -208,11 +208,13 @@ function publishPreview(creating: RouteCreation | null, cursor: { x: number; y: 
   });
 }
 
-/** Result of createRouteTool: the handler + a cancel function. */
+/** Result of createRouteTool: the handler + control functions. */
 export interface RouteToolResult {
   handler: CanvasToolHandler;
   /** Cancel any in-progress route creation. */
   cancelCreation: () => void;
+  /** Get the currently hovered point handle (for keyboard delete). */
+  getHoveredPoint: () => { routeId: string; pointIndex: number } | null;
 }
 
 /** Create the Route tool handler. */
@@ -222,6 +224,9 @@ export function createRouteTool(): RouteToolResult {
 
   /** Last known cursor position (for preview). */
   let lastCursor: { x: number; y: number } | null = null;
+
+  /** Currently hovered point handle (for keyboard Delete). */
+  let hoveredPoint: { routeId: string; pointIndex: number } | null = null;
 
   /** Point drag state. */
   let draggingPt: {
@@ -246,13 +251,6 @@ export function createRouteTool(): RouteToolResult {
             // Shift+click = toggle sharp↔smooth
             if (e.shiftKey) {
               toggleCornerStyle(ptHit.routeId, ptHit.pointIndex);
-              return;
-            }
-            // Alt+click = delete point (minimum 2 points)
-            if (e.altKey) {
-              if (route!.points.length > 2) {
-                deletePoint(ptHit.routeId, ptHit.pointIndex);
-              }
               return;
             }
             draggingPt = {
@@ -312,7 +310,18 @@ export function createRouteTool(): RouteToolResult {
       if (creating) {
         lastCursor = scenePos;
         publishPreview(creating, lastCursor);
+        hoveredPoint = null;
         return;
+      }
+
+      // Track hovered point handle (for keyboard Delete)
+      if (!draggingPt) {
+        const { selectedRouteIds } = getEditorState();
+        if (selectedRouteIds.length === 1) {
+          hoveredPoint = hitTestPoint(scenePos.x, scenePos.y, selectedRouteIds[0]!);
+        } else {
+          hoveredPoint = null;
+        }
       }
 
       if (!draggingPt) return;
@@ -414,7 +423,7 @@ export function createRouteTool(): RouteToolResult {
     }
   }
 
-  return { handler, cancelCreation };
+  return { handler, cancelCreation, getHoveredPoint: () => hoveredPoint };
 
   // ── Internal helpers ──
 
@@ -534,43 +543,13 @@ export function createRouteTool(): RouteToolResult {
     executeCommand(cmd);
   }
 
-  function deletePoint(routeId: string, pointIndex: number): void {
-    const { routes } = getSceneState();
-    const route = routes.find((r) => r.id === routeId);
-    if (!route || route.points.length <= 2) return;
-
-    const removedPt = route.points[pointIndex]!;
-
-    const cmd: UndoableCommand = {
-      execute() {
-        const { routes: cur } = getSceneState();
-        updateSceneState({
-          routes: cur.map((r) => {
-            if (r.id !== routeId) return r;
-            const pts = r.points.filter((_, i) => i !== pointIndex);
-            return { ...r, points: pts };
-          }),
-        });
-      },
-      undo() {
-        const { routes: cur } = getSceneState();
-        updateSceneState({
-          routes: cur.map((r) => {
-            if (r.id !== routeId) return r;
-            const pts = [...r.points];
-            pts.splice(pointIndex, 0, removedPt);
-            return { ...r, points: pts };
-          }),
-        });
-      },
-      description: "Delete route point",
-    };
-    executeCommand(cmd);
-  }
 }
 
 /** Initialize Route tool keyboard shortcuts (Delete, Escape). */
-export function initRouteToolKeyboard(cancelCreation: () => void): void {
+export function initRouteToolKeyboard(
+  cancelCreation: () => void,
+  getHoveredPoint: () => { routeId: string; pointIndex: number } | null,
+): void {
   document.addEventListener("keydown", (e) => {
     const tag = (e.target as HTMLElement).tagName;
     if (tag === "INPUT" || tag === "TEXTAREA") return;
@@ -593,6 +572,45 @@ export function initRouteToolKeyboard(cancelCreation: () => void): void {
       if (selectedRouteIds.length === 0) return;
       e.preventDefault();
 
+      // If hovering a point handle, delete that point (not the whole route)
+      const hp = getHoveredPoint();
+      if (hp && selectedRouteIds.includes(hp.routeId)) {
+        const { routes } = getSceneState();
+        const route = routes.find((r) => r.id === hp.routeId);
+        if (route && route.points.length > 2) {
+          const removedPt = route.points[hp.pointIndex]!;
+          const delRouteId = hp.routeId;
+          const delIndex = hp.pointIndex;
+
+          const cmd: UndoableCommand = {
+            execute() {
+              const { routes: cur } = getSceneState();
+              updateSceneState({
+                routes: cur.map((r) => {
+                  if (r.id !== delRouteId) return r;
+                  return { ...r, points: r.points.filter((_, i) => i !== delIndex) };
+                }),
+              });
+            },
+            undo() {
+              const { routes: cur } = getSceneState();
+              updateSceneState({
+                routes: cur.map((r) => {
+                  if (r.id !== delRouteId) return r;
+                  const pts = [...r.points];
+                  pts.splice(delIndex, 0, removedPt);
+                  return { ...r, points: pts };
+                }),
+              });
+            },
+            description: "Delete route point",
+          };
+          executeCommand(cmd);
+        }
+        return;
+      }
+
+      // Otherwise delete entire selected route(s)
       const idsToRemove = [...selectedRouteIds];
       const { routes } = getSceneState();
       const removed = routes.filter((r) => idsToRemove.includes(r.id));
