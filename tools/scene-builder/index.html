@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>sajou — Scene Builder</title>
+  <title>sajou</title>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Sora:wght@300;400;500;600;700&family=DM+Sans:wght@300;400;500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/src/styles.css" />
 </head>
@@ -16,8 +16,9 @@
         <path d="M 74 60 C 90 66, 100 52, 104 40 C 108 28, 122 24, 132 34" stroke="#E8A851" stroke-width="8" stroke-linecap="round" fill="none"/>
         <circle cx="132" cy="34" r="12" fill="#E8A851"/>
       </svg>
-      <h1>sajou <span class="header-subtitle">Scene Builder</span></h1>
+      <h1>sajou</h1>
     </div>
+    <nav id="view-tabs"></nav>
     <div class="header-right">
       <button id="btn-preview" class="header-btn header-btn--accent" title="Preview scene (Ctrl+P)">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none">
@@ -29,21 +30,23 @@
       <button id="btn-export" class="header-btn header-btn--primary">Export</button>
     </div>
   </header>
-
   <div id="workspace">
-    <aside id="toolbar"></aside>
-    <div id="canvas-container"></div>
-    <div id="zoom-bar">
-      <button id="zoom-out" class="zoom-btn" title="Zoom out (-)">&#8722;</button>
-      <button id="zoom-level" class="zoom-level" title="Click for presets">100%</button>
-      <button id="zoom-in" class="zoom-btn" title="Zoom in (+)">&#43;</button>
-      <div id="zoom-presets" class="zoom-presets">
-        <div class="zoom-presets-inner">
-          <button data-zoom="0.25">25%</button>
-          <button data-zoom="0.5">50%</button>
-          <button data-zoom="1">100%</button>
-          <button data-zoom="2">200%</button>
-          <button data-zoom="fit">Fit</button>
+    <div id="view-signal" class="view" hidden></div>
+    <div id="view-visual" class="view view--active">
+      <aside id="toolbar"></aside>
+      <div id="canvas-container"></div>
+      <div id="zoom-bar">
+        <button id="zoom-out" class="zoom-btn" title="Zoom out (-)">&#8722;</button>
+        <button id="zoom-level" class="zoom-level" title="Click for presets">100%</button>
+        <button id="zoom-in" class="zoom-btn" title="Zoom in (+)">&#43;</button>
+        <div id="zoom-presets" class="zoom-presets">
+          <div class="zoom-presets-inner">
+            <button data-zoom="0.25">25%</button>
+            <button data-zoom="0.5">50%</button>
+            <button data-zoom="1">100%</button>
+            <button data-zoom="2">200%</button>
+            <button data-zoom="fit">Fit</button>
+          </div>
         </div>
       </div>
     </div>

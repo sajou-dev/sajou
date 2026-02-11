@@ -14,6 +14,7 @@ import { initHelpBar } from "./help-bar.js";
 import { initUndoManager } from "../state/undo.js";
 import { getEditorState, subscribeEditor } from "../state/editor-state.js";
 import { createPanel } from "./panel.js";
+import { initViewTabs } from "./view-tabs.js";
 
 // Panels
 import { initAssetManagerPanel } from "../panels/asset-manager-panel.js";
@@ -22,6 +23,10 @@ import { initEntityPalettePanel } from "../panels/entity-palette-panel.js";
 import { initInspectorPanel } from "../panels/inspector-panel.js";
 import { initLayersPanel } from "../panels/layers-panel.js";
 import { initSettingsPanel } from "../panels/settings-panel.js";
+import { initSignalTimelinePanel } from "../panels/signal-timeline-panel.js";
+
+// Views
+import { initSignalView } from "../views/signal-view.js";
 
 // Tools
 import { createSelectTool, initSelectToolKeyboard } from "../tools/select-tool.js";
@@ -91,6 +96,19 @@ export async function initWorkspace(): Promise<void> {
   // Header buttons
   initHeader();
 
+  // View tabs (Signal / Orchestrator / Visual)
+  initViewTabs();
+
+  // Lazy init for Signal view — first time we switch to it
+  let signalViewInitialized = false;
+  subscribeEditor(() => {
+    const { currentView } = getEditorState();
+    if (currentView === "signal" && !signalViewInitialized) {
+      signalViewInitialized = true;
+      initSignalView();
+    }
+  });
+
   // Toolbar (tools + panel toggles)
   initToolbar();
 
@@ -127,4 +145,7 @@ export async function initWorkspace(): Promise<void> {
 
   const settings = createPanel({ id: "settings", title: "Settings", minWidth: 280, minHeight: 200 });
   initSettingsPanel(settings.contentEl);
+
+  const signalTimeline = createPanel({ id: "signal-timeline", title: "Signal Timeline", minWidth: 400, minHeight: 350 });
+  initSignalTimelinePanel(signalTimeline.contentEl);
 }

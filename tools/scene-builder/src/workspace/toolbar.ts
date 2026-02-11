@@ -71,6 +71,9 @@ const ICON = {
     '<path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/>' +
     '<circle cx="12" cy="12" r="3"/>'
   ),
+  signal: lucide(
+    '<path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/>'
+  ),
   help: lucide(
     '<circle cx="12" cy="12" r="10"/>' +
     '<path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>' +
@@ -108,6 +111,7 @@ const PANEL_TOGGLES: PanelToggleDef[] = [
   { panelId: "asset-manager", label: "Assets", iconKey: "assets", shortcut: "A" },
   { panelId: "entity-editor", label: "Entities", iconKey: "entities", shortcut: "E" },
   { panelId: "layers", label: "Layers", iconKey: "layers", shortcut: "L" },
+  { panelId: "signal-timeline", label: "Signals", iconKey: "signal", shortcut: "S" },
   { panelId: "settings", label: "Settings", iconKey: "settings", shortcut: "" },
 ];
 

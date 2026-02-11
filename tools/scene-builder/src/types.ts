@@ -172,11 +172,14 @@ export interface SceneState {
 // Editor state (UI layer)
 // ---------------------------------------------------------------------------
 
+/** Workspace view identifiers (top-level tab navigation). */
+export type ViewId = "signal" | "orchestrator" | "visual";
+
 /** Available canvas tools. */
 export type ToolId = "select" | "hand" | "background" | "place" | "position" | "route";
 
 /** Panel identifiers. */
-export type PanelId = "entity-palette" | "asset-manager" | "entity-editor" | "inspector" | "layers" | "settings";
+export type PanelId = "entity-palette" | "asset-manager" | "entity-editor" | "inspector" | "layers" | "settings" | "signal-timeline";
 
 /** Saved panel position and size. */
 export interface PanelLayout {
@@ -200,6 +203,8 @@ export interface RouteCreationPreview {
 
 /** Editor UI state (transient, not saved to scene file). */
 export interface EditorState {
+  /** Currently active workspace view. */
+  currentView: ViewId;
   activeTool: ToolId;
   /** Selected entity instance IDs (select tool). */
   selectedIds: string[];
@@ -411,4 +416,64 @@ export interface UndoableCommand {
   execute(): void;
   undo(): void;
   description: string;
+}
+
+// ---------------------------------------------------------------------------
+// Signal Timeline (aligned with @sajou/schema + @sajou/emitter, local copies)
+// ---------------------------------------------------------------------------
+
+/**
+ * Signal types supported in V1.
+ * Mirrors `@sajou/schema` SignalType — kept local to avoid adding a dependency.
+ */
+export type SignalType =
+  | "task_dispatch"
+  | "tool_call"
+  | "tool_result"
+  | "token_usage"
+  | "agent_state_change"
+  | "error"
+  | "completion";
+
+/** Agent lifecycle states (mirrors @sajou/schema AgentState). */
+export type AgentState = "idle" | "thinking" | "acting" | "waiting" | "done" | "error";
+
+/** Error severity levels (mirrors @sajou/schema ErrorSeverity). */
+export type ErrorSeverity = "warning" | "error" | "critical";
+
+/** Maps each signal type to its corresponding payload interface. */
+export interface SignalPayloadMap {
+  task_dispatch: { taskId: string; from: string; to: string; description?: string };
+  tool_call: { toolName: string; agentId: string; callId?: string; input?: Record<string, unknown> };
+  tool_result: { toolName: string; agentId: string; callId?: string; success: boolean; output?: Record<string, unknown> };
+  token_usage: { agentId: string; promptTokens: number; completionTokens: number; model?: string; cost?: number };
+  agent_state_change: { agentId: string; from: AgentState; to: AgentState; reason?: string };
+  error: { agentId?: string; code?: string; message: string; severity: ErrorSeverity };
+  completion: { taskId: string; agentId?: string; success: boolean; result?: string };
+}
+
+/** A single step in a signal scenario timeline. */
+export interface SignalTimelineStep {
+  /** Editor-internal unique ID (stripped on export). */
+  id: string;
+  /** Milliseconds to wait before emitting this signal (relative delay). */
+  delayMs: number;
+  /** The signal type. */
+  type: SignalType;
+  /** The typed payload for this signal type. */
+  payload: SignalPayloadMap[SignalType];
+  /** Optional correlation ID for grouping related signals. */
+  correlationId?: string;
+}
+
+/** Full state for the signal timeline editor. */
+export interface SignalTimelineState {
+  /** Scenario name. */
+  name: string;
+  /** Scenario description. */
+  description: string;
+  /** Ordered list of timeline steps. */
+  steps: SignalTimelineStep[];
+  /** Currently selected step ID (null = none). */
+  selectedStepId: string | null;
 }

@@ -5,7 +5,7 @@
  * Not saved to the scene file.
  */
 
-import type { EditorState, PanelId, PanelLayout, ToolId } from "../types.js";
+import type { EditorState, PanelId, PanelLayout, ToolId, ViewId } from "../types.js";
 
 // ---------------------------------------------------------------------------
 // Default state
@@ -17,6 +17,7 @@ function defaultPanelLayout(x: number, y: number, w: number, h: number): PanelLa
 
 function createDefault(): EditorState {
   return {
+    currentView: "visual",
     activeTool: "select",
     selectedIds: [],
     selectedPositionIds: [],
@@ -28,6 +29,7 @@ function createDefault(): EditorState {
       inspector: defaultPanelLayout(window.innerWidth - 310, 60, 280, 350),
       layers: defaultPanelLayout(window.innerWidth - 310, 430, 280, 300),
       settings: defaultPanelLayout(200, 100, 320, 250),
+      "signal-timeline": defaultPanelLayout(120, 100, 480, 520),
     },
     gridEnabled: true,
     gridSize: 32,
@@ -61,6 +63,12 @@ export function setEditorState(next: EditorState): void {
 /** Partially update editor state (shallow merge) and notify. */
 export function updateEditorState(partial: Partial<EditorState>): void {
   state = { ...state, ...partial };
+  notify();
+}
+
+/** Set the active workspace view (Signal / Orchestrator / Visual). */
+export function setActiveView(view: ViewId): void {
+  state = { ...state, currentView: view };
   notify();
 }
 
