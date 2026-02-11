@@ -239,7 +239,11 @@ export async function importScene(): Promise<void> {
     dimensions: sceneJson.dimensions,
     background: sceneJson.background,
     layers: sceneJson.layers,
-    entities: sceneJson.entities,
+    // Backward-compat: old scenes may lack per-placement zIndex
+    entities: sceneJson.entities.map((e, i) => ({
+      ...e,
+      zIndex: (e as { zIndex?: number }).zIndex ?? i,
+    })),
     positions: sceneJson.positions ?? [],
     routes: sceneJson.routes ?? [],
   });

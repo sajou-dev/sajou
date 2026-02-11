@@ -235,9 +235,9 @@ async function renderEntities(): Promise<void> {
 /**
  * Apply position, scale, rotation, opacity, flip, and layer-based z-ordering.
  *
- * Composite zIndex = layerOrder * 10000 + entityZIndex.
+ * Composite zIndex = layerOrder * 10000 + placed.zIndex.
  * This ensures entities on higher layers always render above lower layers,
- * while within a layer, entity-level zIndex still applies.
+ * while within a layer, per-instance zIndex controls stacking.
  */
 function applyPlacedTransform(
   sprite: Sprite,
@@ -256,10 +256,9 @@ function applyPlacedTransform(
   sprite.rotation = (placed.rotation * Math.PI) / 180;
   sprite.alpha = placed.opacity;
 
-  // Layer-based z-ordering: layerOrder * 10000 + entity zIndex
+  // Layer-based z-ordering: layerOrder * 10000 + per-instance zIndex
   const layerOrder = layer?.order ?? 0;
-  const entityZ = def.defaults.zIndex ?? 0;
-  sprite.zIndex = layerOrder * 10000 + entityZ;
+  sprite.zIndex = layerOrder * 10000 + placed.zIndex;
 
   // Flip via scale
   const baseScaleX = sprite.width / sprite.texture.width;
@@ -299,12 +298,11 @@ function renderFallback(placed: PlacedEntity, def: EntityEntry | null): void {
   gfx.rotation = (placed.rotation * Math.PI) / 180;
   gfx.alpha = placed.opacity;
 
-  // Layer-based z-ordering
+  // Layer-based z-ordering: layerOrder * 10000 + per-instance zIndex
   const layerMap = buildLayerMap();
   const layer = layerMap.get(placed.layerId);
   const layerOrder = layer?.order ?? 0;
-  const entityZ = def?.defaults.zIndex ?? 0;
-  gfx.zIndex = layerOrder * 10000 + entityZ;
+  gfx.zIndex = layerOrder * 10000 + placed.zIndex;
 
   gfx.visible = placed.visible;
 }

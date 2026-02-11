@@ -21,7 +21,7 @@ import {
 } from "../state/scene-state.js";
 import { getEntityStore, selectEntity } from "../state/entity-store.js";
 import { executeCommand } from "../state/undo.js";
-import type { UndoableCommand } from "../types.js";
+import type { SceneLayer, UndoableCommand } from "../types.js";
 
 // ---------------------------------------------------------------------------
 // Hit-testing
@@ -32,13 +32,20 @@ function hitTest(sx: number, sy: number): string | null {
   const { entities, layers } = getSceneState();
   const entityStore = getEntityStore();
 
-  // Build layer lookup for visibility/lock checks
-  const layerMap = new Map<string, { visible: boolean; locked: boolean }>();
+  // Build layer lookup for visibility/lock/order checks
+  const layerMap = new Map<string, SceneLayer>();
   for (const l of layers) layerMap.set(l.id, l);
 
-  // Iterate in reverse (topmost first)
-  for (let i = entities.length - 1; i >= 0; i--) {
-    const placed = entities[i]!;
+  // Sort by effective zIndex descending (topmost first)
+  const sorted = [...entities].sort((a, b) => {
+    const la = layerMap.get(a.layerId);
+    const lb = layerMap.get(b.layerId);
+    const za = (la?.order ?? 0) * 10000 + a.zIndex;
+    const zb = (lb?.order ?? 0) * 10000 + b.zIndex;
+    return zb - za;
+  });
+
+  for (const placed of sorted) {
     if (!placed.visible) continue;
 
     // Skip entities on hidden or locked layers

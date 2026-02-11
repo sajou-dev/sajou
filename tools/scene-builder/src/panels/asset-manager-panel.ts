@@ -68,6 +68,12 @@ function placeAssetAt(asset: AssetFile, x: number, y: number): void {
     activeState = keys[0] ?? "default";
   }
 
+  // Auto-increment zIndex: place on top of existing entities in this layer
+  const { entities: existing } = getSceneState();
+  const maxZ = existing
+    .filter((e) => e.layerId === activeLayer.id)
+    .reduce((m, e) => Math.max(m, e.zIndex), -1);
+
   const placed: PlacedEntity = {
     id: generatePlacedId(entityDef.id),
     entityId: entityDef.id,
@@ -76,6 +82,7 @@ function placeAssetAt(asset: AssetFile, x: number, y: number): void {
     scale: entityDef.defaults.scale ?? 1,
     rotation: 0,
     layerId: activeLayer.id,
+    zIndex: maxZ + 1,
     opacity: entityDef.defaults.opacity ?? 1,
     flipH: false,
     flipV: false,
@@ -325,6 +332,13 @@ export function initAssetManagerPanel(contentEl: HTMLElement): void {
         badge.className = "am-badge";
         badge.textContent = "GIF";
         item.appendChild(badge);
+      } else if (asset.spritesheetHint) {
+        const badge = document.createElement("span");
+        badge.className = "am-badge am-badge--sheet";
+        const h = asset.spritesheetHint;
+        badge.textContent = "SHEET";
+        badge.title = `${h.cols}\u00D7${h.rows} grid, ${h.totalNonEmptyFrames} frames`;
+        item.appendChild(badge);
       }
 
       item.addEventListener("click", () => selectAsset(asset.path));
@@ -389,6 +403,11 @@ export function initAssetManagerPanel(contentEl: HTMLElement): void {
     }
     if (asset.frameCount && asset.frameCount > 1) {
       addRow("Frames", String(asset.frameCount));
+    }
+    if (asset.spritesheetHint) {
+      const sh = asset.spritesheetHint;
+      addRow("Grid", `${sh.cols}\u00D7${sh.rows} (${sh.frameWidth}\u00D7${sh.frameHeight}px frames)`);
+      addRow("Frames", `${sh.totalNonEmptyFrames} non-empty`);
     }
 
     detail.appendChild(info);

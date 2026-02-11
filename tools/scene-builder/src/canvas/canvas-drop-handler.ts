@@ -101,6 +101,12 @@ export function initCanvasDropHandler(): void {
       activeState = keys[0] ?? "default";
     }
 
+    // Auto-increment zIndex: place on top of existing entities in this layer
+    const { entities: existing } = getSceneState();
+    const maxZ = existing
+      .filter((e) => e.layerId === activeLayer.id)
+      .reduce((m, e) => Math.max(m, e.zIndex), -1);
+
     // Build PlacedEntity
     const placed: PlacedEntity = {
       id: generatePlacedId(entityDef.id),
@@ -110,6 +116,7 @@ export function initCanvasDropHandler(): void {
       scale: entityDef.defaults.scale ?? 1,
       rotation: 0,
       layerId: activeLayer.id,
+      zIndex: maxZ + 1,
       opacity: entityDef.defaults.opacity ?? 1,
       flipH: false,
       flipV: false,

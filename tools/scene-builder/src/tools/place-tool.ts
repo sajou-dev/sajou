@@ -52,6 +52,12 @@ export function createPlaceTool(): CanvasToolHandler {
       const x = snap(scenePos.x);
       const y = snap(scenePos.y);
 
+      // Auto-increment zIndex: place on top of existing entities in this layer
+      const { entities: existing } = getSceneState();
+      const maxZ = existing
+        .filter((e) => e.layerId === activeLayer.id)
+        .reduce((m, e) => Math.max(m, e.zIndex), -1);
+
       const placed: PlacedEntity = {
         id: generatePlacedId(placingEntityId),
         entityId: placingEntityId,
@@ -60,6 +66,7 @@ export function createPlaceTool(): CanvasToolHandler {
         scale: entityDef.defaults.scale ?? 1,
         rotation: 0,
         layerId: activeLayer.id,
+        zIndex: maxZ + 1,
         opacity: entityDef.defaults.opacity ?? 1,
         flipH: false,
         flipV: false,
