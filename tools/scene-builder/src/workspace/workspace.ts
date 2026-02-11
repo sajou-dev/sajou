@@ -16,6 +16,8 @@ import { getEditorState, subscribeEditor } from "../state/editor-state.js";
 import { createPanel } from "./panel.js";
 import { initViewTabs } from "./view-tabs.js";
 import { initRideau } from "./rideau.js";
+import { initConnectorBarH } from "./connector-bar-horizontal.js";
+import { initConnectorBarV } from "./connector-bar-vertical.js";
 
 // Panels
 import { initAssetManagerPanel } from "../panels/asset-manager-panel.js";
@@ -107,6 +109,10 @@ export async function initWorkspace(): Promise<void> {
 
   // Rideau (curtain slider between Choreographer and Theme)
   initRideau();
+
+  // Connector bars (badges showing wired connections between zones)
+  initConnectorBarH();
+  initConnectorBarV();
 
   // Toolbar (tools + panel toggles — lives in Theme zone)
   initToolbar();
