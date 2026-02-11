@@ -2,12 +2,12 @@
  * Asset import module.
  *
  * Handles file scanning from drag & drop and file picker,
- * format detection, dimension caching, and GIF frame counting.
- * Ported from entity-editor/src/assets/assets-tab.ts with
- * GIF support and enhanced metadata.
+ * format detection, dimension caching, GIF frame counting,
+ * and spritesheet grid auto-detection.
  */
 
 import type { AssetFile, AssetFormat } from "../types.js";
+import { detectSpritesheetGrid } from "./spritesheet-detect.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -41,21 +41,15 @@ export function isImageFile(name: string): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Dimension detection
+// Image loading & dimension detection
 // ---------------------------------------------------------------------------
 
-/** Load natural dimensions of an image from its object URL. */
-export function detectDimensions(
-  objectUrl: string,
-): Promise<{ width: number; height: number }> {
+/** Load an HTMLImageElement from an object URL. Returns null on error. */
+export function loadImageElement(objectUrl: string): Promise<HTMLImageElement | null> {
   return new Promise((resolve) => {
     const img = new Image();
-    img.onload = () => {
-      resolve({ width: img.naturalWidth, height: img.naturalHeight });
-    };
-    img.onerror = () => {
-      resolve({ width: 0, height: 0 });
-    };
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
     img.src = objectUrl;
   });
 }
@@ -65,18 +59,26 @@ export function detectDimensions(
 // ---------------------------------------------------------------------------
 
 /**
- * Count frames in an animated GIF using gifuct-js.
- * Returns 1 for static GIFs or if detection fails.
+ * Extract metadata from an animated GIF using gifuct-js.
+ *
+ * Returns frame count and average FPS derived from frame delays.
+ * Falls back to { frameCount: 1, fps: 10 } on error.
  */
-export async function detectGifFrameCount(file: File): Promise<number> {
+export async function detectGifMetadata(file: File): Promise<{ frameCount: number; fps: number }> {
   try {
     const { parseGIF, decompressFrames } = await import("gifuct-js");
     const buffer = await file.arrayBuffer();
     const gif = parseGIF(buffer);
-    const frames = decompressFrames(gif, true);
-    return Math.max(1, frames.length);
+    // Pass false to skip building pixel patches (faster)
+    const frames = decompressFrames(gif, false);
+    const frameCount = Math.max(1, frames.length);
+    // delay is in centiseconds (1/100th of a second)
+    const totalDelay = frames.reduce((sum, f) => sum + (f.delay || 10), 0);
+    const avgDelayCentis = totalDelay / frameCount;
+    const fps = Math.round(100 / Math.max(1, avgDelayCentis));
+    return { frameCount, fps };
   } catch {
-    return 1;
+    return { frameCount: 1, fps: 10 };
   }
 }
 
@@ -98,16 +100,31 @@ function createAssetFile(file: File, path: string, category: string): AssetFile 
 }
 
 /**
- * Enrich an AssetFile with dimensions and (for GIFs) frame count.
+ * Enrich an AssetFile with dimensions, GIF metadata, and spritesheet hints.
  * Mutates the asset in-place for performance.
  */
 export async function enrichAssetMetadata(asset: AssetFile): Promise<void> {
-  const dims = await detectDimensions(asset.objectUrl);
-  asset.naturalWidth = dims.width;
-  asset.naturalHeight = dims.height;
+  const img = await loadImageElement(asset.objectUrl);
+  asset.naturalWidth = img?.naturalWidth ?? 0;
+  asset.naturalHeight = img?.naturalHeight ?? 0;
 
+  // GIF metadata: frame count + native FPS
   if (asset.format === "gif") {
-    asset.frameCount = await detectGifFrameCount(asset.file);
+    const meta = await detectGifMetadata(asset.file);
+    asset.frameCount = meta.frameCount;
+    asset.detectedFps = meta.fps;
+  }
+
+  // Spritesheet auto-detection for formats with alpha
+  if (img && (asset.format === "png" || asset.format === "webp")) {
+    const w = img.naturalWidth;
+    const h = img.naturalHeight;
+    if (w >= 64 && h >= 32) {
+      const hint = detectSpritesheetGrid(img, asset.name);
+      if (hint) {
+        asset.spritesheetHint = hint;
+      }
+    }
   }
 }
 

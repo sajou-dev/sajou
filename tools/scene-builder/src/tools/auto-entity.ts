@@ -7,7 +7,7 @@
  * twice reuses the entity definition rather than creating a duplicate.
  */
 
-import type { AssetFile, EntityEntry, EntityVisual } from "../types.js";
+import type { AssetFile, EntityEntry, EntityVisual, SpriteAnimation } from "../types.js";
 import { getEntityStore } from "../state/entity-store.js";
 
 // ---------------------------------------------------------------------------
@@ -58,11 +58,41 @@ export function findEntityForAsset(assetPath: string): EntityEntry | null {
 // Creation
 // ---------------------------------------------------------------------------
 
-/** Choose the correct EntityVisual type based on asset format. */
+/**
+ * Choose the correct EntityVisual type based on asset format and
+ * auto-detected spritesheet hint (if available).
+ */
 function buildVisual(asset: AssetFile): EntityVisual {
   if (asset.format === "gif") {
-    return { type: "gif", source: asset.path, fps: 10, loop: true };
+    return { type: "gif", source: asset.path, fps: asset.detectedFps ?? 10, loop: true };
   }
+
+  // Use spritesheet hint if detection confidence is high enough
+  if (asset.spritesheetHint && asset.spritesheetHint.confidence >= 0.4) {
+    const hint = asset.spritesheetHint;
+    const animations: Record<string, SpriteAnimation> = {};
+
+    for (const rowAnim of hint.rowAnimations) {
+      const name = hint.rowAnimations.length === 1
+        ? "default"
+        : `row-${rowAnim.row}`;
+      animations[name] = { frames: rowAnim.frames, fps: 10, loop: true };
+    }
+
+    // Fallback: at least one animation
+    if (Object.keys(animations).length === 0) {
+      animations["default"] = { frames: [0], fps: 10, loop: true };
+    }
+
+    return {
+      type: "spritesheet",
+      source: asset.path,
+      frameWidth: hint.frameWidth,
+      frameHeight: hint.frameHeight,
+      animations,
+    };
+  }
+
   return { type: "sprite", source: asset.path };
 }
 
@@ -71,11 +101,22 @@ function buildVisual(asset: AssetFile): EntityVisual {
  *
  * Uses the asset's natural dimensions (fallback 64×64), a deterministic
  * ID, and the `"auto"` tag to mark auto-created entities in the palette.
+ * For spritesheets, uses frame dimensions instead of full image size.
  */
 export function createEntityFromAsset(asset: AssetFile): EntityEntry {
   const id = assetPathToEntityId(asset.path);
-  const w = asset.naturalWidth ?? 64;
-  const h = asset.naturalHeight ?? 64;
+  const visual = buildVisual(asset);
+
+  // Use frame size for spritesheets, full image size for sprites/gifs
+  let w: number;
+  let h: number;
+  if (visual.type === "spritesheet") {
+    w = visual.frameWidth;
+    h = visual.frameHeight;
+  } else {
+    w = asset.naturalWidth ?? 64;
+    h = asset.naturalHeight ?? 64;
+  }
 
   return {
     id,
@@ -89,6 +130,6 @@ export function createEntityFromAsset(asset: AssetFile): EntityEntry {
       zIndex: 0,
       opacity: 1,
     },
-    visual: buildVisual(asset),
+    visual,
   };
 }

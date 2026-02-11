@@ -62,6 +62,8 @@ export interface PlacedEntity {
   rotation: number;
   /** Reference to SceneLayer.id. Determines rendering order group. */
   layerId: string;
+  /** Per-instance z-order within its layer (higher = rendered on top). */
+  zIndex: number;
   /** Opacity 0-1. */
   opacity: number;
   flipH: boolean;
@@ -239,6 +241,42 @@ export interface AssetFile {
   naturalHeight?: number;
   /** For animated GIFs: frame count. */
   frameCount?: number;
+  /** For animated GIFs: detected native FPS from frame delays. */
+  detectedFps?: number;
+  /** Auto-detected spritesheet grid hint (set during enrichAssetMetadata). */
+  spritesheetHint?: SpritesheetHint;
+}
+
+// ---------------------------------------------------------------------------
+// Spritesheet auto-detection hints
+// ---------------------------------------------------------------------------
+
+/** A row of animation frames detected in a spritesheet grid. */
+export interface DetectedRowAnimation {
+  /** Row index in the grid (0-based). */
+  row: number;
+  /** Number of non-empty frames in this row. */
+  frameCount: number;
+  /** Global frame indices (row * cols + col) of non-empty frames. */
+  frames: number[];
+}
+
+/** Result of spritesheet grid auto-detection. */
+export interface SpritesheetHint {
+  /** Detected frame width in pixels. */
+  frameWidth: number;
+  /** Detected frame height in pixels. */
+  frameHeight: number;
+  /** Number of columns in the grid. */
+  cols: number;
+  /** Number of rows in the grid. */
+  rows: number;
+  /** Total non-empty frames across all rows. */
+  totalNonEmptyFrames: number;
+  /** Per-row animation data with non-empty frame indices. */
+  rowAnimations: DetectedRowAnimation[];
+  /** Detection confidence from 0 to 1 (higher = more confident). */
+  confidence: number;
 }
 
 // ---------------------------------------------------------------------------
