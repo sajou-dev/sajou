@@ -24,6 +24,7 @@ import {
   getChoreographyState,
   subscribeChoreography,
 } from "../state/choreography-state.js";
+import { initCompositorView } from "../compositor/compositor-view.js";
 
 // ---------------------------------------------------------------------------
 // Status colors (same as signal-connector-bar.ts)
@@ -60,6 +61,9 @@ export function initConnectorBarH(): void {
   label.className = "connector-bar-h-label";
   label.textContent = "signal → choreo";
   container.insertBefore(label, barEl);
+
+  // Compositor view (filter editor — expands below the bar)
+  initCompositorView(container);
 
   // React to source, wiring, and choreography changes
   subscribeSignalSources(render);
