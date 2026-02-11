@@ -27,6 +27,7 @@ import { initSignalTimelinePanel } from "../panels/signal-timeline-panel.js";
 
 // Views
 import { initSignalView } from "../views/signal-view.js";
+import { initChoreographyView } from "../views/choreography-view.js";
 
 // Tools
 import { createSelectTool, initSelectToolKeyboard } from "../tools/select-tool.js";
@@ -106,6 +107,16 @@ export async function initWorkspace(): Promise<void> {
     if (currentView === "signal" && !signalViewInitialized) {
       signalViewInitialized = true;
       initSignalView();
+    }
+  });
+
+  // Lazy init for Orchestrator view — first time we switch to it
+  let orchestratorViewInitialized = false;
+  subscribeEditor(() => {
+    const { currentView } = getEditorState();
+    if (currentView === "orchestrator" && !orchestratorViewInitialized) {
+      orchestratorViewInitialized = true;
+      initChoreographyView();
     }
   });
 

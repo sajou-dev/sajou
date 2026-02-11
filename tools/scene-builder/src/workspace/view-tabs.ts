@@ -53,7 +53,7 @@ interface TabDef {
 
 const TABS: readonly TabDef[] = [
   { view: "signal", label: "Signal", icon: ICON_SIGNAL, disabled: false },
-  { view: "orchestrator", label: "Orchestrator", icon: ICON_CHOREOGRAPHER, disabled: true },
+  { view: "orchestrator", label: "Orchestrator", icon: ICON_CHOREOGRAPHER, disabled: false },
   { view: "visual", label: "Visual", icon: ICON_THEME, disabled: false },
 ];
 

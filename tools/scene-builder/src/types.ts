@@ -477,3 +477,116 @@ export interface SignalTimelineState {
   /** Currently selected step ID (null = none). */
   selectedStepId: string | null;
 }
+
+// ---------------------------------------------------------------------------
+// Choreography Editor (local copies aligned with @sajou/core, not imported)
+// ---------------------------------------------------------------------------
+
+/** Easing function names supported by the choreographer runtime. */
+export type ChoreographyEasing = "linear" | "easeIn" | "easeOut" | "easeInOut" | "arc";
+
+/**
+ * A comparison operator applied to a resolved signal value.
+ * Multiple keys in the same object are AND-combined.
+ *
+ * @example
+ * ```json
+ * { "contains": "amour" }
+ * { "gt": 5, "lt": 100 }
+ * ```
+ */
+export interface WhenOperatorDef {
+  /** Strict equality: `resolved === operand`. */
+  equals?: unknown;
+  /** Substring match: `resolved.includes(operand)`. */
+  contains?: string;
+  /** Regex match: `new RegExp(operand).test(resolved)`. */
+  matches?: string;
+  /** Greater than: `resolved > operand`. */
+  gt?: number;
+  /** Less than: `resolved < operand`. */
+  lt?: number;
+  /** Field exists and is not null/undefined. Set to `false` to check absence. */
+  exists?: boolean;
+  /** Negation: inverts the result of the inner operator. */
+  not?: WhenOperatorDef;
+}
+
+/**
+ * A single when condition: signal paths mapped to operators (AND-combined).
+ * Multiple keys mean all must match.
+ *
+ * @example
+ * ```json
+ * { "signal.content": { "contains": "amour" }, "signal.model": { "equals": "glm-4.7" } }
+ * ```
+ */
+export type WhenConditionDef = Record<string, WhenOperatorDef>;
+
+/**
+ * The `when` clause for conditional choreography triggering.
+ * Object form = AND, array form = OR (at least one must match).
+ */
+export type WhenClauseDef = WhenConditionDef | WhenConditionDef[];
+
+/**
+ * Known action types for the V1 choreography editor.
+ * Structural actions (parallel, onArrive, onInterrupt) have nested children.
+ */
+export type ChoreographyActionType =
+  | "move" | "spawn" | "destroy" | "fly" | "flash"
+  | "wait" | "playSound"
+  | "parallel" | "onArrive" | "onInterrupt";
+
+/** Structural action types that contain nested steps. */
+export const STRUCTURAL_ACTIONS: readonly string[] = ["parallel", "onArrive", "onInterrupt"];
+
+/**
+ * A single step in a choreography, editor-friendly mutable version.
+ * On export, `id` is stripped and `params` are merged into the step object.
+ */
+export interface ChoreographyStepDef {
+  /** Editor-internal unique ID (stripped on export). */
+  id: string;
+  /** The action to perform. */
+  action: string;
+  /** Logical entity reference. May contain `signal.*` references. */
+  entity?: string;
+  /** Target entity reference (for actions like flash). */
+  target?: string;
+  /** Duration in ms. Absent = instant action. */
+  duration?: number;
+  /** Easing function name. */
+  easing?: string;
+  /** Additional action-specific parameters (to, at, color, sound, etc.). */
+  params: Record<string, unknown>;
+  /** Nested steps for structural actions (parallel, onArrive, onInterrupt). */
+  children?: ChoreographyStepDef[];
+}
+
+/**
+ * A full choreography definition as stored in the editor.
+ * On export, converted to the `@sajou/core` ChoreographyDefinition format.
+ */
+export interface ChoreographyDef {
+  /** Editor-internal unique ID (stripped on export). */
+  id: string;
+  /** The signal type that triggers this choreography. */
+  on: string;
+  /** Optional condition filter on signal payload. */
+  when?: WhenClauseDef;
+  /** Whether this choreography interrupts active performances. */
+  interrupts: boolean;
+  /** Ordered sequence of steps. */
+  steps: ChoreographyStepDef[];
+}
+
+/** Full state for the choreography editor. */
+export interface ChoreographyEditorState {
+  /** All choreography definitions being edited. */
+  choreographies: ChoreographyDef[];
+  /** Currently selected choreography ID (null = none). */
+  selectedChoreographyId: string | null;
+  /** Currently selected step ID within the selected choreography (null = none). */
+  selectedStepId: string | null;
+}
