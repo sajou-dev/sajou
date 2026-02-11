@@ -41,6 +41,10 @@ import type { SignalTimelineStep, SignalType } from "../types.js";
 let capturing = false;
 let captureStartTime: number | null = null;
 let lastSignalTime: number | null = null;
+/** Buffer for captured steps — flushed to timeline state in one batch on stop. */
+let captureBuffer: SignalTimelineStep[] = [];
+/** Reference to the capture info element for cheap counter updates. */
+let captureInfoEl: HTMLElement | null = null;
 
 // ---------------------------------------------------------------------------
 // Init
@@ -398,17 +402,21 @@ function buildCaptureSection(): HTMLElement {
   info.textContent = "Capture incoming signals as timeline steps with computed delays.";
   section.appendChild(info);
 
+  // Store reference for cheap counter updates during capture
+  captureInfoEl = info;
+
   btn.addEventListener("click", () => {
     if (capturing) {
+      const count = captureBuffer.length;
       stopCapture();
       btn.className = "sv-capture-btn";
       btn.textContent = "Start Capture";
-      info.textContent = `Capture stopped. ${getSignalTimelineState().steps.length} steps in timeline.`;
+      info.textContent = `Capture stopped. ${count} signals added to timeline.`;
     } else {
       startCapture();
       btn.className = "sv-capture-btn sv-capture-btn--active";
       btn.textContent = "Stop Capture";
-      info.textContent = "Recording… Incoming signals are being added to the timeline.";
+      info.textContent = "Recording… 0 signals captured";
     }
   });
 
@@ -421,6 +429,7 @@ function buildCaptureSection(): HTMLElement {
 
 function startCapture(): void {
   capturing = true;
+  captureBuffer = [];
   captureStartTime = Date.now();
   lastSignalTime = null;
 }
@@ -429,9 +438,18 @@ function stopCapture(): void {
   capturing = false;
   captureStartTime = null;
   lastSignalTime = null;
+
+  // Flush buffer to timeline state in one batch (single re-render)
+  if (captureBuffer.length > 0) {
+    const st = getSignalTimelineState();
+    updateSignalTimelineState({
+      steps: [...st.steps, ...captureBuffer],
+    });
+  }
+  captureBuffer = [];
 }
 
-/** Convert a received signal into a timeline step and add it. */
+/** Convert a received signal into a timeline step and buffer it locally. */
 function captureSignal(signal: ReceivedSignal): void {
   const now = signal.timestamp;
   let delayMs = 0;
@@ -448,12 +466,66 @@ function captureSignal(signal: ReceivedSignal): void {
     id: crypto.randomUUID(),
     delayMs,
     type: signal.type as SignalType,
-    payload: signal.payload as SignalTimelineStep["payload"],
+    payload: normalizePayload(signal.type as SignalType, signal.payload),
     correlationId: signal.correlationId,
   };
 
-  const st = getSignalTimelineState();
-  updateSignalTimelineState({
-    steps: [...st.steps, step],
-  });
+  // Buffer locally — no state update, no re-render
+  captureBuffer.push(step);
+
+  // Cheap counter update (textContent only, no DOM rebuild)
+  if (captureInfoEl) {
+    captureInfoEl.textContent = `Recording… ${captureBuffer.length} signals captured`;
+  }
+}
+
+/**
+ * Normalize a raw signal payload (which may come from OpenAI streaming
+ * with non-standard fields) into the expected SignalPayloadMap format.
+ */
+function normalizePayload(
+  type: SignalType,
+  raw: Record<string, unknown>,
+): SignalTimelineStep["payload"] {
+  switch (type) {
+    case "task_dispatch": {
+      // OpenAI format: { description, model } — standard: { taskId, from, to, description }
+      if (!raw["from"] && !raw["to"]) {
+        return {
+          taskId: String(raw["taskId"] ?? ""),
+          from: "user",
+          to: String(raw["model"] ?? "unknown"),
+          description: raw["description"] ? String(raw["description"]) : undefined,
+        };
+      }
+      return raw as SignalTimelineStep["payload"];
+    }
+    case "token_usage": {
+      // OpenAI format: { content, tokenIndex, model } — standard: { agentId, promptTokens, completionTokens, model }
+      if (raw["content"] !== undefined) {
+        return {
+          agentId: String(raw["model"] ?? "openai"),
+          promptTokens: 0,
+          completionTokens: 1,
+          model: raw["model"] ? String(raw["model"]) : undefined,
+        };
+      }
+      return raw as SignalTimelineStep["payload"];
+    }
+    case "completion": {
+      // OpenAI format: { success, totalTokens, finishReason } — standard: { taskId, success, result }
+      if (raw["totalTokens"] !== undefined || raw["finishReason"] !== undefined) {
+        return {
+          taskId: "",
+          success: Boolean(raw["success"]),
+          result: raw["finishReason"]
+            ? `${raw["finishReason"]} (${raw["totalTokens"] ?? 0} tokens)`
+            : undefined,
+        };
+      }
+      return raw as SignalTimelineStep["payload"];
+    }
+    default:
+      return raw as SignalTimelineStep["payload"];
+  }
 }

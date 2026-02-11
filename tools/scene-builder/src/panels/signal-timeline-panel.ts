@@ -106,10 +106,16 @@ function createDefaultPayload(type: SignalType): SignalPayloadMap[SignalType] {
 
 /** Derive a short summary string from a step's payload. */
 function summarizePayload(type: SignalType, payload: SignalPayloadMap[SignalType]): string {
+  // Use `as Record` for defensive access — captured payloads may not match the typed shape
+  const raw = payload as Record<string, unknown>;
   switch (type) {
     case "task_dispatch": {
       const p = payload as SignalPayloadMap["task_dispatch"];
-      return `${p.from} → ${p.to}`;
+      if (p.from && p.to) return `${p.from} → ${p.to}`;
+      // Fallback for OpenAI-format payloads
+      const model = raw["model"] ?? "";
+      const desc = raw["description"] ?? "";
+      return model ? `[${model}] ${desc}` : String(desc);
     }
     case "tool_call": {
       const p = payload as SignalPayloadMap["tool_call"];
@@ -121,7 +127,12 @@ function summarizePayload(type: SignalType, payload: SignalPayloadMap[SignalType
     }
     case "token_usage": {
       const p = payload as SignalPayloadMap["token_usage"];
-      return `${p.promptTokens + p.completionTokens} tokens`;
+      const total = p.promptTokens + p.completionTokens;
+      if (!isNaN(total)) return `${total} tokens`;
+      // Fallback for OpenAI-format payloads with content field
+      const content = raw["content"];
+      if (content !== undefined) return String(content);
+      return "? tokens";
     }
     case "agent_state_change": {
       const p = payload as SignalPayloadMap["agent_state_change"];
@@ -129,11 +140,18 @@ function summarizePayload(type: SignalType, payload: SignalPayloadMap[SignalType
     }
     case "error": {
       const p = payload as SignalPayloadMap["error"];
+      if (!p.message) return String(raw["message"] ?? "error");
       return p.message.length > 30 ? p.message.slice(0, 28) + "…" : p.message;
     }
     case "completion": {
       const p = payload as SignalPayloadMap["completion"];
-      return `${p.taskId} ${p.success ? "✓" : "✗"}`;
+      const icon = p.success ? "✓" : "✗";
+      if (p.taskId) return `${p.taskId} ${icon}`;
+      // Fallback for OpenAI-format payloads
+      const tokens = raw["totalTokens"];
+      const reason = raw["finishReason"];
+      if (tokens !== undefined) return `${icon} ${tokens} tokens (${reason ?? "done"})`;
+      return icon;
     }
   }
 }
