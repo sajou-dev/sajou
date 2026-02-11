@@ -15,6 +15,7 @@ import { initUndoManager } from "../state/undo.js";
 import { getEditorState, subscribeEditor } from "../state/editor-state.js";
 import { createPanel } from "./panel.js";
 import { initViewTabs } from "./view-tabs.js";
+import { initRideau } from "./rideau.js";
 
 // Panels
 import { initAssetManagerPanel } from "../panels/asset-manager-panel.js";
@@ -97,30 +98,17 @@ export async function initWorkspace(): Promise<void> {
   // Header buttons
   initHeader();
 
-  // View tabs (Signal / Orchestrator / Visual)
+  // View tabs (zone focus indicators in V2)
   initViewTabs();
 
-  // Lazy init for Signal view — first time we switch to it
-  let signalViewInitialized = false;
-  subscribeEditor(() => {
-    const { currentView } = getEditorState();
-    if (currentView === "signal" && !signalViewInitialized) {
-      signalViewInitialized = true;
-      initSignalView();
-    }
-  });
+  // V2: All views init eagerly — zones are always visible in the spatial layout
+  initSignalView();
+  initChoreographyView();
 
-  // Lazy init for Orchestrator view — first time we switch to it
-  let orchestratorViewInitialized = false;
-  subscribeEditor(() => {
-    const { currentView } = getEditorState();
-    if (currentView === "orchestrator" && !orchestratorViewInitialized) {
-      orchestratorViewInitialized = true;
-      initChoreographyView();
-    }
-  });
+  // Rideau (curtain slider between Choreographer and Theme)
+  initRideau();
 
-  // Toolbar (tools + panel toggles)
+  // Toolbar (tools + panel toggles — lives in Theme zone)
   initToolbar();
 
   // Help bar (contextual tool hints at bottom)

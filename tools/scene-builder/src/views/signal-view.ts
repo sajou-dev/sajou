@@ -1,23 +1,20 @@
 /**
- * Signal view — full workspace for the Signal layer.
+ * Signal view — V2 spatial zone for the Signal layer.
  *
- * Layout:
- *   .sv-sidebar (left, 280px)
- *     ├── Connection section (URL, API key, protocol badge, connect/disconnect, status)
- *     ├── Prompt section (OpenAI mode only — model select, textarea, send/stop)
- *     ├── Timeline section (embedded signal-timeline-panel)
- *     └── Capture section (capture live signals → timeline)
- *   .sv-main (right, flex:1)
- *     ├── Log toolbar (search, type filters, clear)
- *     └── Raw log (scrollable, auto-scroll, color-coded entries)
+ * Dual-mode layout:
+ *   Expanded (default for State 0–1):
+ *     .sv-sources-area (top, source blocks + add button)
+ *     .sv-sidebar (left, 280px — prompt, timeline, capture)
+ *     .sv-main (right — raw log)
+ *
+ *   Compact (State 2–3):
+ *     Connector bar only (~40px) — badges for each source
+ *
+ * Toggling between modes is handled by signal-source-state.expanded.
  */
 
 import {
   getConnectionState,
-  connect,
-  disconnect,
-  setConnectionUrl,
-  setApiKey,
   setSelectedModel,
   subscribeConnection,
   onSignal,
@@ -32,6 +29,14 @@ import {
   getSignalTimelineState,
   updateSignalTimelineState,
 } from "../state/signal-timeline-state.js";
+import {
+  getSignalSourcesState,
+  subscribeSignalSources,
+  addSource,
+  setSignalZoneExpanded,
+} from "../state/signal-source-state.js";
+import { createSourceBlock } from "./signal-source-block.js";
+import { initSignalConnectorBar } from "./signal-connector-bar.js";
 import type { SignalTimelineStep, SignalType } from "../types.js";
 
 // ---------------------------------------------------------------------------
@@ -47,6 +52,15 @@ let captureBuffer: SignalTimelineStep[] = [];
 let captureInfoEl: HTMLElement | null = null;
 
 // ---------------------------------------------------------------------------
+// DOM references
+// ---------------------------------------------------------------------------
+
+let zoneEl: HTMLElement | null = null;
+let expandedContent: HTMLElement | null = null;
+let compactBar: HTMLElement | null = null;
+let sourcesContainer: HTMLElement | null = null;
+
+// ---------------------------------------------------------------------------
 // Init
 // ---------------------------------------------------------------------------
 
@@ -57,16 +71,60 @@ export function initSignalView(): void {
   if (initialized) return;
   initialized = true;
 
-  const viewEl = document.getElementById("view-signal");
-  if (!viewEl) return;
+  zoneEl = document.getElementById("zone-signal");
+  if (!zoneEl) return;
 
-  // ── Build sidebar ──
+  // ── Compact bar (connector badges) ──
+  compactBar = document.createElement("div");
+  compactBar.className = "sv-compact-bar";
+  initSignalConnectorBar(compactBar);
+
+  // Toggle button to expand
+  const expandBtn = document.createElement("button");
+  expandBtn.className = "sv-expand-btn";
+  expandBtn.textContent = "▼";
+  expandBtn.title = "Expand signal zone";
+  expandBtn.addEventListener("click", () => setSignalZoneExpanded(true));
+  compactBar.appendChild(expandBtn);
+
+  zoneEl.appendChild(compactBar);
+
+  // ── Expanded content ──
+  expandedContent = document.createElement("div");
+  expandedContent.className = "sv-expanded";
+
+  // -- Sources area (horizontal blocks) --
+  const sourcesArea = document.createElement("div");
+  sourcesArea.className = "sv-sources-area";
+
+  sourcesContainer = document.createElement("div");
+  sourcesContainer.className = "sv-sources-container";
+  sourcesArea.appendChild(sourcesContainer);
+
+  // Add source button
+  const addBtn = document.createElement("button");
+  addBtn.className = "sv-add-source-btn";
+  addBtn.textContent = "+ Add Source";
+  addBtn.addEventListener("click", () => addSource());
+  sourcesArea.appendChild(addBtn);
+
+  // Collapse button
+  const collapseBtn = document.createElement("button");
+  collapseBtn.className = "sv-collapse-btn";
+  collapseBtn.textContent = "▲ Compact";
+  collapseBtn.title = "Collapse to connector bar";
+  collapseBtn.addEventListener("click", () => setSignalZoneExpanded(false));
+  sourcesArea.appendChild(collapseBtn);
+
+  expandedContent.appendChild(sourcesArea);
+
+  // -- Lower area: sidebar + raw log --
+  const lowerArea = document.createElement("div");
+  lowerArea.className = "sv-lower-area";
+
+  // Sidebar
   const sidebar = document.createElement("div");
   sidebar.className = "sv-sidebar";
-
-  // Connection section
-  const connSection = buildConnectionSection();
-  sidebar.appendChild(connSection);
 
   // Prompt section (OpenAI mode — hidden by default)
   const promptSection = buildPromptSection();
@@ -90,13 +148,24 @@ export function initSignalView(): void {
   const captureSection = buildCaptureSection();
   sidebar.appendChild(captureSection);
 
-  viewEl.appendChild(sidebar);
+  lowerArea.appendChild(sidebar);
 
-  // ── Build main area (raw log) ──
+  // Raw log
   const main = document.createElement("div");
   main.className = "sv-main";
   initRawLog(main);
-  viewEl.appendChild(main);
+  lowerArea.appendChild(main);
+
+  expandedContent.appendChild(lowerArea);
+  zoneEl.appendChild(expandedContent);
+
+  // ── Render source blocks ──
+  renderSourceBlocks();
+  subscribeSignalSources(renderSourceBlocks);
+
+  // ── Sync expanded/compact mode ──
+  syncMode();
+  subscribeSignalSources(syncMode);
 
   // ── Wire incoming signals to raw log ──
   onSignal((signal: ReceivedSignal) => {
@@ -115,151 +184,39 @@ export function initSignalView(): void {
 }
 
 // ---------------------------------------------------------------------------
-// Connection section
+// Source blocks rendering
 // ---------------------------------------------------------------------------
 
-function buildConnectionSection(): HTMLElement {
-  const section = document.createElement("div");
-  section.className = "sv-section";
+function renderSourceBlocks(): void {
+  if (!sourcesContainer) return;
+  sourcesContainer.innerHTML = "";
 
-  const title = document.createElement("div");
-  title.className = "sv-section-title";
-  title.textContent = "Connection";
-  section.appendChild(title);
-
-  // URL input + button row
-  const row = document.createElement("div");
-  row.className = "sv-conn-row";
-
-  const urlInput = document.createElement("input");
-  urlInput.className = "sv-conn-url";
-  urlInput.type = "text";
-  urlInput.placeholder = "ws://localhost:9100";
-  urlInput.value = getConnectionState().url;
-  urlInput.addEventListener("input", () => {
-    setConnectionUrl(urlInput.value);
-  });
-  row.appendChild(urlInput);
-
-  const actionBtn = document.createElement("button");
-  actionBtn.className = "sv-conn-btn sv-conn-btn--connect";
-  actionBtn.textContent = "Connect";
-  actionBtn.addEventListener("click", () => {
-    const st = getConnectionState();
-    if (st.status === "connected" || st.status === "connecting") {
-      disconnect();
-    } else {
-      connect(urlInput.value);
-    }
-  });
-  row.appendChild(actionBtn);
-
-  section.appendChild(row);
-
-  // Protocol badge + API key row
-  const keyRow = document.createElement("div");
-  keyRow.className = "sv-conn-row";
-
-  const protoBadge = document.createElement("span");
-  protoBadge.className = "sv-conn-proto";
-  protoBadge.textContent = "WS";
-  keyRow.appendChild(protoBadge);
-
-  const keyInput = document.createElement("input");
-  keyInput.className = "sv-conn-url";
-  keyInput.type = "password";
-  keyInput.placeholder = "API key (optional)";
-  keyInput.value = getConnectionState().apiKey;
-  keyInput.addEventListener("input", () => {
-    setApiKey(keyInput.value);
-  });
-  keyRow.appendChild(keyInput);
-
-  section.appendChild(keyRow);
-
-  // Status indicator
-  const statusRow = document.createElement("div");
-  statusRow.className = "sv-conn-status";
-
-  const dot = document.createElement("span");
-  dot.className = "sv-conn-dot sv-conn-dot--disconnected";
-  statusRow.appendChild(dot);
-
-  const statusText = document.createElement("span");
-  statusText.textContent = "Disconnected";
-  statusRow.appendChild(statusText);
-
-  section.appendChild(statusRow);
-
-  // Error line
-  const errorEl = document.createElement("div");
-  errorEl.className = "sv-conn-error";
-  errorEl.hidden = true;
-  section.appendChild(errorEl);
-
-  // Sync state
-  function sync(): void {
-    const st = getConnectionState();
-
-    // URL input
-    if (document.activeElement !== urlInput) {
-      urlInput.value = st.url;
-    }
-    urlInput.disabled = st.status === "connected" || st.status === "connecting";
-
-    // API key
-    if (document.activeElement !== keyInput) {
-      keyInput.value = st.apiKey;
-    }
-    keyInput.disabled = st.status === "connected" || st.status === "connecting";
-
-    // Protocol badge
-    const protoLabels: Record<string, string> = {
-      websocket: "WS",
-      sse: "SSE",
-      openai: "OPENAI",
-    };
-    protoBadge.textContent = protoLabels[st.protocol] ?? st.protocol;
-    protoBadge.className = `sv-conn-proto sv-conn-proto--${st.protocol}`;
-
-    // Button
-    if (st.status === "connected" || st.status === "connecting") {
-      actionBtn.className = "sv-conn-btn sv-conn-btn--disconnect";
-      actionBtn.textContent = "Disconnect";
-    } else {
-      actionBtn.className = "sv-conn-btn sv-conn-btn--connect";
-      actionBtn.textContent = "Connect";
-    }
-
-    // Dot
-    dot.className = `sv-conn-dot sv-conn-dot--${st.status}`;
-
-    // Status text
-    const labels: Record<string, string> = {
-      disconnected: "Disconnected",
-      connecting: "Connecting…",
-      connected: "Connected",
-      error: "Error",
-    };
-    let statusLabel = labels[st.status] ?? st.status;
-    if (st.status === "connected" && st.protocol === "openai") {
-      statusLabel = `Connected — ${st.selectedModel || "no model"}`;
-    }
-    statusText.textContent = statusLabel;
-
-    // Error
-    if (st.error) {
-      errorEl.textContent = st.error;
-      errorEl.hidden = false;
-    } else {
-      errorEl.hidden = true;
-    }
+  const { sources } = getSignalSourcesState();
+  for (const source of sources) {
+    const block = createSourceBlock(source);
+    sourcesContainer.appendChild(block);
   }
+}
 
-  subscribeConnection(sync);
-  sync();
+// ---------------------------------------------------------------------------
+// Mode sync (expanded / compact)
+// ---------------------------------------------------------------------------
 
-  return section;
+function syncMode(): void {
+  if (!zoneEl || !expandedContent || !compactBar) return;
+  const { expanded } = getSignalSourcesState();
+
+  if (expanded) {
+    expandedContent.style.display = "flex";
+    compactBar.style.display = "none";
+    zoneEl.style.height = "280px";
+    zoneEl.style.minHeight = "120px";
+  } else {
+    expandedContent.style.display = "none";
+    compactBar.style.display = "flex";
+    zoneEl.style.height = "40px";
+    zoneEl.style.minHeight = "40px";
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -297,7 +254,7 @@ function buildPromptSection(): HTMLElement {
   // Prompt textarea
   const textarea = document.createElement("textarea");
   textarea.className = "sv-prompt-textarea";
-  textarea.placeholder = "Enter a prompt to test the model…";
+  textarea.placeholder = "Enter a prompt to test the model\u2026";
   textarea.rows = 3;
   // Ctrl/Cmd+Enter to send
   textarea.addEventListener("keydown", (e) => {
@@ -416,7 +373,7 @@ function buildCaptureSection(): HTMLElement {
       startCapture();
       btn.className = "sv-capture-btn sv-capture-btn--active";
       btn.textContent = "Stop Capture";
-      info.textContent = "Recording… 0 signals captured";
+      info.textContent = "Recording\u2026 0 signals captured";
     }
   });
 
@@ -475,7 +432,7 @@ function captureSignal(signal: ReceivedSignal): void {
 
   // Cheap counter update (textContent only, no DOM rebuild)
   if (captureInfoEl) {
-    captureInfoEl.textContent = `Recording… ${captureBuffer.length} signals captured`;
+    captureInfoEl.textContent = `Recording\u2026 ${captureBuffer.length} signals captured`;
   }
 }
 

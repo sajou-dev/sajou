@@ -257,6 +257,14 @@ function render(): void {
       ts.textContent = formatTime(entry.signal.timestamp);
       row.appendChild(ts);
 
+      // Source tag (multi-source support)
+      if (entry.signal.source && entry.signal.source !== "system") {
+        const src = document.createElement("span");
+        src.className = "sv-log-source";
+        src.textContent = entry.signal.source;
+        row.appendChild(src);
+      }
+
       const badge = document.createElement("span");
       badge.className = "sv-log-badge";
       badge.textContent = entry.signal.type.replace(/_/g, " ");

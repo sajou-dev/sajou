@@ -1263,7 +1263,7 @@ export function initChoreographyView(): void {
   if (initialized) return;
   initialized = true;
 
-  viewEl = document.getElementById("view-orchestrator");
+  viewEl = document.getElementById("zone-choreographer");
   if (!viewEl) return;
 
   render();

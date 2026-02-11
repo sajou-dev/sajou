@@ -83,27 +83,14 @@ export function initViewTabs(): void {
     nav.appendChild(btn);
   }
 
-  // Sync active state
+  // Sync active state — V2: tabs are focus indicators, not view switchers.
+  // All zones are always visible in the spatial layout.
   function sync(): void {
     const { currentView } = getEditorState();
 
-    // Update tab button classes
+    // Update tab button classes (active = focused zone)
     for (const [view, btn] of buttons) {
       btn.classList.toggle("view-tab--active", view === currentView);
-    }
-
-    // Toggle view containers
-    const views: ViewId[] = ["signal", "orchestrator", "visual"];
-    for (const id of views) {
-      const el = document.getElementById(`view-${id}`);
-      if (!el) continue;
-      if (id === currentView) {
-        el.hidden = false;
-        el.classList.add("view--active");
-      } else {
-        el.hidden = true;
-        el.classList.remove("view--active");
-      }
     }
   }
 

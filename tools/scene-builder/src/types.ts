@@ -172,8 +172,21 @@ export interface SceneState {
 // Editor state (UI layer)
 // ---------------------------------------------------------------------------
 
-/** Workspace view identifiers (top-level tab navigation). */
+/** Workspace view identifiers (top-level tab navigation — V1 compat). */
 export type ViewId = "signal" | "orchestrator" | "visual";
+
+/** Zone identifiers for the V2 spatial layout. */
+export type ZoneId = "signal" | "choreographer" | "theme";
+
+/**
+ * Interface state — progressive revelation (V2).
+ *
+ * 0 = virgin (only Signal toolbar)
+ * 1 = sources configured (Signal zone deployed)
+ * 2 = signal connected to choreographer (Signal compact, Choreographer active)
+ * 3 = full pipeline (all three zones active)
+ */
+export type InterfaceState = 0 | 1 | 2 | 3;
 
 /** Available canvas tools. */
 export type ToolId = "select" | "hand" | "background" | "place" | "position" | "route";
@@ -203,8 +216,10 @@ export interface RouteCreationPreview {
 
 /** Editor UI state (transient, not saved to scene file). */
 export interface EditorState {
-  /** Currently active workspace view. */
+  /** Currently active workspace view (V1 compat — used for keyboard focus zone). */
   currentView: ViewId;
+  /** Progressive revelation state (V2). Default: 3 = full pipeline. */
+  interfaceState: InterfaceState;
   activeTool: ToolId;
   /** Selected entity instance IDs (select tool). */
   selectedIds: string[];
@@ -222,6 +237,8 @@ export interface EditorState {
   activeLayerId: string | null;
   /** Live preview for route creation (null = not creating). */
   routeCreationPreview: RouteCreationPreview | null;
+  /** Rideau split ratio: 0 = full preview (theme only), 1 = full workspace (choreo only). Default: 0.5. */
+  rideauSplit: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -589,4 +606,53 @@ export interface ChoreographyEditorState {
   selectedChoreographyId: string | null;
   /** Currently selected step ID within the selected choreography (null = none). */
   selectedStepId: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// Signal Sources (V2 multi-source)
+// ---------------------------------------------------------------------------
+
+/** Connection status for a signal source. */
+export type ConnectionStatus = "disconnected" | "connecting" | "connected" | "error";
+
+/** Transport protocol for a signal source. */
+export type TransportProtocol = "websocket" | "sse" | "openai";
+
+/**
+ * A single signal source in the V2 multi-source architecture.
+ * Each source has its own connection, protocol, and status.
+ */
+export interface SignalSource {
+  /** Unique source ID. */
+  id: string;
+  /** Display name (user-editable). */
+  name: string;
+  /** Transport protocol. */
+  protocol: TransportProtocol;
+  /** Connection URL. */
+  url: string;
+  /** API key (for OpenAI or authenticated sources). */
+  apiKey: string;
+  /** Connection status. */
+  status: ConnectionStatus;
+  /** Error message (null = no error). */
+  error: string | null;
+  /** Rolling average of events per second. */
+  eventsPerSecond: number;
+  /** Available models (OpenAI mode only). */
+  availableModels: string[];
+  /** Currently selected model (OpenAI mode only). */
+  selectedModel: string;
+  /** Whether this source is currently streaming (OpenAI mode only). */
+  streaming: boolean;
+}
+
+/** Full state for the signal sources panel (V2 multi-source). */
+export interface SignalSourcesState {
+  /** All configured signal sources. */
+  sources: SignalSource[];
+  /** Currently selected source ID for editing (null = none). */
+  selectedSourceId: string | null;
+  /** Whether the signal zone is in expanded mode (true) or compact mode (false). */
+  expanded: boolean;
 }

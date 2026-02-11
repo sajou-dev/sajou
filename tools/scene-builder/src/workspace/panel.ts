@@ -147,8 +147,9 @@ export function createPanel(config: PanelConfig): PanelInstance {
 
   const unsub = subscribeEditor(() => applyLayout());
 
-  // Append to workspace
-  document.getElementById("workspace")!.appendChild(el);
+  // Append to theme zone (panels overlay the visual editor)
+  const panelParent = document.getElementById("zone-theme") ?? document.getElementById("workspace")!;
+  panelParent.appendChild(el);
 
   return {
     element: el,

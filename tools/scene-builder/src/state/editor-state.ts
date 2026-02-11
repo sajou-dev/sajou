@@ -5,7 +5,7 @@
  * Not saved to the scene file.
  */
 
-import type { EditorState, PanelId, PanelLayout, ToolId, ViewId } from "../types.js";
+import type { EditorState, InterfaceState, PanelId, PanelLayout, ToolId, ViewId } from "../types.js";
 
 // ---------------------------------------------------------------------------
 // Default state
@@ -18,6 +18,7 @@ function defaultPanelLayout(x: number, y: number, w: number, h: number): PanelLa
 function createDefault(): EditorState {
   return {
     currentView: "visual",
+    interfaceState: 3,
     activeTool: "select",
     selectedIds: [],
     selectedPositionIds: [],
@@ -37,6 +38,7 @@ function createDefault(): EditorState {
     placingEntityId: null,
     activeLayerId: "midground",
     routeCreationPreview: null,
+    rideauSplit: 0.5,
   };
 }
 
@@ -69,6 +71,12 @@ export function updateEditorState(partial: Partial<EditorState>): void {
 /** Set the active workspace view (Signal / Orchestrator / Visual). */
 export function setActiveView(view: ViewId): void {
   state = { ...state, currentView: view };
+  notify();
+}
+
+/** Set the interface state (progressive revelation level 0–3). */
+export function setInterfaceState(level: InterfaceState): void {
+  state = { ...state, interfaceState: level };
   notify();
 }
 
@@ -148,6 +156,12 @@ export function setGridSize(size: number): void {
 /** Enable or disable snap-to-grid. */
 export function setSnapToGrid(enabled: boolean): void {
   state = { ...state, snapToGrid: enabled };
+  notify();
+}
+
+/** Set the rideau split ratio (0 = full preview, 1 = full workspace). Clamped to [0, 1]. */
+export function setRideauSplit(ratio: number): void {
+  state = { ...state, rideauSplit: Math.max(0, Math.min(1, ratio)) };
   notify();
 }
 
