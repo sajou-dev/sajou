@@ -222,21 +222,15 @@ export function initInspectorPanel(contentEl: HTMLElement): void {
     form.appendChild(createRow("Rotation", createNumInputEl(placed.rotation, (v) =>
       executeCommand(createUpdateCommand(placed.id, { rotation: v }, `Rotate ${placed.id}`)))));
 
-    // Layer (dynamic from SceneState.layers)
-    const layerSelect = document.createElement("select");
-    layerSelect.className = "ip-select";
+    // Layer (read-only — use drag-drop in Layers panel to change)
     const { layers: sceneLayers } = getSceneState();
     const sortedLayers = [...sceneLayers].sort((a, b) => a.order - b.order);
-    for (const l of sortedLayers) {
-      const opt = document.createElement("option");
-      opt.value = l.id;
-      opt.textContent = l.name;
-      if (l.id === placed.layerId) opt.selected = true;
-      layerSelect.appendChild(opt);
-    }
-    layerSelect.addEventListener("change", () =>
-      executeCommand(createUpdateCommand(placed.id, { layerId: layerSelect.value }, `Layer ${placed.id}`)));
-    form.appendChild(createRow("Layer", layerSelect));
+    const layerName = sortedLayers.find((l) => l.id === placed.layerId)?.name ?? placed.layerId;
+    form.appendChild(createRow("Layer", createReadonly(layerName)));
+
+    // Z-Index (per-placement stacking order within layer)
+    form.appendChild(createRow("Z-Index", createNumInputEl(placed.zIndex, (v) =>
+      executeCommand(createUpdateCommand(placed.id, { zIndex: v }, `Z-Index ${placed.id}`)))));
 
     // Opacity
     const opacitySlider = document.createElement("input");

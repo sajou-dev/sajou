@@ -16,6 +16,9 @@ import {
   subscribeEntities,
 } from "../state/entity-store.js";
 import { getAssetStore, subscribeAssets } from "../state/asset-store.js";
+import { createSpritesheetExplorer } from "./spritesheet-explorer.js";
+import type { SpritesheetExplorerAPI } from "./spritesheet-explorer.js";
+import { detectOpaqueRegion } from "../assets/alpha-detect.js";
 import type {
   EntityEntry,
   EntityVisual,
@@ -24,6 +27,22 @@ import type {
   GifVisual,
   SpriteAnimation,
 } from "../types.js";
+
+// ---------------------------------------------------------------------------
+// Spritesheet explorer state
+// ---------------------------------------------------------------------------
+
+/** Which animation is currently being edited in the frame explorer. */
+let activeAnimName: string | null = null;
+
+/** Last clicked frame index (for shift+click range selection). */
+let lastClickedFrame: number | null = null;
+
+/** Singleton explorer instance (created once, reused across renders). */
+let explorerInstance: SpritesheetExplorerAPI | null = null;
+
+/** Last selected entity ID — to reset explorer when entity changes. */
+let lastSelectedEntityId: string | null = null;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -45,6 +64,16 @@ function createDefaultEntity(id: string): EntityEntry {
     defaults: { scale: 1, anchor: [0.5, 0.5], zIndex: 0, opacity: 1 },
     visual: { type: "sprite", source: "" },
   };
+}
+
+/**
+ * Read the current entity and its spritesheet visual fresh from the store.
+ * Used by event handlers to avoid stale closure references.
+ */
+function getSpritesheetState(): { entity: EntityEntry; visual: SpritesheetVisual } | null {
+  const entity = getSelectedEntity();
+  if (!entity || entity.visual.type !== "spritesheet") return null;
+  return { entity, visual: entity.visual };
 }
 
 // ---------------------------------------------------------------------------
@@ -79,6 +108,22 @@ export function initEntityEditorPanel(contentEl: HTMLElement): void {
   function render(): void {
     renderList();
     renderForm();
+  }
+
+  /**
+   * Batched render via microtask.
+   * Prevents DOM destruction during active event handlers —
+   * setEntity() triggers notify() synchronously, which would otherwise
+   * call render() and destroy the DOM while the handler is still on the stack.
+   */
+  let renderPending = false;
+  function scheduleRender(): void {
+    if (renderPending) return;
+    renderPending = true;
+    queueMicrotask(() => {
+      renderPending = false;
+      render();
+    });
   }
 
   function renderList(): void {
@@ -133,10 +178,24 @@ export function initEntityEditorPanel(contentEl: HTMLElement): void {
     const entity = getSelectedEntity();
     if (!entity) {
       formPane.innerHTML = '<p class="ee-empty">Select or create an entity.</p>';
+      // Clean up explorer when no entity selected
+      if (explorerInstance) {
+        explorerInstance.destroy();
+        explorerInstance = null;
+      }
+      activeAnimName = null;
+      lastClickedFrame = null;
+      lastSelectedEntityId = null;
       return;
     }
 
-    // Make a mutable copy for editing
+    // Reset explorer state when entity changes
+    if (entity.id !== lastSelectedEntityId) {
+      lastSelectedEntityId = entity.id;
+      activeAnimName = null;
+      lastClickedFrame = null;
+    }
+
     const form = document.createElement("div");
     form.className = "ee-form";
 
@@ -192,7 +251,7 @@ export function initEntityEditorPanel(contentEl: HTMLElement): void {
     lockBtn.title = ratioLocked ? "Unlock ratio" : "Lock ratio";
     lockBtn.addEventListener("click", () => {
       ratioLocked = !ratioLocked;
-      render();
+      scheduleRender();
     });
     sizeRow.appendChild(lockBtn);
 
@@ -213,7 +272,7 @@ export function initEntityEditorPanel(contentEl: HTMLElement): void {
     unitBtn.title = sizeUnit === "px" ? "Switch to %" : "Switch to px";
     unitBtn.addEventListener("click", () => {
       sizeUnit = sizeUnit === "px" ? "%" : "px";
-      render();
+      scheduleRender();
     });
     sizeRow.appendChild(unitBtn);
 
@@ -349,6 +408,53 @@ export function initEntityEditorPanel(contentEl: HTMLElement): void {
     container.appendChild(createField("Asset", assetSelect));
 
     // Type-specific fields
+    if (visual.type === "sprite") {
+      // Auto-crop button for sprites
+      const cropRow = document.createElement("div");
+      cropRow.className = "ee-row";
+      const cropBtn = document.createElement("button");
+      cropBtn.className = "ee-btn";
+      cropBtn.textContent = "\u2702 Auto-crop";
+      cropBtn.title = "Detect opaque region and set sourceRect";
+      cropBtn.addEventListener("click", () => {
+        const assetFile = getAssetStore().assets.find((a) => a.path === visual.source);
+        if (!assetFile) return;
+        const img = new Image();
+        img.onload = () => {
+          const region = detectOpaqueRegion(img);
+          if (region) {
+            const v2: SpriteVisual = { ...visual, sourceRect: region };
+            setEntity(entity.id, { ...entity, visual: v2 });
+          } else {
+            cropBtn.textContent = "No margins detected";
+            setTimeout(() => { cropBtn.textContent = "\u2702 Auto-crop"; }, 2000);
+          }
+        };
+        img.src = assetFile.objectUrl;
+      });
+      cropRow.appendChild(cropBtn);
+
+      // Show current sourceRect if set
+      if (visual.sourceRect) {
+        const sr = visual.sourceRect;
+        const srInfo = document.createElement("span");
+        srInfo.className = "ee-size-hint";
+        srInfo.textContent = `${sr.x},${sr.y} ${sr.w}\u00D7${sr.h}px`;
+        cropRow.appendChild(srInfo);
+
+        const clearBtn = document.createElement("button");
+        clearBtn.className = "ee-anim-remove";
+        clearBtn.textContent = "\u00D7";
+        clearBtn.title = "Remove sourceRect";
+        clearBtn.addEventListener("click", () => {
+          const v2: SpriteVisual = { type: "sprite", source: visual.source };
+          setEntity(entity.id, { ...entity, visual: v2 });
+        });
+        cropRow.appendChild(clearBtn);
+      }
+      container.appendChild(createField("Crop", cropRow));
+    }
+
     if (visual.type === "spritesheet") {
       const ssRow = document.createElement("div");
       ssRow.className = "ee-row";
@@ -362,8 +468,21 @@ export function initEntityEditorPanel(contentEl: HTMLElement): void {
       }));
       container.appendChild(createField("Frame size", ssRow));
 
-      // Simplified animations editor
-      container.appendChild(renderAnimationsEditor(entity, visual));
+      // Animations editor with active-animation support
+      container.appendChild(renderAnimationsEditor(visual));
+
+      // Spritesheet explorer (visual frame selector)
+      if (!explorerInstance) {
+        explorerInstance = createSpritesheetExplorer(handleFrameToggle, handleSelectRow);
+      }
+      explorerInstance.update(entity, visual, activeAnimName);
+      container.appendChild(explorerInstance.element);
+    } else {
+      // Destroy explorer if we left spritesheet mode
+      if (explorerInstance) {
+        explorerInstance.destroy();
+        explorerInstance = null;
+      }
     }
 
     if (visual.type === "gif") {
@@ -388,6 +507,15 @@ export function initEntityEditorPanel(contentEl: HTMLElement): void {
 
       gifRow.appendChild(loopLabel);
       container.appendChild(createField("GIF", gifRow));
+
+      // Show detected FPS hint
+      const assetForGif = getAssetStore().assets.find((a) => a.path === visual.source);
+      if (assetForGif?.detectedFps) {
+        const fpsHint = document.createElement("span");
+        fpsHint.className = "ee-size-hint";
+        fpsHint.textContent = `Detected: ${assetForGif.detectedFps} fps \u2022 ${assetForGif.frameCount ?? "?"} frames`;
+        container.appendChild(fpsHint);
+      }
     }
 
     return container;
@@ -397,15 +525,39 @@ export function initEntityEditorPanel(contentEl: HTMLElement): void {
   // Animations editor (for spritesheet)
   // ---------------------------------------------------------------------------
 
-  function renderAnimationsEditor(entity: EntityEntry, visual: SpritesheetVisual): HTMLElement {
+  function renderAnimationsEditor(visual: SpritesheetVisual): HTMLElement {
     const container = document.createElement("div");
     container.className = "ee-anims";
 
     const animNames = Object.keys(visual.animations);
+
+    // Auto-select the first animation if none is active
+    if (!activeAnimName && animNames.length > 0) {
+      activeAnimName = animNames[0]!;
+    }
+    // Reset if the active animation no longer exists
+    if (activeAnimName && !visual.animations[activeAnimName]) {
+      activeAnimName = animNames[0] ?? null;
+    }
+
     for (const name of animNames) {
       const anim = visual.animations[name]!;
+      const isActive = name === activeAnimName;
       const row = document.createElement("div");
-      row.className = "ee-anim-row";
+      row.className = "ee-anim-row" + (isActive ? " ee-anim-row--active" : "");
+
+      // Edit button (pencil) — sets this animation as active for explorer
+      const editBtn = document.createElement("button");
+      editBtn.className = "ee-anim-edit-btn" + (isActive ? " ee-anim-edit-btn--active" : "");
+      editBtn.textContent = "\u270E";
+      editBtn.title = isActive ? `Editing \u201C${name}\u201D` : `Edit frames for \u201C${name}\u201D`;
+      editBtn.addEventListener("click", () => {
+        activeAnimName = name;
+        lastClickedFrame = null;
+        scheduleRender();
+      });
+
+      // --- All mutation handlers read fresh state from the store ---
 
       const nameInput = document.createElement("input");
       nameInput.type = "text";
@@ -414,11 +566,14 @@ export function initEntityEditorPanel(contentEl: HTMLElement): void {
       nameInput.addEventListener("change", () => {
         const newName = nameInput.value.trim();
         if (!newName || newName === name) return;
-        const anims = { ...visual.animations };
+        const cur = getSpritesheetState();
+        if (!cur || !cur.visual.animations[name]) return;
+        const anims = { ...cur.visual.animations };
         anims[newName] = anims[name]!;
         delete anims[name];
-        const v2 = { ...visual, animations: anims } as SpritesheetVisual;
-        setEntity(entity.id, { ...entity, visual: v2 });
+        if (activeAnimName === name) activeAnimName = newName;
+        const v2: SpritesheetVisual = { ...cur.visual, animations: anims };
+        setEntity(cur.entity.id, { ...cur.entity, visual: v2 });
       });
 
       const framesInput = document.createElement("input");
@@ -428,30 +583,54 @@ export function initEntityEditorPanel(contentEl: HTMLElement): void {
       framesInput.placeholder = "0, 1, 2, 3";
       framesInput.addEventListener("change", () => {
         const frames = framesInput.value.split(",").map((s) => parseInt(s.trim(), 10)).filter((n) => !isNaN(n));
-        const anims = { ...visual.animations, [name]: { ...anim, frames } };
-        const v2 = { ...visual, animations: anims } as SpritesheetVisual;
-        setEntity(entity.id, { ...entity, visual: v2 });
+        const cur = getSpritesheetState();
+        if (!cur || !cur.visual.animations[name]) return;
+        const curAnim = cur.visual.animations[name]!;
+        const anims = { ...cur.visual.animations, [name]: { ...curAnim, frames } };
+        const v2: SpritesheetVisual = { ...cur.visual, animations: anims };
+        setEntity(cur.entity.id, { ...cur.entity, visual: v2 });
       });
 
       const fpsInput = createNumberField("fps", anim.fps, (v) => {
-        const anims = { ...visual.animations, [name]: { ...anim, fps: v } as SpriteAnimation };
-        const v2 = { ...visual, animations: anims } as SpritesheetVisual;
-        setEntity(entity.id, { ...entity, visual: v2 });
+        const cur = getSpritesheetState();
+        if (!cur || !cur.visual.animations[name]) return;
+        const curAnim = cur.visual.animations[name]!;
+        const anims = { ...cur.visual.animations, [name]: { ...curAnim, fps: v } as SpriteAnimation };
+        const v2: SpritesheetVisual = { ...cur.visual, animations: anims };
+        setEntity(cur.entity.id, { ...cur.entity, visual: v2 });
+      });
+
+      const loopCheck = document.createElement("input");
+      loopCheck.type = "checkbox";
+      loopCheck.checked = anim.loop !== false;
+      loopCheck.title = "Loop";
+      loopCheck.addEventListener("change", () => {
+        const cur = getSpritesheetState();
+        if (!cur || !cur.visual.animations[name]) return;
+        const curAnim = cur.visual.animations[name]!;
+        const anims = { ...cur.visual.animations, [name]: { ...curAnim, loop: loopCheck.checked } as SpriteAnimation };
+        const v2: SpritesheetVisual = { ...cur.visual, animations: anims };
+        setEntity(cur.entity.id, { ...cur.entity, visual: v2 });
       });
 
       const removeBtn = document.createElement("button");
       removeBtn.className = "ee-anim-remove";
       removeBtn.textContent = "\u00D7";
       removeBtn.addEventListener("click", () => {
-        const anims = { ...visual.animations };
+        const cur = getSpritesheetState();
+        if (!cur) return;
+        const anims = { ...cur.visual.animations };
         delete anims[name];
-        const v2 = { ...visual, animations: anims } as SpritesheetVisual;
-        setEntity(entity.id, { ...entity, visual: v2 });
+        if (activeAnimName === name) activeAnimName = Object.keys(anims)[0] ?? null;
+        const v2: SpritesheetVisual = { ...cur.visual, animations: anims };
+        setEntity(cur.entity.id, { ...cur.entity, visual: v2 });
       });
 
+      row.appendChild(editBtn);
       row.appendChild(nameInput);
       row.appendChild(framesInput);
       row.appendChild(fpsInput);
+      row.appendChild(loopCheck);
       row.appendChild(removeBtn);
       container.appendChild(row);
     }
@@ -461,10 +640,19 @@ export function initEntityEditorPanel(contentEl: HTMLElement): void {
     addBtn.className = "ee-btn";
     addBtn.textContent = "+ Animation";
     addBtn.addEventListener("click", () => {
-      const newName = `anim-${animNames.length}`;
-      const anims = { ...visual.animations, [newName]: { frames: [0], fps: 10, loop: true } };
-      const v2 = { ...visual, animations: anims } as SpritesheetVisual;
-      setEntity(entity.id, { ...entity, visual: v2 });
+      const cur = getSpritesheetState();
+      if (!cur) return;
+      const existingNames = Object.keys(cur.visual.animations);
+      let idx = existingNames.length;
+      let newName = `anim-${idx}`;
+      while (existingNames.includes(newName)) {
+        idx++;
+        newName = `anim-${idx}`;
+      }
+      const anims = { ...cur.visual.animations, [newName]: { frames: [0], fps: 10, loop: true } };
+      activeAnimName = newName;
+      const v2: SpritesheetVisual = { ...cur.visual, animations: anims };
+      setEntity(cur.entity.id, { ...cur.entity, visual: v2 });
     });
     container.appendChild(addBtn);
 
@@ -498,6 +686,60 @@ export function initEntityEditorPanel(contentEl: HTMLElement): void {
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
     };
     img.src = asset.objectUrl;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Frame toggle handlers (for spritesheet explorer)
+  // ---------------------------------------------------------------------------
+
+  /** Handle frame click from the explorer. */
+  function handleFrameToggle(animName: string, frameIndex: number, shiftKey: boolean): void {
+    const entity = getSelectedEntity();
+    if (!entity || entity.visual.type !== "spritesheet") return;
+    const visual = entity.visual;
+    const anim = visual.animations[animName];
+    if (!anim) return;
+
+    let newFrames: number[];
+
+    if (shiftKey && lastClickedFrame !== null) {
+      // Range: add all frames between lastClickedFrame and frameIndex
+      const start = Math.min(lastClickedFrame, frameIndex);
+      const end = Math.max(lastClickedFrame, frameIndex);
+      const existing = new Set(anim.frames);
+      for (let i = start; i <= end; i++) existing.add(i);
+      newFrames = [...existing].sort((a, b) => a - b);
+    } else {
+      // Toggle: add if missing, remove if present
+      const idx = anim.frames.indexOf(frameIndex);
+      if (idx >= 0) {
+        newFrames = anim.frames.filter((_, i) => i !== idx);
+      } else {
+        newFrames = [...anim.frames, frameIndex].sort((a, b) => a - b);
+      }
+    }
+
+    lastClickedFrame = frameIndex;
+
+    const newAnim: SpriteAnimation = { ...anim, frames: newFrames };
+    const newAnims = { ...visual.animations, [animName]: newAnim };
+    const newVisual: SpritesheetVisual = { ...visual, animations: newAnims };
+    setEntity(entity.id, { ...entity, visual: newVisual });
+  }
+
+  /** Handle row-select from the explorer (selects all non-empty frames in a row). */
+  function handleSelectRow(animName: string, rowFrames: number[]): void {
+    const entity = getSelectedEntity();
+    if (!entity || entity.visual.type !== "spritesheet") return;
+    const visual = entity.visual;
+    const anim = visual.animations[animName];
+    if (!anim) return;
+
+    // Replace the animation's frames with the row frames
+    const newAnim: SpriteAnimation = { ...anim, frames: rowFrames };
+    const newAnims = { ...visual.animations, [animName]: newAnim };
+    const newVisual: SpritesheetVisual = { ...visual, animations: newAnims };
+    setEntity(entity.id, { ...entity, visual: newVisual });
   }
 
   // ---------------------------------------------------------------------------
@@ -552,7 +794,7 @@ export function initEntityEditorPanel(contentEl: HTMLElement): void {
   // Subscribe
   // ---------------------------------------------------------------------------
 
-  subscribeEntities(render);
-  subscribeAssets(render);
-  render();
+  subscribeEntities(scheduleRender);
+  subscribeAssets(scheduleRender);
+  render(); // initial synchronous render is safe (no handlers attached yet)
 }

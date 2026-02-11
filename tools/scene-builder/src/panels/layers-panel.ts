@@ -6,7 +6,7 @@
  * Content (entities, background images, routes...) is placed on layers
  * via the active layer selection.
  *
- * The panel manages only the layer stack — not the content on it.
+ * Entities within each layer are listed and ordered by per-instance zIndex.
  * All changes go through the undo system.
  */
 
@@ -18,10 +18,12 @@ import {
 import {
   getEditorState,
   setActiveLayer,
+  setSelection,
   subscribeEditor,
 } from "../state/editor-state.js";
+import { getEntityStore } from "../state/entity-store.js";
 import { executeCommand } from "../state/undo.js";
-import type { SceneLayer, UndoableCommand } from "../types.js";
+import type { PlacedEntity, SceneLayer, UndoableCommand } from "../types.js";
 
 // ---------------------------------------------------------------------------
 // Lucide SVG helpers
@@ -72,6 +74,19 @@ const ICON_ARROW_DOWN = lucide(
   '<path d="M12 5v14"/><path d="m19 12-7 7-7-7"/>',
 );
 
+const ICON_CHEVRON_UP = lucide(
+  '<path d="m18 15-6-6-6 6"/>',
+  12,
+);
+
+const ICON_CHEVRON_DOWN = lucide(
+  '<path d="m6 9 6 6 6-6"/>',
+  12,
+);
+
+/** Custom MIME type for entity layer drag-and-drop within the layers panel. */
+const MIME_ENTITY_MOVE = "application/x-sajou-entity-move";
+
 // ---------------------------------------------------------------------------
 // Undo helpers
 // ---------------------------------------------------------------------------
@@ -113,6 +128,74 @@ function swapOrder(layerId: string, direction: number): void {
     return { ...l };
   });
   changeLayers(newLayers, "Reorder layers");
+}
+
+/** Swap zIndex of a placed entity with its neighbor within the same layer. */
+function swapEntityZIndex(placedId: string, direction: number): void {
+  const { entities } = getSceneState();
+  const target = entities.find((e) => e.id === placedId);
+  if (!target) return;
+
+  const siblings = entities
+    .filter((e) => e.layerId === target.layerId)
+    .sort((a, b) => a.zIndex - b.zIndex);
+
+  const idx = siblings.findIndex((e) => e.id === placedId);
+  const swapIdx = idx + direction;
+  if (swapIdx < 0 || swapIdx >= siblings.length) return;
+
+  const other = siblings[swapIdx]!;
+  const oldEntities = entities.map((e) => ({ ...e }));
+  const newEntities = entities.map((e) => {
+    if (e.id === target.id) return { ...e, zIndex: other.zIndex };
+    if (e.id === other.id) return { ...e, zIndex: target.zIndex };
+    return e;
+  });
+
+  const cmd: UndoableCommand = {
+    execute() {
+      updateSceneState({ entities: newEntities });
+    },
+    undo() {
+      updateSceneState({ entities: oldEntities });
+    },
+    description: "Reorder entity",
+  };
+  executeCommand(cmd);
+}
+
+/** Create an undoable command that updates a placed entity's properties. */
+function createEntityUpdateCommand(
+  entityId: string,
+  updates: Partial<PlacedEntity>,
+  description: string,
+): UndoableCommand {
+  const oldEntities = getSceneState().entities;
+  const oldEntity = oldEntities.find((e) => e.id === entityId);
+  if (!oldEntity) {
+    return { execute() { /* noop */ }, undo() { /* noop */ }, description };
+  }
+
+  const snapshot = { ...oldEntity };
+  return {
+    execute() {
+      const { entities } = getSceneState();
+      updateSceneState({
+        entities: entities.map((e) =>
+          e.id === entityId ? { ...e, ...updates } : e,
+        ),
+      });
+    },
+    undo() {
+      const { entities } = getSceneState();
+      updateSceneState({
+        entities: entities.map((e) =>
+          e.id === entityId ? snapshot : e,
+        ),
+      });
+    },
+    description,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -182,7 +265,7 @@ function render(): void {
   panelEl.appendChild(list);
 }
 
-/** Render a single layer row. */
+/** Render a single layer row with its entity listing. */
 function renderLayerRow(layer: SceneLayer, activeLayerId: string | null): HTMLElement {
   const isActive = layer.id === activeLayerId;
   const isExpanded = expandedLayerId === layer.id;
@@ -193,6 +276,48 @@ function renderLayerRow(layer: SceneLayer, activeLayerId: string | null): HTMLEl
     (isActive ? " lp-layer--active" : "") +
     (!layer.visible ? " lp-layer--hidden" : "") +
     (isExpanded ? " lp-layer--expanded" : "");
+
+  // ── Drop target ──
+  row.addEventListener("dragover", (e) => {
+    if (!e.dataTransfer?.types.includes(MIME_ENTITY_MOVE)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    row.classList.add("lp-layer--drop-target");
+  });
+
+  row.addEventListener("dragleave", (e) => {
+    // Only remove highlight when leaving the layer row entirely
+    if (!row.contains(e.relatedTarget as Node)) {
+      row.classList.remove("lp-layer--drop-target");
+    }
+  });
+
+  row.addEventListener("drop", (e) => {
+    e.preventDefault();
+    row.classList.remove("lp-layer--drop-target");
+
+    const placedId = e.dataTransfer?.getData(MIME_ENTITY_MOVE);
+    if (!placedId) return;
+
+    const { entities } = getSceneState();
+    const entity = entities.find((ent) => ent.id === placedId);
+    if (!entity) return;
+
+    // No-op if dropping onto the same layer or a locked layer
+    if (entity.layerId === layer.id) return;
+    if (layer.locked) return;
+
+    // Place on top of target layer
+    const maxZ = entities
+      .filter((ent) => ent.layerId === layer.id)
+      .reduce((m, ent) => Math.max(m, ent.zIndex), -1);
+
+    executeCommand(createEntityUpdateCommand(
+      placedId,
+      { layerId: layer.id, zIndex: maxZ + 1 },
+      `Move to layer "${layer.name}"`,
+    ));
+  });
 
   // ── Main row: visibility, lock, name, active indicator ──
   const main = document.createElement("div");
@@ -257,6 +382,9 @@ function renderLayerRow(layer: SceneLayer, activeLayerId: string | null): HTMLEl
   });
 
   row.appendChild(main);
+
+  // ── Entity listing within this layer ──
+  row.appendChild(renderEntityList(layer.id));
 
   // ── Expanded detail panel ──
   if (isExpanded) {
@@ -327,6 +455,103 @@ function renderLayerRow(layer: SceneLayer, activeLayerId: string | null): HTMLEl
   }
 
   return row;
+}
+
+// ---------------------------------------------------------------------------
+// Entity listing within a layer
+// ---------------------------------------------------------------------------
+
+/** Get a display name for a placed entity. */
+function getEntityDisplayName(placed: PlacedEntity): string {
+  if (placed.semanticId) return placed.semanticId;
+  // Truncate entityId for display
+  const id = placed.entityId;
+  return id.length > 16 ? id.slice(0, 14) + "\u2026" : id;
+}
+
+/** Render the list of entities within a layer, sorted by zIndex (highest first). */
+function renderEntityList(layerId: string): HTMLElement {
+  const container = document.createElement("div");
+  container.className = "lp-entity-list";
+
+  const { entities } = getSceneState();
+  const { selectedIds } = getEditorState();
+  const entityStore = getEntityStore();
+
+  // Filter entities for this layer, sorted by zIndex descending (top = front)
+  const layerEntities = entities
+    .filter((e) => e.layerId === layerId)
+    .sort((a, b) => b.zIndex - a.zIndex);
+
+  if (layerEntities.length === 0) return container;
+
+  for (const placed of layerEntities) {
+    const isSelected = selectedIds.includes(placed.id);
+    const def = entityStore.entities[placed.entityId];
+
+    const row = document.createElement("div");
+    row.className = "lp-entity-row" + (isSelected ? " lp-entity-row--selected" : "");
+
+    // ── Drag source ──
+    row.draggable = true;
+    row.addEventListener("dragstart", (e) => {
+      e.stopPropagation();
+      if (!e.dataTransfer) return;
+      e.dataTransfer.setData(MIME_ENTITY_MOVE, placed.id);
+      e.dataTransfer.effectAllowed = "move";
+      row.classList.add("lp-entity-row--dragging");
+    });
+    row.addEventListener("dragend", () => {
+      row.classList.remove("lp-entity-row--dragging");
+      // Clean up any lingering drop-target highlights
+      panelEl?.querySelectorAll(".lp-layer--drop-target").forEach((el) =>
+        el.classList.remove("lp-layer--drop-target"),
+      );
+    });
+
+    // Entity name
+    const nameEl = document.createElement("span");
+    nameEl.className = "lp-entity-name";
+    nameEl.textContent = getEntityDisplayName(placed);
+    nameEl.title = `${placed.entityId} (${def?.visual.type ?? "unknown"})`;
+
+    // Z-order buttons
+    const zBtns = document.createElement("span");
+    zBtns.className = "lp-entity-z-btns";
+
+    const upBtn = document.createElement("button");
+    upBtn.className = "lp-entity-z-btn";
+    upBtn.innerHTML = ICON_CHEVRON_UP;
+    upBtn.title = "Move forward";
+    upBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      swapEntityZIndex(placed.id, 1);
+    });
+
+    const downBtn = document.createElement("button");
+    downBtn.className = "lp-entity-z-btn";
+    downBtn.innerHTML = ICON_CHEVRON_DOWN;
+    downBtn.title = "Move backward";
+    downBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      swapEntityZIndex(placed.id, -1);
+    });
+
+    zBtns.appendChild(upBtn);
+    zBtns.appendChild(downBtn);
+
+    row.appendChild(nameEl);
+    row.appendChild(zBtns);
+
+    // Click → select this entity on canvas
+    row.addEventListener("click", () => {
+      setSelection([placed.id]);
+    });
+
+    container.appendChild(row);
+  }
+
+  return container;
 }
 
 // ---------------------------------------------------------------------------
