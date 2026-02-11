@@ -752,4 +752,158 @@ describe("Choreographer", () => {
       expect(sink.updates.length).toBe(updateCount);
     });
   });
+
+  // =========================================================================
+  // When clause filtering
+  // =========================================================================
+
+  describe("when clause filtering", () => {
+    it("triggers performance when when clause matches", () => {
+      choreographer.register({
+        on: "token_usage",
+        when: { "signal.content": { contains: "amour" } },
+        steps: [
+          { action: "flash", target: "stage", color: "#E8A851", duration: 300 },
+        ],
+      });
+
+      choreographer.handleSignal(
+        makeSignal("token_usage", { content: "je parle d'amour", model: "glm-4.7" }),
+      );
+
+      clock.advance(16);
+
+      expect(sink.starts).toHaveLength(1);
+      expect(sink.starts[0]?.action).toBe("flash");
+    });
+
+    it("does not trigger when when clause does not match", () => {
+      choreographer.register({
+        on: "token_usage",
+        when: { "signal.content": { contains: "amour" } },
+        steps: [
+          { action: "flash", target: "stage", color: "#E8A851", duration: 300 },
+        ],
+      });
+
+      choreographer.handleSignal(
+        makeSignal("token_usage", { content: "hello world", model: "glm-4.7" }),
+      );
+
+      clock.advance(16);
+
+      expect(sink.starts).toHaveLength(0);
+      expect(sink.all).toHaveLength(0);
+    });
+
+    it("backward compat — no when clause still triggers", () => {
+      choreographer.register({
+        on: "token_usage",
+        steps: [
+          { action: "spawn", entity: "particle" },
+        ],
+      });
+
+      choreographer.handleSignal(
+        makeSignal("token_usage", { content: "anything" }),
+      );
+
+      clock.advance(16);
+
+      expect(sink.executes).toHaveLength(1);
+      expect(sink.executes[0]?.action).toBe("spawn");
+    });
+
+    it("filters among multiple choreographies on same signal type", () => {
+      choreographer.register({
+        on: "token_usage",
+        when: { "signal.content": { contains: "amour" } },
+        steps: [
+          { action: "flash", target: "stage", color: "gold", duration: 300 },
+        ],
+      });
+
+      choreographer.register({
+        on: "token_usage",
+        when: { "signal.content": { contains: "error" } },
+        steps: [
+          { action: "flash", target: "stage", color: "red", duration: 300 },
+        ],
+      });
+
+      choreographer.handleSignal(
+        makeSignal("token_usage", { content: "une erreur error critique" }),
+      );
+
+      clock.advance(16);
+
+      // Only the error choreography should fire
+      expect(sink.starts).toHaveLength(1);
+      expect(sink.starts[0]?.params).toEqual({ color: "red" });
+    });
+
+    it("when clause with gt/lt range filters numeric payloads", () => {
+      choreographer.register({
+        on: "token_usage",
+        when: { "signal.tokenIndex": { gt: 100 } },
+        steps: [
+          { action: "spawn", entity: "overflow-indicator" },
+        ],
+      });
+
+      // Under threshold — no trigger
+      choreographer.handleSignal(
+        makeSignal("token_usage", { content: "hello", tokenIndex: 50 }),
+      );
+      clock.advance(16);
+      expect(sink.all).toHaveLength(0);
+
+      // Over threshold — triggers
+      choreographer.handleSignal(
+        makeSignal("token_usage", { content: "hello", tokenIndex: 101 }),
+      );
+      clock.advance(16);
+      expect(sink.executes).toHaveLength(1);
+      expect(sink.executes[0]?.action).toBe("spawn");
+    });
+
+    it("when clause does not block interruption evaluation", () => {
+      // A choreography with when that won't match
+      choreographer.register({
+        on: "token_usage",
+        when: { "signal.content": { contains: "amour" } },
+        steps: [
+          { action: "move", entity: "agent", to: "stage", duration: 2000 },
+        ],
+      });
+
+      // An interrupt choreography (no when)
+      choreographer.register({
+        on: "error",
+        interrupts: true,
+        steps: [
+          { action: "flash", target: "agent", color: "red", duration: 300 },
+        ],
+      });
+
+      // Signal that doesn't match when — no performance started
+      choreographer.handleSignal(
+        makeSignal("token_usage", { content: "hello" }),
+        "wf-1",
+      );
+      clock.advance(16);
+      expect(sink.starts).toHaveLength(0);
+
+      // Error on same correlation — interrupt still works even though no performance to interrupt
+      choreographer.handleSignal(
+        makeSignal("error", { message: "boom", severity: "error" }),
+        "wf-1",
+      );
+      clock.advance(16);
+
+      // The error choreography fires independently
+      expect(sink.starts).toHaveLength(1);
+      expect(sink.starts[0]?.action).toBe("flash");
+    });
+  });
 });

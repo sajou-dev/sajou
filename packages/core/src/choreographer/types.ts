@@ -25,6 +25,25 @@ export interface ChoreographyDefinition {
   /** The signal type that triggers this choreography. */
   readonly on: string;
   /**
+   * Optional condition that filters signals of the matching type.
+   * When present, the choreography only triggers if the condition evaluates to true.
+   * When absent, the choreography triggers on every signal of the matching type.
+   *
+   * @example Contains check
+   * ```json
+   * { "when": { "signal.content": { "contains": "amour" } } }
+   * ```
+   *
+   * @example OR — any condition matches
+   * ```json
+   * { "when": [
+   *   { "signal.content": { "contains": "amour" } },
+   *   { "signal.content": { "contains": "love" } }
+   * ]}
+   * ```
+   */
+  readonly when?: WhenClause;
+  /**
    * When true, this choreography interrupts all active performances
    * sharing the same correlationId as the incoming signal.
    */
@@ -32,6 +51,52 @@ export interface ChoreographyDefinition {
   /** The sequence of steps to execute when triggered. */
   readonly steps: readonly ChoreographyStep[];
 }
+
+// ---------------------------------------------------------------------------
+// When clause types
+// ---------------------------------------------------------------------------
+
+/**
+ * A comparison operator applied to a resolved signal value.
+ *
+ * Multiple operator keys in the same object are AND-combined
+ * (e.g., `{ "gt": 5, "lt": 10 }` means "between 5 and 10").
+ */
+export interface WhenOperator {
+  /** Strict equality: `resolved === operand`. */
+  readonly equals?: unknown;
+  /** Substring match: `resolved.includes(operand)`. */
+  readonly contains?: string;
+  /** Regex match: `new RegExp(operand).test(resolved)`. */
+  readonly matches?: string;
+  /** Greater than: `resolved > operand`. */
+  readonly gt?: number;
+  /** Less than: `resolved < operand`. */
+  readonly lt?: number;
+  /** Field exists and is not null/undefined. Set to `false` to check absence. */
+  readonly exists?: boolean;
+  /** Negation: inverts the result of the inner operator. */
+  readonly not?: WhenOperator;
+}
+
+/**
+ * A single when condition: signal paths mapped to operators.
+ * Multiple keys are AND-combined (all must match).
+ *
+ * @example
+ * ```json
+ * { "signal.content": { "contains": "amour" }, "signal.model": { "equals": "glm-4.7" } }
+ * ```
+ */
+export type WhenCondition = Readonly<Record<string, WhenOperator>>;
+
+/**
+ * The `when` clause for conditional choreography triggering.
+ *
+ * - Object form: all entries AND-combined.
+ * - Array form: entries OR-combined (at least one must match).
+ */
+export type WhenClause = WhenCondition | readonly WhenCondition[];
 
 /**
  * A single step in a choreography. Can be an action or a structural element

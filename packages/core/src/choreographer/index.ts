@@ -33,6 +33,9 @@ export {
   EASING_FUNCTIONS,
 } from "./easing.js";
 
+// Matcher (when clause evaluation)
+export { matchesWhen } from "./matcher.js";
+
 // Types (choreography definitions)
 export type {
   ChoreographyDefinition,
@@ -43,6 +46,9 @@ export type {
   OnInterruptStep,
   Performance,
   PerformanceSignal,
+  WhenClause,
+  WhenCondition,
+  WhenOperator,
 } from "./types.js";
 
 // Test utilities

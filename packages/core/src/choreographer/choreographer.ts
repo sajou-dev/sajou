@@ -7,6 +7,7 @@
 
 import type { Clock } from "./clock.js";
 import type { CommandSink } from "./commands.js";
+import { matchesWhen } from "./matcher.js";
 import { Registry } from "./registry.js";
 import { Scheduler } from "./scheduler.js";
 import type { ChoreographyDefinition, PerformanceSignal } from "./types.js";
@@ -83,6 +84,11 @@ export class Choreographer {
     const definitions = this.registry.getForSignalType(signal.type);
 
     for (const definition of definitions) {
+      // Skip if the when clause doesn't match the signal payload
+      if (!matchesWhen(definition.when, signal)) {
+        continue;
+      }
+
       // If this choreography interrupts, cancel matching active performances
       if (definition.interrupts && correlationId !== undefined) {
         this.scheduler.interruptByCorrelationId(correlationId, signal.type);
