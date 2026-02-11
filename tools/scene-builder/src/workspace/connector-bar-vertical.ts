@@ -75,6 +75,10 @@ function render(): void {
     const badge = document.createElement("button");
     badge.className = "connector-bar-v-badge";
 
+    // Wire endpoint data attributes for drag-connect system
+    badge.dataset.wireZone = "choreographer";
+    badge.dataset.wireId = choreo.id;
+
     const wired = wiredSet.has(choreo.id);
     if (wired) {
       badge.classList.add("connector-bar-v-badge--wired");
@@ -89,7 +93,7 @@ function render(): void {
     dot.style.background = wired ? color : "#6E6E8A";
     badge.appendChild(dot);
 
-    badge.title = `${choreo.on}${wired ? " (wired to theme)" : ""}`;
+    badge.title = `${choreo.on}${wired ? " (wired to theme)" : " (drag to connect)"}`;
 
     badge.addEventListener("click", () => {
       selectChoreography(choreo.id);

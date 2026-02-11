@@ -94,6 +94,10 @@ function render(): void {
     const badge = document.createElement("button");
     badge.className = "connector-bar-h-badge";
 
+    // Wire endpoint data attributes for drag-connect system
+    badge.dataset.wireZone = "signal";
+    badge.dataset.wireId = source.id;
+
     const connected = wireMap.has(source.id);
     if (connected) {
       badge.classList.add("connector-bar-h-badge--wired");
@@ -101,7 +105,7 @@ function render(): void {
 
     badge.title = connected
       ? `${source.name} → ${wireMap.get(source.id)!.join(", ")}`
-      : `${source.name} (no wire)`;
+      : `${source.name} (drag to connect)`;
 
     // Status dot
     const dot = document.createElement("span");
