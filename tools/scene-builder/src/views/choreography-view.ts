@@ -26,13 +26,15 @@ import type {
   SignalType,
   ChoreographyDef,
   ChoreographyStepDef,
-  ChoreographyEasing,
   WhenOperatorDef,
   WhenConditionDef,
   WhenClauseDef,
   UndoableCommand,
 } from "../types.js";
 import { STRUCTURAL_ACTIONS } from "../types.js";
+import { getActionSchema } from "../choreography/action-inputs.js";
+import { createInputControl } from "../choreography/input-controls.js";
+import type { OnInputChange } from "../choreography/input-controls.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -69,10 +71,7 @@ const ACTION_TYPES: string[] = [
   "parallel", "onArrive", "onInterrupt",
 ];
 
-/** Easing names for animated action dropdowns. */
-const EASING_NAMES: ChoreographyEasing[] = [
-  "linear", "easeIn", "easeOut", "easeInOut", "arc",
-];
+/* Easing names moved to choreography/input-controls.ts (ISF system). */
 
 /** Operator names for the when-clause editor. */
 const OPERATOR_NAMES: string[] = [
@@ -1034,7 +1033,7 @@ function renderStepRows(
 }
 
 // ---------------------------------------------------------------------------
-// Render: Step detail
+// Render: Step detail (ISF declarative inputs)
 // ---------------------------------------------------------------------------
 
 function renderStepDetail(choreo: ChoreographyDef): HTMLElement | null {
@@ -1055,7 +1054,7 @@ function renderStepDetail(choreo: ChoreographyDef): HTMLElement | null {
   detailTitle.textContent = "Detail";
   detail.appendChild(detailTitle);
 
-  // Action dropdown
+  // Action dropdown (always shown)
   const actionSelect = document.createElement("select");
   actionSelect.className = "ch-detail-select";
   for (const a of ACTION_TYPES) {
@@ -1067,68 +1066,80 @@ function renderStepDetail(choreo: ChoreographyDef): HTMLElement | null {
   }
   detail.appendChild(detailRow("action", actionSelect));
 
-  // Entity (for non-structural)
-  let entityInput: HTMLInputElement | null = null;
-  if (!STRUCTURAL_ACTIONS.includes(step.action)) {
-    entityInput = textInput(step.entity ?? "");
-    entityInput.placeholder = "agent, signal.to, ...";
-    detail.appendChild(detailRow("entity", entityInput));
-  }
+  // Pending changes accumulator — ISF controls write here on change
+  const pendingUpdates: Partial<ChoreographyStepDef> = {};
+  const pendingParams: Record<string, unknown> = { ...step.params };
 
-  // Target (for flash)
-  let targetInput: HTMLInputElement | null = null;
-  if (step.action === "flash" || step.target) {
-    targetInput = textInput(step.target ?? "");
-    targetInput.placeholder = "signal.to, stage, ...";
-    detail.appendChild(detailRow("target", targetInput));
-  }
+  /** Handle changes from common ISF controls (entity, duration, easing). */
+  const onCommonChange: OnInputChange = (key, value) => {
+    if (key === "entity") pendingUpdates.entity = value ? String(value) : undefined;
+    else if (key === "target") pendingUpdates.target = value ? String(value) : undefined;
+    else if (key === "duration") pendingUpdates.duration = typeof value === "number" ? value : undefined;
+    else if (key === "easing") pendingUpdates.easing = value ? String(value) : undefined;
+  };
 
-  // Duration (for animated actions)
-  let durationInput: HTMLInputElement | null = null;
-  if (step.duration !== undefined || ["move", "fly", "flash", "wait"].includes(step.action)) {
-    durationInput = numberInput(step.duration ?? 0);
-    detail.appendChild(detailRow("duration", durationInput));
-  }
-
-  // Easing (for animated actions with duration)
-  let easingSelect: HTMLSelectElement | null = null;
-  if (["move", "fly", "flash"].includes(step.action)) {
-    easingSelect = document.createElement("select");
-    easingSelect.className = "ch-detail-select";
-    for (const e of EASING_NAMES) {
-      const opt = document.createElement("option");
-      opt.value = e;
-      opt.textContent = e;
-      if (e === (step.easing ?? "linear")) opt.selected = true;
-      easingSelect.appendChild(opt);
+  /** Handle changes from param ISF controls. */
+  const onParamChange: OnInputChange = (key, value) => {
+    if (value !== undefined && value !== "") {
+      pendingParams[key] = value;
+    } else {
+      delete pendingParams[key];
     }
-    detail.appendChild(detailRow("easing", easingSelect));
-  }
+  };
 
-  // Extra params (action-specific)
-  const paramInputs: Map<string, HTMLInputElement> = new Map();
+  // Get ISF schema for this action
+  const schema = getActionSchema(step.action);
 
-  function addParamRow(key: string, value: string, placeholder?: string): void {
-    const inp = textInput(value);
-    if (placeholder) inp.placeholder = placeholder;
-    paramInputs.set(key, inp);
-    detail.appendChild(detailRow(key, inp));
-  }
+  if (schema) {
+    // ISF mode — auto-generate controls from schema
 
-  switch (step.action) {
-    case "move":
-    case "fly":
-      addParamRow("to", String(step.params["to"] ?? ""), "signal.to, forge, ...");
-      break;
-    case "spawn":
-      addParamRow("at", String(step.params["at"] ?? ""), "signal.from, base, ...");
-      break;
-    case "flash":
-      addParamRow("color", String(step.params["color"] ?? "#E8A851"), "#E8A851");
-      break;
-    case "playSound":
-      addParamRow("sound", String(step.params["sound"] ?? ""), "asset path");
-      break;
+    // Common inputs (entity, duration, easing)
+    for (const decl of schema.common) {
+      // Resolve current value from the step
+      let currentValue: unknown;
+      if (decl.key === "entity") currentValue = step.entity;
+      else if (decl.key === "target") currentValue = step.target;
+      else if (decl.key === "duration") currentValue = step.duration;
+      else if (decl.key === "easing") currentValue = step.easing;
+
+      const control = createInputControl(decl, currentValue, onCommonChange);
+      detail.appendChild(control);
+    }
+
+    // Action-specific param inputs
+    if (schema.params.length > 0) {
+      const paramTitle = document.createElement("div");
+      paramTitle.className = "ch-section-subtitle";
+      paramTitle.textContent = "Parameters";
+      detail.appendChild(paramTitle);
+
+      for (const decl of schema.params) {
+        const currentValue = step.params[decl.key];
+        const control = createInputControl(decl, currentValue, onParamChange);
+        detail.appendChild(control);
+      }
+    }
+  } else {
+    // Fallback: unknown action — raw JSON editor for params
+    const fallbackTitle = document.createElement("div");
+    fallbackTitle.className = "ch-section-subtitle";
+    fallbackTitle.textContent = "Parameters (JSON)";
+    detail.appendChild(fallbackTitle);
+
+    const textarea = document.createElement("textarea");
+    textarea.className = "isf-json";
+    textarea.rows = 5;
+    textarea.value = JSON.stringify(step.params, null, 2);
+    textarea.addEventListener("change", () => {
+      try {
+        const parsed = JSON.parse(textarea.value) as Record<string, unknown>;
+        Object.assign(pendingParams, parsed);
+        textarea.classList.remove("isf-json--error");
+      } catch {
+        textarea.classList.add("isf-json--error");
+      }
+    });
+    detail.appendChild(textarea);
   }
 
   // Apply button
@@ -1137,17 +1148,11 @@ function renderStepDetail(choreo: ChoreographyDef): HTMLElement | null {
   applyBtn.textContent = "Apply";
   applyBtn.addEventListener("click", () => {
     const newAction = actionSelect.value;
-    const updates: Partial<ChoreographyStepDef> = { action: newAction };
-    if (entityInput) updates.entity = entityInput.value || undefined;
-    if (targetInput) updates.target = targetInput.value || undefined;
-    if (durationInput) updates.duration = Number(durationInput.value) || undefined;
-    if (easingSelect) updates.easing = easingSelect.value;
-
-    const newParams: Record<string, unknown> = {};
-    for (const [k, inp] of paramInputs) {
-      if (inp.value) newParams[k] = inp.value;
-    }
-    updates.params = newParams;
+    const updates: Partial<ChoreographyStepDef> = {
+      action: newAction,
+      ...pendingUpdates,
+      params: { ...pendingParams },
+    };
 
     // If action type changed to structural, add children
     if (STRUCTURAL_ACTIONS.includes(newAction) && !step.children) {
@@ -1177,24 +1182,6 @@ function detailRow(label: string, input: HTMLElement): HTMLElement {
   row.appendChild(lbl);
   row.appendChild(input);
   return row;
-}
-
-/** Create a text input element. */
-function textInput(value: string): HTMLInputElement {
-  const inp = document.createElement("input");
-  inp.type = "text";
-  inp.className = "ch-detail-input";
-  inp.value = value;
-  return inp;
-}
-
-/** Create a number input element. */
-function numberInput(value: number): HTMLInputElement {
-  const inp = document.createElement("input");
-  inp.type = "number";
-  inp.className = "ch-detail-input";
-  inp.value = String(value);
-  return inp;
 }
 
 // ---------------------------------------------------------------------------
