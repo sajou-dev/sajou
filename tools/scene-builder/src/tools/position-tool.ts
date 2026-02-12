@@ -241,22 +241,85 @@ export function initPositionToolKeyboard(): void {
       e.preventDefault();
 
       const idsToRemove = [...selectedPositionIds];
-      const { positions } = getSceneState();
-      const removedPositions = positions.filter((p) => idsToRemove.includes(p.id));
+      const idsSet = new Set(idsToRemove);
+      const { positions, routes, entities } = getSceneState();
+
+      // Snapshot removed positions
+      const removedPositions = positions.filter((p) => idsSet.has(p.id));
+
+      // Snapshot affected routes (those linking to removed positions)
+      const affectedRoutes = routes
+        .filter((r) =>
+          (r.fromPositionId != null && idsSet.has(r.fromPositionId)) ||
+          (r.toPositionId != null && idsSet.has(r.toPositionId)),
+        )
+        .map((r) => ({ ...r }));
+
+      // Snapshot affected entities (those with topology referencing removed positions)
+      const affectedEntities = entities
+        .filter((e) => {
+          const t = e.topology;
+          if (!t) return false;
+          return (t.home != null && idsSet.has(t.home)) ||
+            t.waypoints.some((w) => idsSet.has(w));
+        })
+        .map((e) => ({
+          ...e,
+          topology: e.topology
+            ? { ...e.topology, waypoints: [...e.topology.waypoints] }
+            : undefined,
+        }));
 
       const cmd: UndoableCommand = {
         execute() {
-          const { positions: curP } = getSceneState();
-          updateSceneState({
-            positions: curP.filter((p) => !idsToRemove.includes(p.id)),
+          const state = getSceneState();
+          // 1. Remove positions
+          const newPositions = state.positions.filter((p) => !idsSet.has(p.id));
+          // 2. Clean route from/to refs
+          const newRoutes = state.routes.map((r) => {
+            const clearFrom = r.fromPositionId != null && idsSet.has(r.fromPositionId);
+            const clearTo = r.toPositionId != null && idsSet.has(r.toPositionId);
+            if (!clearFrom && !clearTo) return r;
+            return {
+              ...r,
+              fromPositionId: clearFrom ? undefined : r.fromPositionId,
+              toPositionId: clearTo ? undefined : r.toPositionId,
+            };
           });
+          // 3. Clean entity topologies (home + waypoints)
+          const newEntities = state.entities.map((e) => {
+            const t = e.topology;
+            if (!t) return e;
+            const cleanHome = t.home != null && idsSet.has(t.home);
+            const cleanWps = t.waypoints.some((w) => idsSet.has(w));
+            if (!cleanHome && !cleanWps) return e;
+            return {
+              ...e,
+              topology: {
+                ...t,
+                home: cleanHome ? undefined : t.home,
+                waypoints: cleanWps ? t.waypoints.filter((w) => !idsSet.has(w)) : t.waypoints,
+              },
+            };
+          });
+          updateSceneState({ positions: newPositions, routes: newRoutes, entities: newEntities });
           setPositionSelection([]);
         },
         undo() {
-          const { positions: curP } = getSceneState();
-          updateSceneState({
-            positions: [...curP, ...removedPositions],
-          });
+          const state = getSceneState();
+          // Restore positions
+          const newPositions = [...state.positions, ...removedPositions];
+          // Restore route snapshots
+          const routeIds = new Set(affectedRoutes.map((r) => r.id));
+          const newRoutes = state.routes.map((r) =>
+            routeIds.has(r.id) ? affectedRoutes.find((ar) => ar.id === r.id)! : r,
+          );
+          // Restore entity snapshots
+          const entityIds = new Set(affectedEntities.map((e) => e.id));
+          const newEntities = state.entities.map((e) =>
+            entityIds.has(e.id) ? affectedEntities.find((ae) => ae.id === e.id)! : e,
+          );
+          updateSceneState({ positions: newPositions, routes: newRoutes, entities: newEntities });
           setPositionSelection(idsToRemove);
         },
         description: `Delete ${idsToRemove.length} position(s)`,

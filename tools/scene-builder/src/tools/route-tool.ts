@@ -27,6 +27,7 @@ import {
 } from "../state/scene-state.js";
 import { executeCommand } from "../state/undo.js";
 import { snap } from "./snap.js";
+import { hitTestPosition } from "./hit-test.js";
 import type { SceneRoute, RoutePoint, UndoableCommand } from "../types.js";
 
 // ---------------------------------------------------------------------------
@@ -85,10 +86,29 @@ function pointToSegmentDist(
 
 /**
  * Build the display point array for a route.
- * For standalone routes this is simply the points array.
+ *
+ * When the route is linked to positions via `fromPositionId` / `toPositionId`,
+ * the first / last point is overridden with the linked position's coordinates
+ * so that the route visually follows the position when it moves.
  */
 function buildPathPoints(route: SceneRoute): Array<{ x: number; y: number }> {
-  return route.points.map((p) => ({ x: p.x, y: p.y }));
+  const pts = route.points.map((p) => ({ x: p.x, y: p.y }));
+  if (pts.length < 2) return pts;
+
+  const { positions } = getSceneState();
+
+  // Snap first point to linked origin position
+  if (route.fromPositionId) {
+    const pos = positions.find((p) => p.id === route.fromPositionId);
+    if (pos) pts[0] = { x: pos.x, y: pos.y };
+  }
+  // Snap last point to linked destination position
+  if (route.toPositionId) {
+    const pos = positions.find((p) => p.id === route.toPositionId);
+    if (pos) pts[pts.length - 1] = { x: pos.x, y: pos.y };
+  }
+
+  return pts;
 }
 
 // ---------------------------------------------------------------------------
@@ -443,6 +463,11 @@ export function createRouteTool(): RouteToolResult {
 
     if (pts.length < 2) return; // Need at least 2 points
 
+    // Auto-link to nearby positions (within 20px)
+    const fromPosId = hitTestPosition(pts[0]!.x, pts[0]!.y) ?? undefined;
+    const toPosHit = hitTestPosition(pts[pts.length - 1]!.x, pts[pts.length - 1]!.y);
+    const toPosId = toPosHit && toPosHit !== fromPosId ? toPosHit : undefined;
+
     const newRoute: SceneRoute = {
       id: generateRouteId(),
       name: generateRouteName(),
@@ -450,6 +475,8 @@ export function createRouteTool(): RouteToolResult {
       style: "solid",
       color: nextColor(),
       bidirectional: false,
+      fromPositionId: fromPosId,
+      toPositionId: toPosId,
     };
 
     const cmd: UndoableCommand = {
