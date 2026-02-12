@@ -79,6 +79,24 @@ export interface PlacedEntity {
    * Must be unique across all placed entities. Undefined = passive decor.
    */
   semanticId?: string;
+  /**
+   * Optional topology: spatial relationships to scene positions.
+   * Only meaningful for actors (entities with semanticId set).
+   */
+  topology?: EntityTopology;
+}
+
+/**
+ * Topology describes an entity's spatial relationships to scene positions.
+ * Only meaningful for actors (entities with a semanticId).
+ */
+export interface EntityTopology {
+  /** Home position ID — the entity's default/resting waypoint. */
+  home?: string;
+  /** Accessible position IDs — positions the entity can reach. */
+  waypoints: string[];
+  /** Context-to-animation-state mapping (e.g., "idle" → "sitting"). */
+  stateMapping?: Record<string, string>;
 }
 
 /** Position type hints for choreography semantics. */
@@ -155,6 +173,10 @@ export interface SceneRoute {
   color: string;
   /** If true, the route can be traversed in both directions. */
   bidirectional: boolean;
+  /** Optional origin position ID — links this route's start to a named position. */
+  fromPositionId?: string;
+  /** Optional destination position ID — links this route's end to a named position. */
+  toPositionId?: string;
 }
 
 /** Full scene state (data layer). */
@@ -251,6 +273,13 @@ export interface EditorState {
   rideauSplit: number;
   /** Choreographer node canvas viewport (pan/zoom). */
   nodeCanvasViewport: NodeCanvasViewport;
+  /** Live preview for topology association drag (null = not associating). */
+  topologyAssociationPreview: {
+    fromX: number;
+    fromY: number;
+    toX: number;
+    toY: number;
+  } | null;
 }
 
 // ---------------------------------------------------------------------------

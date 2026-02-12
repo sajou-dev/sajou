@@ -924,6 +924,108 @@ function renderActorBadges(): void {
 }
 
 // ---------------------------------------------------------------------------
+// Topology overlay (highlights when actor entity is selected)
+// ---------------------------------------------------------------------------
+
+let topologyGraphics: Graphics | null = null;
+
+/**
+ * Render topology overlay when a single actor entity is selected.
+ * Shows: home waypoint (filled dot), accessible waypoints (outline),
+ * available routes (highlighted path), dashed entity→home connection,
+ * and Alt+drag association preview line.
+ */
+function renderTopologyOverlay(): void {
+  const sceneLayers = getLayers();
+  if (!sceneLayers) return;
+
+  if (!topologyGraphics) {
+    topologyGraphics = new Graphics();
+    topologyGraphics.label = "topology-overlay";
+    sceneLayers.selection.addChild(topologyGraphics);
+  }
+
+  topologyGraphics.clear();
+
+  const { selectedIds, topologyAssociationPreview } = getEditorState();
+  const { entities, positions, routes } = getSceneState();
+
+  // Draw association preview line (Alt+drag)
+  if (topologyAssociationPreview) {
+    const { fromX, fromY, toX, toY } = topologyAssociationPreview;
+    drawDashedPolyline(
+      topologyGraphics,
+      [{ x: fromX, y: fromY }, { x: toX, y: toY }],
+      6, 4, 0xe8a851, 1.5, 0.8,
+    );
+    topologyGraphics.circle(toX, toY, 6);
+    topologyGraphics.stroke({ color: 0xe8a851, width: 1.5, alpha: 0.8 });
+  }
+
+  // Only show topology overlay for single-selected actor entities
+  if (selectedIds.length !== 1) return;
+
+  const placed = entities.find((e) => e.id === selectedIds[0]);
+  if (!placed?.semanticId || !placed.topology) return;
+
+  const topo = placed.topology;
+  const allPositionIds = new Set<string>();
+  if (topo.home) allPositionIds.add(topo.home);
+  for (const wp of topo.waypoints) allPositionIds.add(wp);
+
+  if (allPositionIds.size === 0) return;
+
+  const posMap = new Map(positions.map((p) => [p.id, p]));
+  const ACCENT = 0xe8a851;
+
+  // Home waypoint: filled circle
+  if (topo.home) {
+    const homePos = posMap.get(topo.home);
+    if (homePos) {
+      topologyGraphics.circle(homePos.x, homePos.y, 10);
+      topologyGraphics.fill({ color: ACCENT, alpha: 0.9 });
+    }
+  }
+
+  // Accessible waypoints (excluding home): outlined circles
+  for (const wpId of topo.waypoints) {
+    if (wpId === topo.home) continue;
+    const wp = posMap.get(wpId);
+    if (!wp) continue;
+    topologyGraphics.circle(wp.x, wp.y, 8);
+    topologyGraphics.stroke({ color: ACCENT, width: 2, alpha: 0.5 });
+  }
+
+  // Highlight routes between topology positions
+  const topoRoutes = routes.filter((r) =>
+    r.fromPositionId && r.toPositionId
+    && allPositionIds.has(r.fromPositionId) && allPositionIds.has(r.toPositionId),
+  );
+  for (const route of topoRoutes) {
+    const pts = buildPathPoints(route);
+    if (pts.length < 2) continue;
+    const flat = flattenRoutePath(pts, route.points);
+    topologyGraphics.moveTo(flat[0]!.x, flat[0]!.y);
+    for (let i = 1; i < flat.length; i++) {
+      topologyGraphics.lineTo(flat[i]!.x, flat[i]!.y);
+    }
+    topologyGraphics.stroke({ color: ACCENT, width: 3, alpha: 0.3 });
+  }
+
+  // Dashed line from entity to home waypoint
+  if (topo.home) {
+    const homePos = posMap.get(topo.home);
+    if (homePos) {
+      drawDashedPolyline(
+        topologyGraphics,
+        [{ x: placed.x, y: placed.y }, { x: homePos.x, y: homePos.y }],
+        6, 4, ACCENT, 1, 0.6,
+      );
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Full render
 // ---------------------------------------------------------------------------
 
@@ -940,6 +1042,7 @@ function scheduleRender(): void {
     renderPositions();
     renderRoutes();
     renderRouteCreationPreview();
+    renderTopologyOverlay();
     renderSelection();
     renderActorBadges();
   });

@@ -40,6 +40,7 @@ function createDefault(): EditorState {
     routeCreationPreview: null,
     rideauSplit: 0.5,
     nodeCanvasViewport: { panX: 0, panY: 0, zoom: 1 },
+    topologyAssociationPreview: null,
   };
 }
 

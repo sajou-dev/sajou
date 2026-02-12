@@ -21,7 +21,7 @@ import {
   subscribeEntities,
 } from "../state/entity-store.js";
 import { executeCommand } from "../state/undo.js";
-import type { PlacedEntity, ScenePosition, SceneRoute, UndoableCommand } from "../types.js";
+import type { EntityTopology, PlacedEntity, ScenePosition, SceneRoute, UndoableCommand } from "../types.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -288,6 +288,125 @@ export function initInspectorPanel(contentEl: HTMLElement): void {
       executeCommand(createUpdateCommand(placed.id, { visible: v }, `Visible ${placed.id}`))));
     form.appendChild(createRow("Flags", flagsRow));
 
+    // ── Topology section (actors only) ──
+    if (placed.semanticId) {
+      const topoHeader = document.createElement("div");
+      topoHeader.className = "ip-section-header";
+      topoHeader.textContent = "Topology";
+      form.appendChild(topoHeader);
+
+      const { positions, routes } = getSceneState();
+      const currentTopo: EntityTopology = placed.topology ?? { waypoints: [] };
+
+      // Home waypoint dropdown
+      const homeSelect = document.createElement("select");
+      homeSelect.className = "ip-select";
+      const homeNone = document.createElement("option");
+      homeNone.value = "";
+      homeNone.textContent = "None";
+      if (!currentTopo.home) homeNone.selected = true;
+      homeSelect.appendChild(homeNone);
+      for (const pos of positions) {
+        const opt = document.createElement("option");
+        opt.value = pos.id;
+        opt.textContent = pos.name;
+        if (pos.id === currentTopo.home) opt.selected = true;
+        homeSelect.appendChild(opt);
+      }
+      homeSelect.addEventListener("change", () => {
+        const val = homeSelect.value || undefined;
+        const newTopo: EntityTopology = { ...currentTopo, home: val };
+        // Auto-add home to waypoints if not already there
+        if (val && !newTopo.waypoints.includes(val)) {
+          newTopo.waypoints = [...newTopo.waypoints, val];
+        }
+        executeCommand(createUpdateCommand(
+          placed.id,
+          { topology: newTopo },
+          val ? "Set home waypoint" : "Clear home waypoint",
+        ));
+      });
+      form.appendChild(createRow("Home", homeSelect));
+
+      // Accessible waypoints — chip list
+      const wpContainer = document.createElement("div");
+      wpContainer.className = "ip-chip-list";
+
+      for (const wpId of currentTopo.waypoints) {
+        const pos = positions.find((p) => p.id === wpId);
+        const chip = document.createElement("span");
+        chip.className = "ip-chip";
+        chip.textContent = pos?.name ?? wpId;
+        const removeBtn = document.createElement("button");
+        removeBtn.className = "ip-chip-remove";
+        removeBtn.textContent = "\u00D7";
+        removeBtn.addEventListener("click", () => {
+          const newWaypoints = currentTopo.waypoints.filter((id) => id !== wpId);
+          const newTopo: EntityTopology = { ...currentTopo, waypoints: newWaypoints };
+          // Clear home if it was removed
+          if (currentTopo.home === wpId) newTopo.home = undefined;
+          executeCommand(createUpdateCommand(
+            placed.id,
+            { topology: newTopo },
+            "Remove waypoint",
+          ));
+        });
+        chip.appendChild(removeBtn);
+        wpContainer.appendChild(chip);
+      }
+
+      // Add dropdown (filtered: exclude already-added waypoints)
+      const addSelect = document.createElement("select");
+      addSelect.className = "ip-select ip-select--add";
+      const addPlaceholder = document.createElement("option");
+      addPlaceholder.value = "";
+      addPlaceholder.textContent = "+ Add waypoint";
+      addSelect.appendChild(addPlaceholder);
+      for (const pos of positions) {
+        if (currentTopo.waypoints.includes(pos.id)) continue;
+        const opt = document.createElement("option");
+        opt.value = pos.id;
+        opt.textContent = pos.name;
+        addSelect.appendChild(opt);
+      }
+      addSelect.addEventListener("change", () => {
+        if (!addSelect.value) return;
+        const newWaypoints = [...currentTopo.waypoints, addSelect.value];
+        const newTopo: EntityTopology = { ...currentTopo, waypoints: newWaypoints };
+        executeCommand(createUpdateCommand(
+          placed.id,
+          { topology: newTopo },
+          "Add waypoint",
+        ));
+      });
+      wpContainer.appendChild(addSelect);
+      form.appendChild(createRow("Waypoints", wpContainer));
+
+      // Available routes (read-only derived list)
+      const entityPositionIds = new Set<string>();
+      if (currentTopo.home) entityPositionIds.add(currentTopo.home);
+      for (const wp of currentTopo.waypoints) entityPositionIds.add(wp);
+
+      const availableRoutes = routes.filter((r) =>
+        r.fromPositionId && r.toPositionId
+        && entityPositionIds.has(r.fromPositionId) && entityPositionIds.has(r.toPositionId),
+      );
+
+      if (availableRoutes.length > 0) {
+        const routeList = document.createElement("div");
+        routeList.className = "ip-route-list";
+        for (const r of availableRoutes) {
+          const fromPos = positions.find((p) => p.id === r.fromPositionId);
+          const toPos = positions.find((p) => p.id === r.toPositionId);
+          const item = document.createElement("span");
+          item.className = "ip-readonly";
+          item.textContent = `${r.name} (${fromPos?.name ?? "?"} → ${toPos?.name ?? "?"})`;
+          routeList.appendChild(item);
+        }
+        form.appendChild(createRow("Routes", routeList));
+      }
+    }
+
     contentEl.appendChild(form);
   }
 
@@ -512,6 +631,49 @@ export function initInspectorPanel(contentEl: HTMLElement): void {
     bidiRow.appendChild(createCheckbox("Bidirectional", route.bidirectional, (v) =>
       executeCommand(createRouteUpdateCommand(route.id, { bidirectional: v }, v ? "Set bidirectional" : "Set one-way"))));
     form.appendChild(createRow("Direction", bidiRow));
+
+    // From position
+    const { positions } = getSceneState();
+    const fromSelect = document.createElement("select");
+    fromSelect.className = "ip-select";
+    const fromNone = document.createElement("option");
+    fromNone.value = "";
+    fromNone.textContent = "None";
+    if (!route.fromPositionId) fromNone.selected = true;
+    fromSelect.appendChild(fromNone);
+    for (const pos of positions) {
+      const opt = document.createElement("option");
+      opt.value = pos.id;
+      opt.textContent = pos.name;
+      if (pos.id === route.fromPositionId) opt.selected = true;
+      fromSelect.appendChild(opt);
+    }
+    fromSelect.addEventListener("change", () => {
+      const val = fromSelect.value || undefined;
+      executeCommand(createRouteUpdateCommand(route.id, { fromPositionId: val }, val ? "Set route origin" : "Clear route origin"));
+    });
+    form.appendChild(createRow("From", fromSelect));
+
+    // To position
+    const toSelect = document.createElement("select");
+    toSelect.className = "ip-select";
+    const toNone = document.createElement("option");
+    toNone.value = "";
+    toNone.textContent = "None";
+    if (!route.toPositionId) toNone.selected = true;
+    toSelect.appendChild(toNone);
+    for (const pos of positions) {
+      const opt = document.createElement("option");
+      opt.value = pos.id;
+      opt.textContent = pos.name;
+      if (pos.id === route.toPositionId) opt.selected = true;
+      toSelect.appendChild(opt);
+    }
+    toSelect.addEventListener("change", () => {
+      const val = toSelect.value || undefined;
+      executeCommand(createRouteUpdateCommand(route.id, { toPositionId: val }, val ? "Set route destination" : "Clear route destination"));
+    });
+    form.appendChild(createRow("To", toSelect));
 
     el.appendChild(form);
   }

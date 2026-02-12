@@ -12,6 +12,7 @@ import { snap } from "./snap.js";
 import { showGuideLines, hideGuideLines, snapToCenter } from "./guide-lines.js";
 import {
   getEditorState,
+  updateEditorState,
   setSelection,
   showPanel,
 } from "../state/editor-state.js";
@@ -21,7 +22,8 @@ import {
 } from "../state/scene-state.js";
 import { getEntityStore, selectEntity } from "../state/entity-store.js";
 import { executeCommand } from "../state/undo.js";
-import type { SceneLayer, UndoableCommand } from "../types.js";
+import { hitTestPosition } from "./hit-test.js";
+import type { EntityTopology, SceneLayer, UndoableCommand } from "../types.js";
 
 // ---------------------------------------------------------------------------
 // Hit-testing
@@ -80,8 +82,28 @@ export function createSelectTool(): CanvasToolHandler {
   let dragStartScene = { x: 0, y: 0 };
   let dragStartPositions: Map<string, { x: number; y: number }> = new Map();
 
+  // Alt+drag topology association state
+  let associating = false;
+  let associateEntityId: string | null = null;
+  let associateStart = { x: 0, y: 0 };
+
   return {
     onMouseDown(e: MouseEvent, scenePos: { x: number; y: number }) {
+      // Alt+click: start topology association mode
+      if (e.altKey) {
+        const { selectedIds } = getEditorState();
+        if (selectedIds.length === 1) {
+          const { entities } = getSceneState();
+          const placed = entities.find((ent) => ent.id === selectedIds[0]);
+          if (placed?.semanticId) {
+            associating = true;
+            associateEntityId = placed.id;
+            associateStart = { x: placed.x, y: placed.y };
+            return;
+          }
+        }
+      }
+
       const hitId = hitTest(scenePos.x, scenePos.y);
       const { selectedIds } = getEditorState();
 
@@ -129,6 +151,19 @@ export function createSelectTool(): CanvasToolHandler {
     },
 
     onMouseMove(_e: MouseEvent, scenePos: { x: number; y: number }) {
+      // Alt+drag association preview
+      if (associating) {
+        updateEditorState({
+          topologyAssociationPreview: {
+            fromX: associateStart.x,
+            fromY: associateStart.y,
+            toX: scenePos.x,
+            toY: scenePos.y,
+          },
+        });
+        return;
+      }
+
       if (!dragging || dragIds.length === 0) return;
 
       const dx = scenePos.x - dragStartScene.x;
@@ -149,7 +184,71 @@ export function createSelectTool(): CanvasToolHandler {
       updateSceneState({ entities: updated });
     },
 
-    onMouseUp(_e: MouseEvent, _scenePos: { x: number; y: number }) {
+    onMouseUp(_e: MouseEvent, scenePos: { x: number; y: number }) {
+      // Alt+drag association: complete
+      if (associating && associateEntityId) {
+        updateEditorState({ topologyAssociationPreview: null });
+
+        const hitPosId = hitTestPosition(scenePos.x, scenePos.y);
+        if (hitPosId) {
+          const { entities } = getSceneState();
+          const placed = entities.find((ent) => ent.id === associateEntityId);
+          if (placed) {
+            const currentTopo: EntityTopology = placed.topology ?? { waypoints: [] };
+            let newTopo: EntityTopology;
+            let description: string;
+
+            if (!currentTopo.home) {
+              // First association = set as home + add to waypoints
+              const newWaypoints = currentTopo.waypoints.includes(hitPosId)
+                ? currentTopo.waypoints
+                : [...currentTopo.waypoints, hitPosId];
+              newTopo = { ...currentTopo, home: hitPosId, waypoints: newWaypoints };
+              description = "Set home waypoint";
+            } else if (!currentTopo.waypoints.includes(hitPosId)) {
+              // Add to accessible waypoints
+              newTopo = { ...currentTopo, waypoints: [...currentTopo.waypoints, hitPosId] };
+              description = "Add waypoint";
+            } else {
+              // Already there — no change
+              associating = false;
+              associateEntityId = null;
+              return;
+            }
+
+            const entityId = associateEntityId;
+            const snapshot: EntityTopology | undefined = placed.topology
+              ? { ...placed.topology, waypoints: [...placed.topology.waypoints] }
+              : undefined;
+
+            const cmd: UndoableCommand = {
+              execute() {
+                const { entities: cur } = getSceneState();
+                updateSceneState({
+                  entities: cur.map((ent) =>
+                    ent.id === entityId ? { ...ent, topology: newTopo } : ent,
+                  ),
+                });
+              },
+              undo() {
+                const { entities: cur } = getSceneState();
+                updateSceneState({
+                  entities: cur.map((ent) =>
+                    ent.id === entityId ? { ...ent, topology: snapshot } : ent,
+                  ),
+                });
+              },
+              description,
+            };
+            executeCommand(cmd);
+          }
+        }
+
+        associating = false;
+        associateEntityId = null;
+        return;
+      }
+
       hideGuideLines();
       if (!dragging || dragIds.length === 0) {
         dragging = false;

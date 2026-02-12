@@ -1922,6 +1922,65 @@ button {
   cursor: pointer;
 }
 
+/* Topology section header */
+.ip-section-header {
+  font-size: 9px;
+  font-family: var(--font-mono);
+  color: var(--color-accent-dim);
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  padding: 6px 0 3px;
+  margin-top: 4px;
+  border-top: 1px solid var(--color-border);
+}
+
+/* Chip list (multi-select waypoints) */
+.ip-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  flex: 1;
+}
+
+.ip-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--color-text);
+  background: var(--color-elevated);
+  border: 1px solid var(--color-border);
+}
+
+.ip-chip-remove {
+  font-size: 11px;
+  line-height: 1;
+  color: var(--color-text-dim);
+  cursor: pointer;
+  padding: 0 1px;
+  background: none;
+  border: none;
+}
+
+.ip-chip-remove:hover {
+  color: var(--color-error);
+}
+
+.ip-select--add {
+  font-size: 10px;
+  color: var(--color-text-muted);
+}
+
+.ip-route-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
 /* ---------------------------------------------------------------------------
  * Background Tool Popover (bg-) — scene dimensions + background color
  * --------------------------------------------------------------------------- */
