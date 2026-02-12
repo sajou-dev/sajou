@@ -369,6 +369,59 @@ function renderSelection(): void {
 }
 
 // ---------------------------------------------------------------------------
+// Binding drag highlight
+// ---------------------------------------------------------------------------
+
+let bindingHighlightGraphics: Graphics | null = null;
+
+/**
+ * Render binding drag highlights around actor entities.
+ * When a choreographer→theme drag is active, all actors get a faint accent outline.
+ * The hovered actor gets a bright accent outline.
+ */
+function renderBindingHighlight(): void {
+  const sceneLayers = getLayers();
+  if (!sceneLayers) return;
+
+  if (!bindingHighlightGraphics) {
+    bindingHighlightGraphics = new Graphics();
+    bindingHighlightGraphics.label = "binding-highlight-overlay";
+    sceneLayers.selection.addChild(bindingHighlightGraphics);
+  }
+
+  bindingHighlightGraphics.clear();
+
+  const { bindingDragActive, bindingDropHighlightId } = getEditorState();
+  if (!bindingDragActive) return;
+
+  const { entities } = getSceneState();
+
+  for (const placed of entities) {
+    if (!placed.semanticId) continue;
+    if (!placed.visible) continue;
+
+    const def = getEntityDef(placed.entityId);
+    const w = (def?.displayWidth ?? 32) * placed.scale;
+    const h = (def?.displayHeight ?? 32) * placed.scale;
+    const ax = def?.defaults.anchor?.[0] ?? 0.5;
+    const ay = def?.defaults.anchor?.[1] ?? 0.5;
+
+    const left = placed.x - w * ax;
+    const top = placed.y - h * ay;
+
+    const isHovered = placed.semanticId === bindingDropHighlightId;
+
+    // Draw accent outline
+    bindingHighlightGraphics.rect(left - 3, top - 3, w + 6, h + 6);
+    bindingHighlightGraphics.stroke({
+      width: isHovered ? 2.5 : 1,
+      color: 0xe8a851,
+      alpha: isHovered ? 0.9 : 0.3,
+    });
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Position markers
 // ---------------------------------------------------------------------------
 
@@ -1044,6 +1097,7 @@ function scheduleRender(): void {
     renderRouteCreationPreview();
     renderTopologyOverlay();
     renderSelection();
+    renderBindingHighlight();
     renderActorBadges();
   });
 }

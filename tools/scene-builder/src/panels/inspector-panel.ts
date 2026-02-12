@@ -20,8 +20,27 @@ import {
   getEntityStore,
   subscribeEntities,
 } from "../state/entity-store.js";
+import {
+  getChoreographyState,
+  subscribeChoreography,
+} from "../state/choreography-state.js";
+import {
+  getBindingsForEntity,
+  getCompatibleProperties,
+  addBinding,
+  removeBinding,
+  subscribeBindings,
+  BINDABLE_PROPERTIES,
+} from "../state/binding-store.js";
 import { executeCommand } from "../state/undo.js";
-import type { EntityTopology, PlacedEntity, ScenePosition, SceneRoute, UndoableCommand } from "../types.js";
+import type {
+  EntityTopology,
+  PlacedEntity,
+  ScenePosition,
+  SceneRoute,
+  UndoableCommand,
+  BindingValueType,
+} from "../types.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -506,6 +525,179 @@ export function initInspectorPanel(contentEl: HTMLElement): void {
       form.appendChild(createRow("States", smContainer));
     }
 
+    // ── Bindings section (actors only — Level 2 dynamic bindings) ──
+    if (placed.semanticId) {
+      const bindHeader = document.createElement("div");
+      bindHeader.className = "ip-section-header";
+      bindHeader.textContent = "Bindings";
+      form.appendChild(bindHeader);
+
+      const entityBindings = getBindingsForEntity(placed.semanticId);
+      const { choreographies } = getChoreographyState();
+      const hasTopo = !!(placed.topology && placed.topology.waypoints.length > 0);
+
+      // Existing bindings list
+      if (entityBindings.length > 0) {
+        const bindList = document.createElement("div");
+        bindList.className = "ip-binding-list";
+
+        for (const binding of entityBindings) {
+          const choreo = choreographies.find((c) => c.id === binding.sourceChoreographyId);
+          const propDef = BINDABLE_PROPERTIES.find((p) => p.key === binding.property);
+          const row = document.createElement("div");
+          row.className = "ip-binding-row";
+
+          // Binding dot (colored by type)
+          const dot = document.createElement("span");
+          dot.className = `ip-binding-dot ip-binding-dot--${binding.sourceType}`;
+          row.appendChild(dot);
+
+          // Label: property ← source
+          const label = document.createElement("span");
+          label.className = "ip-binding-label";
+          label.textContent = `${propDef?.label ?? binding.property} ← ${choreo?.on ?? "?"}`;
+          label.title = `Source: ${choreo?.on ?? binding.sourceChoreographyId}\nType: ${binding.sourceType}\nProperty: ${binding.property}`;
+          row.appendChild(label);
+
+          // Mapping info (if present)
+          if (binding.mapping) {
+            const mapInfo = document.createElement("span");
+            mapInfo.className = "ip-binding-mapping";
+            mapInfo.textContent = binding.mapping.fn;
+            row.appendChild(mapInfo);
+          }
+
+          // Disconnect button
+          const disconnectBtn = document.createElement("button");
+          disconnectBtn.className = "ip-chip-remove";
+          disconnectBtn.textContent = "\u00D7";
+          disconnectBtn.title = "Disconnect binding";
+          disconnectBtn.addEventListener("click", () => {
+            removeBinding(binding.id);
+          });
+          row.appendChild(disconnectBtn);
+
+          bindList.appendChild(row);
+        }
+
+        form.appendChild(bindList);
+      } else {
+        const emptyMsg = document.createElement("span");
+        emptyMsg.className = "ip-readonly";
+        emptyMsg.textContent = "No bindings";
+        form.appendChild(createRow("", emptyMsg));
+      }
+
+      // Add binding — two-step: pick source, then pick property
+      if (choreographies.length > 0) {
+        const addContainer = document.createElement("div");
+        addContainer.className = "ip-binding-add";
+
+        // Step 1: Source choreography dropdown
+        const srcSelect = document.createElement("select");
+        srcSelect.className = "ip-select ip-select--add";
+        const srcPlaceholder = document.createElement("option");
+        srcPlaceholder.value = "";
+        srcPlaceholder.textContent = "+ Add binding...";
+        srcSelect.appendChild(srcPlaceholder);
+
+        for (const choreo of choreographies) {
+          const opt = document.createElement("option");
+          opt.value = choreo.id;
+          opt.textContent = choreo.on || choreo.id.slice(0, 8);
+          srcSelect.appendChild(opt);
+        }
+
+        // Step 2: Property dropdown (hidden until source selected)
+        const propSelect = document.createElement("select");
+        propSelect.className = "ip-select ip-select--add";
+        propSelect.style.display = "none";
+
+        // Step 3: Type dropdown (for source output type)
+        const typeSelect = document.createElement("select");
+        typeSelect.className = "ip-select ip-select--add";
+        typeSelect.style.display = "none";
+
+        const outputTypes: BindingValueType[] = ["float", "event", "bool", "enum", "point2D", "color", "int"];
+        const typePlaceholder = document.createElement("option");
+        typePlaceholder.value = "";
+        typePlaceholder.textContent = "Output type...";
+        typeSelect.appendChild(typePlaceholder);
+        for (const t of outputTypes) {
+          const opt = document.createElement("option");
+          opt.value = t;
+          opt.textContent = t;
+          typeSelect.appendChild(opt);
+        }
+
+        // When source selected, show type picker
+        srcSelect.addEventListener("change", () => {
+          if (srcSelect.value) {
+            typeSelect.style.display = "";
+            typeSelect.value = "";
+            propSelect.style.display = "none";
+            propSelect.innerHTML = "";
+          } else {
+            typeSelect.style.display = "none";
+            propSelect.style.display = "none";
+          }
+        });
+
+        // When type selected, populate property dropdown
+        typeSelect.addEventListener("change", () => {
+          if (!typeSelect.value) {
+            propSelect.style.display = "none";
+            return;
+          }
+
+          const sourceType = typeSelect.value as BindingValueType;
+          const compatProps = getCompatibleProperties(sourceType, hasTopo);
+
+          propSelect.innerHTML = "";
+          const propPlaceholder = document.createElement("option");
+          propPlaceholder.value = "";
+          propPlaceholder.textContent = "Target property...";
+          propSelect.appendChild(propPlaceholder);
+
+          for (const prop of compatProps) {
+            const opt = document.createElement("option");
+            opt.value = prop.key;
+            opt.textContent = `${prop.label} (${prop.category})`;
+            propSelect.appendChild(opt);
+          }
+
+          propSelect.style.display = "";
+        });
+
+        // When property selected, create the binding
+        propSelect.addEventListener("change", () => {
+          const choreographyId = srcSelect.value;
+          const sourceType = typeSelect.value as BindingValueType;
+          const property = propSelect.value;
+          if (!choreographyId || !sourceType || !property || !placed.semanticId) return;
+
+          addBinding({
+            targetEntityId: placed.semanticId,
+            property,
+            sourceChoreographyId: choreographyId,
+            sourceType,
+          });
+
+          // Reset selects
+          srcSelect.value = "";
+          typeSelect.style.display = "none";
+          typeSelect.value = "";
+          propSelect.style.display = "none";
+          propSelect.innerHTML = "";
+        });
+
+        addContainer.appendChild(srcSelect);
+        addContainer.appendChild(typeSelect);
+        addContainer.appendChild(propSelect);
+        form.appendChild(addContainer);
+      }
+    }
+
     contentEl.appendChild(form);
   }
 
@@ -852,5 +1044,7 @@ export function initInspectorPanel(contentEl: HTMLElement): void {
   subscribeEditor(render);
   subscribeScene(render);
   subscribeEntities(render);
+  subscribeChoreography(render);
+  subscribeBindings(render);
   render();
 }

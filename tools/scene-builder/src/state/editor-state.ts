@@ -41,6 +41,8 @@ function createDefault(): EditorState {
     rideauSplit: 0.5,
     nodeCanvasViewport: { panX: 0, panY: 0, zoom: 1 },
     topologyAssociationPreview: null,
+    bindingDragActive: false,
+    bindingDropHighlightId: null,
   };
 }
 

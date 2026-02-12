@@ -99,6 +99,85 @@ export interface EntityTopology {
   stateMapping?: Record<string, string>;
 }
 
+// ---------------------------------------------------------------------------
+// Level 2 — Dynamic bindings (Choreographer → Entity properties)
+// ---------------------------------------------------------------------------
+
+/** Output type from a choreographer node. */
+export type BindingValueType = "float" | "point2D" | "bool" | "enum" | "event" | "color" | "int";
+
+/**
+ * Category of bindable property on an entity.
+ * Used to group properties in the radial palette and inspector.
+ */
+export type BindablePropertyCategory = "spatial" | "visual" | "topological";
+
+/**
+ * A property on an entity that can receive a binding from the Choreographer.
+ * This is a static definition — the registry of all possible targets.
+ */
+export interface BindablePropertyDef {
+  /** Property key (e.g. "rotation", "position.x", "followRoute"). */
+  key: string;
+  /** Human-readable label. */
+  label: string;
+  /** Category for UI grouping. */
+  category: BindablePropertyCategory;
+  /** Accepted input types from choreographer output. */
+  acceptsTypes: readonly BindingValueType[];
+}
+
+/**
+ * Mapping function applied between a choreographer output and an entity property.
+ * Converts source range to target range (e.g. 0→1 mapped to 0°→360°).
+ */
+export interface BindingMapping {
+  /** Function name (lerp, clamp, step, curve, map, smoothstep, quantize). */
+  fn: string;
+  /** Input range [min, max]. */
+  inputRange: [number, number];
+  /** Output range [min, max] (for lerp/clamp) or output values (for step). */
+  outputRange: [number, number];
+}
+
+/**
+ * Action config for event→action bindings (moveTo, followRoute, etc.).
+ * Used when a choreographer event triggers a topological action.
+ */
+export interface BindingAction {
+  /** Route reference (e.g. "spawnPoint→forge") for followRoute. */
+  route?: string;
+  /** Target waypoint ID for moveTo/teleportTo. */
+  waypoint?: string;
+  /** Animation state during the action. */
+  animationDuring?: string;
+  /** Animation state on arrival/completion. */
+  animationOnArrival?: string;
+  /** Duration in ms ("auto" = route length based). */
+  duration?: number | "auto";
+}
+
+/**
+ * A single binding from a choreographer output to an entity property.
+ * Stored in the binding-store, serialized in choreographies.json.
+ */
+export interface EntityBinding {
+  /** Unique binding ID. */
+  id: string;
+  /** Target entity's semantic ID (actor name). */
+  targetEntityId: string;
+  /** Target property key (e.g. "rotation", "followRoute"). */
+  property: string;
+  /** Source choreography ID. */
+  sourceChoreographyId: string;
+  /** Source output type from the choreographer node. */
+  sourceType: BindingValueType;
+  /** Optional mapping function (for value bindings). */
+  mapping?: BindingMapping;
+  /** Optional action config (for event→action bindings). */
+  action?: BindingAction;
+}
+
 /** Position type hints for choreography semantics. */
 export type PositionTypeHint = "spawn" | "waypoint" | "destination" | "generic";
 
@@ -280,6 +359,10 @@ export interface EditorState {
     toX: number;
     toY: number;
   } | null;
+  /** Whether a binding drag is active (choreographer → entity). */
+  bindingDragActive: boolean;
+  /** Entity semantic ID hovered during binding drag (null = none). */
+  bindingDropHighlightId: string | null;
 }
 
 // ---------------------------------------------------------------------------

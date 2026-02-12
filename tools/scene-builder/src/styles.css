@@ -2027,6 +2027,118 @@ button {
   color: var(--color-accent);
 }
 
+/* Inspector — Binding section (Level 2) */
+
+.ip-binding-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.ip-binding-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 4px;
+  background: var(--color-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  font-size: 10px;
+  font-family: var(--font-mono);
+}
+
+.ip-binding-row:hover {
+  border-color: var(--color-border-hover);
+}
+
+.ip-binding-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Type-based dot colors (matching spec: float=blue, event=orange, bool=green) */
+.ip-binding-dot--float  { background: #58a6ff; }
+.ip-binding-dot--int    { background: #58a6ff; }
+.ip-binding-dot--point2D { background: #7c6cf0; }
+.ip-binding-dot--event  { background: var(--color-accent); }
+.ip-binding-dot--enum   { background: var(--color-accent-light); }
+.ip-binding-dot--bool   { background: var(--color-success); }
+.ip-binding-dot--color  { background: #e06090; }
+
+.ip-binding-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text);
+}
+
+.ip-binding-mapping {
+  font-size: 9px;
+  color: var(--color-text-muted);
+  background: var(--color-surface);
+  padding: 1px 4px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.ip-binding-add {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 2px;
+}
+
+/* Binding drop menu (cross-rideau drag) */
+
+.binding-drop-menu {
+  position: fixed;
+  z-index: 9999;
+  min-width: 160px;
+  max-width: 220px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: 4px 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.bdm-header {
+  padding: 4px 10px 2px;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+  user-select: none;
+}
+
+.bdm-item {
+  padding: 4px 10px;
+  color: var(--color-text);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bdm-item:hover {
+  background: var(--color-elevated);
+  color: var(--color-accent);
+}
+
+.bdm-separator {
+  height: 1px;
+  margin: 3px 8px;
+  background: var(--color-border);
+}
+
 /* ---------------------------------------------------------------------------
  * Background Tool Popover (bg-) — scene dimensions + background color
  * --------------------------------------------------------------------------- */

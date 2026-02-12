@@ -10,6 +10,9 @@
  *   - signal-type badge → choreographer node input (vertical: "this channel triggers this choreo")
  *   - choreographer output → theme (vertical: "this choreo sends to theme")
  *
+ * Level 2 binding: choreographer output → entity on canvas (cross-rideau drag).
+ * When dropping on an entity, a contextual menu lets the user pick the target property.
+ *
  * Auto-transitions: first signal-type->choreo wire moves interfaceState to 2,
  * first choreo->theme wire moves it to 3.
  */
@@ -23,9 +26,15 @@ import {
 import {
   getEditorState,
   setInterfaceState,
+  updateEditorState,
 } from "../state/editor-state.js";
+import { getSceneState } from "../state/scene-state.js";
+import { getEntityStore } from "../state/entity-store.js";
 import { setPreviewWire, type PreviewWire } from "./wiring-overlay.js";
 import { getActiveBarHSource } from "./connector-bar-horizontal.js";
+import { screenToScene } from "../canvas/canvas.js";
+import { hitTestEntity } from "../tools/hit-test.js";
+import { showBindingDropMenu } from "./binding-drop-menu.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -120,6 +129,11 @@ function onMouseDown(e: MouseEvent): void {
 
   // Highlight valid drop targets
   highlightTargets(targetZone, true);
+
+  // Level 2: notify canvas to highlight actor entities during choreo→theme drags
+  if (targetZone === "theme") {
+    updateEditorState({ bindingDragActive: true });
+  }
 }
 
 function onMouseMove(e: MouseEvent): void {
@@ -134,9 +148,27 @@ function onMouseMove(e: MouseEvent): void {
   };
   setPreviewWire(preview);
 
-  // Check if hovering over a valid target
+  // Check if hovering over a valid DOM target badge
   const targetBadge = findTargetBadgeAt(e.clientX, e.clientY, session.targetZone);
   updateTargetHighlight(session.targetZone, targetBadge);
+
+  // Level 2: when dragging choreo→theme, also hit-test entities on canvas
+  if (session.targetZone === "theme") {
+    const themeZone = document.getElementById("zone-theme");
+    if (themeZone) {
+      const rect = themeZone.getBoundingClientRect();
+      const inThemeZone = e.clientX >= rect.left && e.clientX <= rect.right
+        && e.clientY >= rect.top && e.clientY <= rect.bottom;
+
+      if (inThemeZone) {
+        const scenePos = screenToScene(e);
+        const hit = hitTestEntity(scenePos.x, scenePos.y);
+        updateEditorState({ bindingDropHighlightId: hit?.semanticId ?? null });
+      } else {
+        updateEditorState({ bindingDropHighlightId: null });
+      }
+    }
+  }
 }
 
 function onMouseUp(e: MouseEvent): void {
@@ -150,7 +182,12 @@ function onMouseUp(e: MouseEvent): void {
   highlightTargets(targetZone, false);
   setPreviewWire(null);
 
-  // Check if released on a valid target
+  // Level 2: clear binding drag highlight
+  if (targetZone === "theme") {
+    updateEditorState({ bindingDragActive: false, bindingDropHighlightId: null });
+  }
+
+  // Check if released on a valid DOM target badge
   const targetBadge = findTargetBadgeAt(e.clientX, e.clientY, targetZone);
   if (targetBadge) {
     const toId = targetBadge.dataset.wireId;
@@ -178,6 +215,38 @@ function onMouseUp(e: MouseEvent): void {
 
       // Auto-transition interfaceState
       autoTransition(fromZone, targetZone);
+    }
+    session = null;
+    return;
+  }
+
+  // Level 2: if no DOM badge hit and targeting theme, try entity hit-test
+  if (targetZone === "theme" && fromZone === "choreographer") {
+    const scenePos = screenToScene(e);
+    const hit = hitTestEntity(scenePos.x, scenePos.y);
+    if (hit) {
+      // Gather entity info for the drop menu
+      const { entities } = getSceneState();
+      const placed = entities.find((ent) => ent.id === hit.placedId);
+      const entityStore = getEntityStore();
+      const def = placed ? entityStore.entities[placed.entityId] : undefined;
+      const hasTopo = !!(placed?.topology && placed.topology.waypoints.length > 0);
+
+      // Get animation states (spritesheet only)
+      const animationStates: string[] = [];
+      if (def && def.visual.type === "spritesheet") {
+        animationStates.push(...Object.keys(def.visual.animations));
+      }
+
+      // Show contextual binding menu at drop point
+      showBindingDropMenu({
+        x: e.clientX,
+        y: e.clientY,
+        choreographyId: fromId,
+        targetSemanticId: hit.semanticId,
+        hasTopology: hasTopo,
+        animationStates,
+      });
     }
   }
 

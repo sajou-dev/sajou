@@ -96,7 +96,15 @@ export function createPanel(config: PanelConfig): PanelInstance {
       if (!dragging) return;
       const nx = dragging.origX + (ev.clientX - dragging.startX);
       const ny = dragging.origY + (ev.clientY - dragging.startY);
-      updatePanelLayout(id, { x: Math.max(0, nx), y: Math.max(0, ny) });
+      // Clamp to parent container bounds
+      const parent = el.parentElement;
+      const layout = getEditorState().panelLayouts[id];
+      const maxX = parent ? parent.clientWidth - layout.width : Infinity;
+      const maxY = parent ? parent.clientHeight - layout.height : Infinity;
+      updatePanelLayout(id, {
+        x: Math.max(0, Math.min(maxX, nx)),
+        y: Math.max(0, Math.min(maxY, ny)),
+      });
     };
 
     const onUp = () => {
@@ -125,8 +133,13 @@ export function createPanel(config: PanelConfig): PanelInstance {
 
     const onMove = (ev: MouseEvent) => {
       if (!resizing) return;
-      const nw = Math.max(minWidth, resizing.origW + (ev.clientX - resizing.startX));
-      const nh = Math.max(minHeight, resizing.origH + (ev.clientY - resizing.startY));
+      // Clamp resize to parent container bounds
+      const parent = el.parentElement;
+      const layout = getEditorState().panelLayouts[id];
+      const maxW = parent ? parent.clientWidth - layout.x : Infinity;
+      const maxH = parent ? parent.clientHeight - layout.y : Infinity;
+      const nw = Math.max(minWidth, Math.min(maxW, resizing.origW + (ev.clientX - resizing.startX)));
+      const nh = Math.max(minHeight, Math.min(maxH, resizing.origH + (ev.clientY - resizing.startY)));
       updatePanelLayout(id, { width: nw, height: nh });
     };
 

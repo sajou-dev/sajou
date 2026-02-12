@@ -17,12 +17,14 @@ import { getEntityStore } from "../state/entity-store.js";
 import { getAssetStore } from "../state/asset-store.js";
 import { getChoreographyState } from "../state/choreography-state.js";
 import { getWiringState, type WireConnection } from "../state/wiring-state.js";
+import { getBindingState } from "../state/binding-store.js";
 import type {
   SceneState,
   EntityEntry,
   EntityVisual,
   AssetFile,
   ChoreographyDef,
+  EntityBinding,
 } from "../types.js";
 
 // ---------------------------------------------------------------------------
@@ -48,6 +50,7 @@ interface ChoreographyExportJson {
   version: 1;
   choreographies: ChoreographyDef[];
   wires: WireConnection[];
+  bindings: EntityBinding[];
 }
 
 // ---------------------------------------------------------------------------
@@ -229,14 +232,16 @@ export async function exportScene(): Promise<void> {
     entities: exportedEntities,
   };
 
-  // 6. Build choreographies.json (choreography definitions + wire graph)
+  // 6. Build choreographies.json (choreography definitions + wire graph + bindings)
   const choreoState = getChoreographyState();
   const wiringState = getWiringState();
+  const bindingState = getBindingState();
 
   const choreoJson: ChoreographyExportJson = {
     version: 1,
     choreographies: choreoState.choreographies,
     wires: wiringState.wires,
+    bindings: bindingState.bindings,
   };
 
   // 7. Build ZIP data structure

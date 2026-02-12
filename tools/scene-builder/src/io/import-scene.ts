@@ -19,6 +19,7 @@ import { setEntity, resetEntities } from "../state/entity-store.js";
 import { addAssets, addCategory, resetAssets } from "../state/asset-store.js";
 import { setChoreographyState, resetChoreographyState } from "../state/choreography-state.js";
 import { setWiringState, resetWiringState } from "../state/wiring-state.js";
+import { setBindingState, resetBindingState } from "../state/binding-store.js";
 import { clearHistory } from "../state/undo.js";
 import type {
   SceneState,
@@ -26,6 +27,7 @@ import type {
   AssetFile,
   AssetFormat,
   ChoreographyDef,
+  EntityBinding,
 } from "../types.js";
 import type { WireConnection } from "../state/wiring-state.js";
 
@@ -52,6 +54,7 @@ interface ChoreographyExportJson {
   version: number;
   choreographies: ChoreographyDef[];
   wires: WireConnection[];
+  bindings?: EntityBinding[];
 }
 
 // ---------------------------------------------------------------------------
@@ -249,6 +252,7 @@ export async function importScene(): Promise<void> {
   resetSceneState();
   resetChoreographyState();
   resetWiringState();
+  resetBindingState();
   clearHistory();
 
   // --- Populate stores ---
@@ -281,7 +285,7 @@ export async function importScene(): Promise<void> {
     routes: sceneJson.routes ?? [],
   });
 
-  // 4. Choreographies + wires (optional — old ZIPs may lack this file)
+  // 4. Choreographies + wires + bindings (optional — old ZIPs may lack this file)
   if (choreoJson) {
     setChoreographyState({
       choreographies: choreoJson.choreographies ?? [],
@@ -292,5 +296,9 @@ export async function importScene(): Promise<void> {
       wires: choreoJson.wires ?? [],
       draggingWireId: null,
     });
+    // 5. Level 2 bindings (optional — old ZIPs may lack this field)
+    if (choreoJson.bindings && choreoJson.bindings.length > 0) {
+      setBindingState({ bindings: choreoJson.bindings });
+    }
   }
 }
