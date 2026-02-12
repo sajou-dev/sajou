@@ -5,20 +5,24 @@
  * into a ZIP archive (via fflate) and triggers a browser download.
  *
  * ZIP structure:
- *   scene.json      — scene layout (dimensions, background, layers, placed entities, positions, routes)
- *   entities.json   — entity definitions (visual config, defaults, tags)
- *   assets/         — referenced image files (sprites/, spritesheets/, gifs/)
+ *   scene.json            — scene layout (dimensions, background, layers, placed entities, positions, routes)
+ *   entities.json         — entity definitions (visual config, defaults, tags)
+ *   choreographies.json   — choreography definitions + wire connections
+ *   assets/               — referenced image files (sprites/, spritesheets/, gifs/)
  */
 
 import { zipSync, strToU8 } from "fflate";
 import { getSceneState } from "../state/scene-state.js";
 import { getEntityStore } from "../state/entity-store.js";
 import { getAssetStore } from "../state/asset-store.js";
+import { getChoreographyState } from "../state/choreography-state.js";
+import { getWiringState, type WireConnection } from "../state/wiring-state.js";
 import type {
   SceneState,
   EntityEntry,
   EntityVisual,
   AssetFile,
+  ChoreographyDef,
 } from "../types.js";
 
 // ---------------------------------------------------------------------------
@@ -38,6 +42,12 @@ interface SceneExportJson {
 interface EntityExportJson {
   version: 1;
   entities: Record<string, EntityEntry>;
+}
+
+interface ChoreographyExportJson {
+  version: 1;
+  choreographies: ChoreographyDef[];
+  wires: WireConnection[];
 }
 
 // ---------------------------------------------------------------------------
@@ -219,20 +229,31 @@ export async function exportScene(): Promise<void> {
     entities: exportedEntities,
   };
 
-  // 6. Build ZIP data structure
+  // 6. Build choreographies.json (choreography definitions + wire graph)
+  const choreoState = getChoreographyState();
+  const wiringState = getWiringState();
+
+  const choreoJson: ChoreographyExportJson = {
+    version: 1,
+    choreographies: choreoState.choreographies,
+    wires: wiringState.wires,
+  };
+
+  // 7. Build ZIP data structure
   const zipData: Record<string, Uint8Array> = {
     "scene.json": strToU8(JSON.stringify(sceneJson, null, 2)),
     "entities.json": strToU8(JSON.stringify(entitiesJson, null, 2)),
+    "choreographies.json": strToU8(JSON.stringify(choreoJson, null, 2)),
   };
 
-  // 7. Read referenced asset files into the ZIP
+  // 8. Read referenced asset files into the ZIP
   for (const [originalPath, zipPath] of pathMapping) {
     const asset = assetStore.assets.find((a) => a.path === originalPath);
     if (!asset) continue;
     zipData[zipPath] = await fileToUint8Array(asset.file);
   }
 
-  // 8. Create ZIP and trigger download
+  // 9. Create ZIP and trigger download
   const zipped = zipSync(zipData);
   downloadBlob(zipped, "scene-export.zip");
 }

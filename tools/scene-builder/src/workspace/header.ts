@@ -56,4 +56,14 @@ export function initHeader(): void {
       void triggerPreview();
     }
   });
+
+  // Keyboard shortcut: Ctrl+S for quick export (save)
+  document.addEventListener("keydown", (e: KeyboardEvent) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+      e.preventDefault();
+      exportScene().catch((err: unknown) => {
+        console.error("[scene-builder] Export failed:", err);
+      });
+    }
+  });
 }

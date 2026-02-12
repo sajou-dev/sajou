@@ -405,6 +405,105 @@ export function initInspectorPanel(contentEl: HTMLElement): void {
         }
         form.appendChild(createRow("Routes", routeList));
       }
+
+      // State mapping — key→value table (context → animation state)
+      const stateMap = currentTopo.stateMapping ?? {};
+      const smContainer = document.createElement("div");
+      smContainer.className = "ip-state-map";
+
+      // Existing entries
+      for (const [key, val] of Object.entries(stateMap)) {
+        const row = document.createElement("div");
+        row.className = "ip-state-map-row";
+
+        const keyInput = document.createElement("input");
+        keyInput.className = "ip-input ip-input--sm";
+        keyInput.value = key;
+        keyInput.placeholder = "context";
+
+        const valInput = document.createElement("input");
+        valInput.className = "ip-input ip-input--sm";
+        valInput.value = val;
+        valInput.placeholder = "state";
+
+        const removeBtn = document.createElement("button");
+        removeBtn.className = "ip-chip-remove";
+        removeBtn.textContent = "\u00D7";
+
+        // Update key on blur
+        keyInput.addEventListener("change", () => {
+          const newKey = keyInput.value.trim();
+          if (!newKey || (newKey !== key && newKey in stateMap)) return;
+          const newMap = { ...stateMap };
+          delete newMap[key];
+          newMap[newKey] = val;
+          executeCommand(createUpdateCommand(
+            placed.id,
+            { topology: { ...currentTopo, stateMapping: newMap } },
+            "Rename state mapping key",
+          ));
+        });
+
+        // Update value on blur
+        valInput.addEventListener("change", () => {
+          const newVal = valInput.value.trim();
+          if (!newVal) return;
+          const newMap = { ...stateMap, [key]: newVal };
+          executeCommand(createUpdateCommand(
+            placed.id,
+            { topology: { ...currentTopo, stateMapping: newMap } },
+            "Update state mapping value",
+          ));
+        });
+
+        // Remove entry
+        removeBtn.addEventListener("click", () => {
+          const newMap = { ...stateMap };
+          delete newMap[key];
+          const hasEntries = Object.keys(newMap).length > 0;
+          executeCommand(createUpdateCommand(
+            placed.id,
+            { topology: { ...currentTopo, stateMapping: hasEntries ? newMap : undefined } },
+            "Remove state mapping",
+          ));
+        });
+
+        row.appendChild(keyInput);
+        row.appendChild(valInput);
+        row.appendChild(removeBtn);
+        smContainer.appendChild(row);
+      }
+
+      // Add new entry row
+      const addRow = document.createElement("div");
+      addRow.className = "ip-state-map-row ip-state-map-row--add";
+      const addKeyInput = document.createElement("input");
+      addKeyInput.className = "ip-input ip-input--sm";
+      addKeyInput.placeholder = "context";
+      const addValInput = document.createElement("input");
+      addValInput.className = "ip-input ip-input--sm";
+      addValInput.placeholder = "state";
+      const addBtn = document.createElement("button");
+      addBtn.className = "ip-btn ip-btn--sm";
+      addBtn.textContent = "+";
+      addBtn.addEventListener("click", () => {
+        const newKey = addKeyInput.value.trim();
+        const newVal = addValInput.value.trim();
+        if (!newKey || !newVal) return;
+        if (newKey in stateMap) return; // No duplicates
+        const newMap = { ...stateMap, [newKey]: newVal };
+        executeCommand(createUpdateCommand(
+          placed.id,
+          { topology: { ...currentTopo, stateMapping: newMap } },
+          "Add state mapping",
+        ));
+      });
+      addRow.appendChild(addKeyInput);
+      addRow.appendChild(addValInput);
+      addRow.appendChild(addBtn);
+      smContainer.appendChild(addRow);
+
+      form.appendChild(createRow("States", smContainer));
     }
 
     contentEl.appendChild(form);

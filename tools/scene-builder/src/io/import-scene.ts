@@ -2,26 +2,32 @@
  * Scene import module.
  *
  * Opens a file picker for a ZIP archive, parses its contents,
- * and restores all three stores (scene-state, entity-store, asset-store).
+ * and restores all stores (scene-state, entity-store, asset-store,
+ * choreography-state, wiring-state).
  * Clears undo history to prevent stale references.
  *
  * Expected ZIP structure:
- *   scene.json      — scene layout
- *   entities.json   — entity definitions
- *   assets/         — image files
+ *   scene.json            — scene layout
+ *   entities.json         — entity definitions
+ *   choreographies.json   — choreography definitions + wire connections (optional, backward-compat)
+ *   assets/               — image files
  */
 
 import { unzipSync, strFromU8 } from "fflate";
 import { setSceneState, resetSceneState } from "../state/scene-state.js";
 import { setEntity, resetEntities } from "../state/entity-store.js";
 import { addAssets, addCategory, resetAssets } from "../state/asset-store.js";
+import { setChoreographyState, resetChoreographyState } from "../state/choreography-state.js";
+import { setWiringState, resetWiringState } from "../state/wiring-state.js";
 import { clearHistory } from "../state/undo.js";
 import type {
   SceneState,
   EntityEntry,
   AssetFile,
   AssetFormat,
+  ChoreographyDef,
 } from "../types.js";
+import type { WireConnection } from "../state/wiring-state.js";
 
 // ---------------------------------------------------------------------------
 // Import JSON types (match export format)
@@ -40,6 +46,12 @@ interface SceneExportJson {
 interface EntityExportJson {
   version: number;
   entities: Record<string, EntityEntry>;
+}
+
+interface ChoreographyExportJson {
+  version: number;
+  choreographies: ChoreographyDef[];
+  wires: WireConnection[];
 }
 
 // ---------------------------------------------------------------------------
@@ -131,6 +143,24 @@ function parseEntitiesJson(data: Uint8Array): EntityExportJson {
 }
 
 /**
+ * Parse choreographies.json from ZIP. Returns null if absent (backward-compat).
+ */
+function parseChoreoJson(data: Uint8Array | undefined): ChoreographyExportJson | null {
+  if (!data) return null;
+  const text = strFromU8(data);
+  const parsed: unknown = JSON.parse(text);
+
+  if (
+    typeof parsed !== "object" || parsed === null ||
+    !("choreographies" in parsed)
+  ) {
+    return null; // Malformed — skip silently
+  }
+
+  return parsed as ChoreographyExportJson;
+}
+
+/**
  * Extract asset files from ZIP entries under assets/.
  * Creates File objects and object URLs for each image file.
  */
@@ -208,6 +238,7 @@ export async function importScene(): Promise<void> {
   // Parse JSON files
   const sceneJson = parseSceneJson(sceneData);
   const entitiesJson = parseEntitiesJson(entitiesData);
+  const choreoJson = parseChoreoJson(zipEntries["choreographies.json"]);
 
   // Extract asset files
   const assetFiles = extractAssets(zipEntries);
@@ -216,6 +247,8 @@ export async function importScene(): Promise<void> {
   resetAssets();
   resetEntities();
   resetSceneState();
+  resetChoreographyState();
+  resetWiringState();
   clearHistory();
 
   // --- Populate stores ---
@@ -247,4 +280,17 @@ export async function importScene(): Promise<void> {
     positions: sceneJson.positions ?? [],
     routes: sceneJson.routes ?? [],
   });
+
+  // 4. Choreographies + wires (optional — old ZIPs may lack this file)
+  if (choreoJson) {
+    setChoreographyState({
+      choreographies: choreoJson.choreographies ?? [],
+      selectedChoreographyId: null,
+      selectedStepId: null,
+    });
+    setWiringState({
+      wires: choreoJson.wires ?? [],
+      draggingWireId: null,
+    });
+  }
 }

@@ -1981,6 +1981,52 @@ button {
   flex: 1;
 }
 
+/* State mapping table */
+.ip-state-map {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+}
+
+.ip-state-map-row {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.ip-input--sm {
+  width: 70px;
+  font-size: 10px;
+  padding: 2px 4px;
+  font-family: var(--font-mono);
+  background: var(--color-elevated);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+}
+
+.ip-input--sm:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+.ip-btn--sm {
+  font-size: 11px;
+  padding: 1px 6px;
+  background: var(--color-elevated);
+  color: var(--color-text-dim);
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  cursor: pointer;
+  font-family: var(--font-mono);
+}
+
+.ip-btn--sm:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
 /* ---------------------------------------------------------------------------
  * Background Tool Popover (bg-) — scene dimensions + background color
  * --------------------------------------------------------------------------- */
