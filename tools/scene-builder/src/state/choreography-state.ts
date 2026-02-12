@@ -63,6 +63,28 @@ export function selectChoreographyStep(id: string | null): void {
   notify();
 }
 
+/** Move a choreography node to a new position on the canvas. */
+export function moveChoreographyNode(id: string, x: number, y: number): void {
+  state = {
+    ...state,
+    choreographies: state.choreographies.map((c) =>
+      c.id === id ? { ...c, nodeX: x, nodeY: y } : c,
+    ),
+  };
+  notify();
+}
+
+/** Toggle the collapsed state of a choreography node. */
+export function toggleNodeCollapsed(id: string): void {
+  state = {
+    ...state,
+    choreographies: state.choreographies.map((c) =>
+      c.id === id ? { ...c, collapsed: !c.collapsed } : c,
+    ),
+  };
+  notify();
+}
+
 /** Subscribe to choreography editor state changes. Returns unsubscribe function. */
 export function subscribeChoreography(fn: Listener): () => void {
   listeners.push(fn);

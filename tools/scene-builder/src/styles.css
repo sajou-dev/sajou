@@ -120,6 +120,7 @@ button {
   align-items: center;
   gap: 6px;
   flex-shrink: 0;
+  margin-left: auto;
 }
 
 .header-btn {
@@ -227,13 +228,69 @@ button {
 }
 
 /* ---------------------------------------------------------------------------
+ * Zone Tab Labels — floating in each zone's top-right corner
+ * --------------------------------------------------------------------------- */
+
+.zone-tab {
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  z-index: 10;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px 2px 6px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  color: var(--color-text-dim);
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  opacity: 0.6;
+  white-space: nowrap;
+}
+
+.zone-tab:hover {
+  opacity: 1;
+  background: rgba(14, 14, 22, 0.6);
+  color: var(--color-text-muted);
+  border-color: var(--color-border);
+}
+
+.zone-tab--active {
+  opacity: 1;
+  color: var(--color-accent);
+  border-color: var(--color-accent-dim);
+  background: rgba(14, 14, 22, 0.6);
+}
+
+.zone-tab--active:hover {
+  color: var(--color-accent-light);
+}
+
+.zone-tab svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+/* Theme zone: shift tab left to avoid toolbar overlap */
+.zone-theme > .zone-tab {
+  right: 50px;
+}
+
+/* ---------------------------------------------------------------------------
  * Workspace — V2 spatial layout (3 zones)
  * --------------------------------------------------------------------------- */
 
 #workspace {
   position: relative;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   height: calc(100vh - 40px - 24px);
   overflow: hidden;
 }
@@ -246,57 +303,95 @@ button {
   overflow: hidden;
 }
 
-/* Signal zone — top strip */
+/* Left column — Signal (top) + Connector bar + Choreographer (bottom) */
+.zone-left {
+  display: flex;
+  flex-direction: column;
+  width: 50%;
+  min-width: 280px;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Signal zone — top of left column, source blocks + raw log */
 .zone-signal {
-  flex-shrink: 0;
+  flex: 1 1 40%;
   display: flex;
-  height: 280px;
+  flex-direction: column;
   min-height: 120px;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: none;
+  position: relative;
+  overflow: hidden;
+  background: var(--color-surface);
 }
 
-/* Lower row — Choreographer (left) + Theme (right) */
-.zone-lower {
-  flex: 1;
-  display: flex;
-  min-height: 0;
-}
+/* Old zone labels — replaced by .zone-tab buttons */
 
-/* Choreographer zone — left side */
+/* Choreographer zone — bottom of left column, takes remaining space */
 .zone-choreographer {
   display: flex;
-  width: 50%;
-  min-width: 0;
+  flex: 1;
+  min-height: 80px;
+  position: relative;
+  background: var(--color-surface);
+  overflow: hidden;
 }
 
-/* Rideau (curtain slider) — between Choreographer and Theme */
+/* .zone-choreographer::before — replaced by .zone-tab */
+
+/* Rideau — connection hub strip between left column and Theme (choreo→theme).
+ * TouchDesigner style: wider than a simple divider, acts as a visible
+ * connection bus with dot badges for wired choreographies. */
 .rideau {
-  width: 6px;
+  width: 20px;
   flex-shrink: 0;
   cursor: col-resize;
-  background: var(--color-border);
+  background: var(--color-bg);
+  border-left: 1px solid var(--color-border);
+  border-right: 1px solid var(--color-border);
   position: relative;
   z-index: 50;
-  transition: background 0.12s;
+  transition: background 0.15s, border-color 0.15s;
 }
 
 .rideau:hover,
 .rideau--dragging {
-  background: var(--color-accent-dim);
+  background: var(--color-elevated);
+  border-color: var(--color-accent-dim);
 }
 
-/* Grip dots */
+/* Center rail — visual guide line */
+.rideau::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 2px;
+  height: 100%;
+  background: var(--color-border);
+  opacity: 0.5;
+  transition: opacity 0.15s, background 0.15s;
+}
+
+.rideau:hover::before,
+.rideau--dragging::before {
+  background: var(--color-accent-dim);
+  opacity: 0.8;
+}
+
+/* Grip dots — drag affordance */
 .rideau::after {
   content: "";
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 2px;
+  width: 4px;
   height: 32px;
-  border-radius: 1px;
+  border-radius: 2px;
   background: var(--color-text-dim);
-  transition: background 0.12s, height 0.12s;
+  transition: background 0.15s, height 0.15s;
 }
 
 .rideau:hover::after,
@@ -307,21 +402,43 @@ button {
 
 /* ---------------------------------------------------------------------------
  * Horizontal connector bar (signal → choreographer)
+ * TouchDesigner-style hub: visible connection bus between signal and choreo.
+ * Thicker strip with connection badges and a center rail line.
  * --------------------------------------------------------------------------- */
 
 .connector-bar-h {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  height: 24px;
-  min-height: 24px;
+  flex-direction: column;
+  height: auto;
+  min-height: 36px;
   position: relative;
   flex-shrink: 0;
-  padding: 0 12px;
+  padding: 4px 12px;
   background: var(--color-bg);
+  border-top: 1px solid var(--color-border);
   border-bottom: 1px solid var(--color-border);
   overflow-x: auto;
   overflow-y: hidden;
+  z-index: 2;
+  cursor: row-resize;
+}
+
+/* Rail line on types row */
+.connector-bar-h-row--types {
+  position: relative;
+}
+.connector-bar-h-row--types::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 2px;
+  background: var(--color-border);
+  opacity: 0.4;
+  z-index: 0;
+  pointer-events: none;
 }
 
 .connector-bar-h-label {
@@ -331,44 +448,67 @@ button {
   letter-spacing: 0.5px;
   white-space: nowrap;
   flex-shrink: 0;
+  z-index: 1;
+  background: var(--color-bg);
+  padding: 0 4px;
 }
 
 .connector-bar-h-inner {
   display: flex;
-  align-items: center;
-  gap: 6px;
+  flex-direction: column;
+  gap: 2px;
   flex: 1;
   min-width: 0;
+  z-index: 1;
+}
+
+.connector-bar-h-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 2px 0;
+  z-index: 1;
+}
+
+.connector-bar-h-row--sources {
+  gap: 6px;
+}
+
+.connector-bar-h-row--types {
+  gap: 4px;
 }
 
 .connector-bar-h-badge {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 1px 8px;
-  background: var(--color-surface);
+  padding: 2px 10px;
+  background: var(--color-elevated);
   border: 1px solid var(--color-border);
-  border-radius: 10px;
+  border-radius: 12px;
   cursor: pointer;
   font: 10px var(--font-mono);
   color: var(--color-text-muted);
   white-space: nowrap;
-  transition: border-color 0.15s, color 0.15s;
+  transition: border-color 0.15s, color 0.15s, box-shadow 0.15s;
 }
 
 .connector-bar-h-badge:hover {
   border-color: var(--color-accent-dim);
   color: var(--color-text);
+  box-shadow: 0 0 6px rgba(232, 168, 81, 0.15);
 }
 
 .connector-bar-h-badge--wired {
   border-color: var(--color-accent-dim);
   color: var(--color-text);
+  box-shadow: 0 0 4px rgba(232, 168, 81, 0.1);
 }
 
 .connector-bar-h-dot {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   flex-shrink: 0;
 }
@@ -401,10 +541,50 @@ button {
   font: 9px var(--font-mono);
   color: var(--color-text-dim);
   font-style: italic;
+  z-index: 1;
 }
 
+/* Signal type badges — show available channels on the bar */
+.connector-bar-h-type-badge {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  font: 8px var(--font-mono);
+  font-weight: 600;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, box-shadow 0.15s;
+  white-space: nowrap;
+  z-index: 1;
+}
+
+.connector-bar-h-type-badge:hover {
+  border-color: var(--color-accent-dim);
+  color: var(--color-text);
+  box-shadow: 0 0 6px rgba(232, 168, 81, 0.15);
+}
+
+.connector-bar-h-type-badge--active {
+  border-color: var(--color-accent-dim);
+  color: var(--color-text);
+  box-shadow: 0 0 4px rgba(232, 168, 81, 0.1);
+}
+
+.connector-bar-h-type-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* separator no longer needed — sources and types are on separate rows */
+
 /* ---------------------------------------------------------------------------
- * Vertical connector bar (choreographer → theme, on rideau)
+ * Vertical connector bar (choreographer → theme, on rideau hub)
+ * TouchDesigner-style: connection dots stacked on the rideau rail.
  * --------------------------------------------------------------------------- */
 
 .connector-bar-v {
@@ -415,7 +595,7 @@ button {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   z-index: 51;
   pointer-events: auto;
 }
@@ -424,24 +604,25 @@ button {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
+  border: 2px solid var(--color-border);
+  background: var(--color-elevated);
   cursor: pointer;
   padding: 0;
-  transition: transform 0.15s, border-color 0.15s;
+  transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
 }
 
 .connector-bar-v-badge:hover {
   transform: scale(1.3);
   border-color: var(--color-accent-dim);
+  box-shadow: 0 0 6px rgba(232, 168, 81, 0.2);
 }
 
 .connector-bar-v-badge--wired {
   border-color: var(--color-accent-dim);
-  box-shadow: 0 0 4px var(--color-accent-dim);
+  box-shadow: 0 0 6px rgba(232, 168, 81, 0.15);
 }
 
 .connector-bar-v-dot {
@@ -450,7 +631,7 @@ button {
   border-radius: 50%;
 }
 
-/* Theme zone — right side */
+/* Theme zone — right side, full height for max canvas space */
 .zone-theme {
   display: flex;
   flex: 1;
@@ -458,20 +639,25 @@ button {
   min-width: 0;
 }
 
+/* .zone-theme::before — replaced by .zone-tab */
+
 /* ---------------------------------------------------------------------------
  * Toolbar
  * --------------------------------------------------------------------------- */
 
+/* Toolbar pinned to right edge of theme zone — frees left side for
+ * the rideau connection hub (choreo→theme wiring space). */
 #toolbar {
   display: flex;
   flex-direction: column;
   width: 42px;
   min-width: 42px;
   background: var(--color-surface);
-  border-right: 1px solid var(--color-border);
+  border-left: 1px solid var(--color-border);
   padding: 6px 0;
   z-index: 90;
   user-select: none;
+  order: 3; /* push to right: canvas=0, zoom-bar=1, toolbar=3 */
 }
 
 .toolbar-section {
@@ -522,13 +708,13 @@ button {
   align-self: center;
 }
 
-/* Panel-open indicator dot */
+/* Panel-open indicator dot (left edge since toolbar is on the right) */
 .toolbar-btn--panel-open::after {
   content: "";
   position: absolute;
-  bottom: 2px;
-  left: 50%;
-  transform: translateX(-50%);
+  top: 50%;
+  left: 2px;
+  transform: translateY(-50%);
   width: 4px;
   height: 4px;
   border-radius: 50%;
@@ -2908,15 +3094,10 @@ button {
 
 /* ============================================================================
  * Signal View (sv-*)
- * Full workspace view for the Signal layer: connection, raw log, timeline.
+ * Source blocks + bézier wires (patch bay visual).
  * ============================================================================ */
 
-#zone-signal {
-  flex-direction: column;
-  transition: height 0.2s ease;
-}
-
-/* ── Compact mode — connector bar ── */
+/* ── Compact mode — connector bar (legacy, may be removed) ── */
 
 .sv-compact-bar {
   display: flex;
@@ -2965,18 +3146,22 @@ button {
   display: flex;
   align-items: stretch;
   gap: 8px;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--color-border);
+  padding: 20px 12px 8px; /* top padding for zone label */
   background: var(--color-surface);
   overflow-x: auto;
   overflow-y: hidden;
   flex-shrink: 0;
+  position: relative;
+  z-index: 2; /* above sv-wires SVG overlay */
 }
 
 .sv-sources-container {
   display: flex;
   gap: 8px;
   align-items: stretch;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
 }
 
 .sv-add-source-btn {
@@ -2989,6 +3174,8 @@ button {
   cursor: pointer;
   white-space: nowrap;
   min-width: 100px;
+  flex-shrink: 0;
+  align-self: flex-start;
   transition: color 0.15s, border-color 0.15s;
 }
 
@@ -3017,13 +3204,100 @@ button {
   border-color: var(--color-accent-dim);
 }
 
-/* ── Lower area (sidebar + raw log) ── */
+/* ── Lower area (raw log + prompt) ── */
 
 .sv-lower-area {
   display: flex;
   flex: 1;
   min-height: 0;
   overflow: hidden;
+}
+
+.sv-log-container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ── Prompt section (OpenAI test input) ── */
+
+.sv-prompt-section {
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.sv-prompt-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  padding: 6px 10px;
+}
+
+.sv-prompt-input {
+  flex: 1;
+  min-height: 26px;
+  max-height: 80px;
+  resize: none;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 4px 8px;
+  outline: none;
+  line-height: 1.4;
+}
+
+.sv-prompt-input:focus {
+  border-color: var(--color-accent);
+}
+
+.sv-prompt-input::placeholder {
+  color: var(--color-text-dim);
+}
+
+.sv-prompt-btns {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.sv-prompt-send {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--color-accent);
+  color: var(--color-bg);
+  font: 600 11px var(--font-body);
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.sv-prompt-send:hover {
+  background: var(--color-accent-light);
+}
+
+.sv-prompt-stop {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--color-error);
+  color: var(--color-text);
+  font: 600 11px var(--font-body);
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.sv-prompt-stop:hover {
+  background: #D55050;
 }
 
 /* ── Source block ── */
@@ -3176,6 +3450,28 @@ button {
 
 .source-block-action--disconnect:hover {
   background: #C4404015;
+}
+
+.source-block-prompt {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  padding-top: 4px;
+  border-top: 1px solid var(--color-border);
+}
+
+.source-block-model {
+  font: 600 9px var(--font-mono);
+  color: var(--color-accent);
+  background: var(--color-accent-dim);
+  background: rgba(232, 168, 81, 0.12);
+  padding: 1px 6px;
+  border-radius: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 .source-block-error {
@@ -3634,6 +3930,47 @@ button {
   color: var(--color-text);
 }
 
+/* ── Source filters (connection-based) ── */
+
+.sv-log-source-filters {
+  display: flex;
+  gap: 3px;
+  flex-wrap: wrap;
+}
+
+.sv-log-source-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  cursor: pointer;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.sv-log-source-filter:hover {
+  border-color: var(--color-border-hover);
+  color: var(--color-text);
+}
+
+.sv-log-source-filter--active {
+  border-color: var(--color-accent-dim);
+  color: var(--color-text);
+  background: var(--color-elevated);
+}
+
+.sv-log-source-filter-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
 /* ── Raw Log entries ── */
 
 .sv-log {
@@ -3658,10 +3995,29 @@ button {
   padding: 3px 10px;
   border-bottom: 1px solid rgba(30, 30, 46, 0.5);
   line-height: 1.5;
+  cursor: pointer;
+  flex-wrap: wrap;
 }
 
 .sv-log-entry:hover {
   background: var(--color-elevated);
+}
+
+.sv-log-raw-expand {
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--color-text-dim);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+  margin: 4px 0 2px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 300px;
+  overflow-y: auto;
+  line-height: 1.4;
 }
 
 .sv-log-ts {
@@ -3684,6 +4040,29 @@ button {
   max-width: 80px;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.sv-log-source-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 5px;
+  font: 9px var(--font-mono);
+  color: var(--color-text-muted);
+  background: var(--color-surface);
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  flex-shrink: 0;
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sv-log-source-tag-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .sv-log-badge {
@@ -3768,9 +4147,7 @@ button {
  * Choreography Editor (Orchestrator view)
  * ============================================================================ */
 
-#zone-choreographer {
-  flex-direction: row;
-}
+/* NOTE: old sidebar+main layout removed — now uses nc-canvas node editor */
 
 /* -- Sidebar -- */
 
@@ -4362,6 +4739,485 @@ button {
   text-transform: uppercase;
   letter-spacing: 0.5px;
   padding: 6px 0 2px;
+}
+
+/* ============================================================================
+ * Node Canvas — choreography node-based editor (TouchDesigner style)
+ * ============================================================================ */
+
+/* -- Canvas surface -- */
+
+.nc-canvas {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--color-bg);
+}
+
+.nc-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.nc-nodes {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  /* transform set by JS: translate(panX, panY) scale(zoom) */
+}
+
+/* -- Nodes -- */
+
+.nc-node {
+  position: absolute;
+  width: 200px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  cursor: default;
+  transition: box-shadow 0.15s;
+}
+
+.nc-node:hover {
+  border-color: var(--color-border-hover);
+}
+
+.nc-node--selected {
+  border-color: var(--color-accent-dim);
+  box-shadow: 0 0 12px rgba(232, 168, 81, 0.15);
+}
+
+.nc-node--dragging {
+  opacity: 0.85;
+  z-index: 100;
+}
+
+/* -- Node header -- */
+
+.nc-node-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-top: 3px solid var(--color-accent);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  cursor: grab;
+  user-select: none;
+}
+
+.nc-node-header:active {
+  cursor: grabbing;
+}
+
+.nc-node-badge {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.nc-node-title {
+  flex: 1;
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nc-node-count {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--color-text-dim);
+  flex-shrink: 0;
+}
+
+/* -- Node body (step preview) -- */
+
+.nc-node-body {
+  padding: 4px 10px 6px;
+  border-top: 1px solid var(--color-border);
+}
+
+.nc-node-step {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--color-text-muted);
+  padding: 1px 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nc-node-step--more {
+  color: var(--color-text-dim);
+  font-style: italic;
+}
+
+.nc-node-empty {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--color-text-dim);
+  font-style: italic;
+  padding: 2px 0;
+}
+
+/* -- Ports -- */
+
+.nc-ports {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 0;
+}
+
+.nc-ports--input {
+  padding-left: 6px;
+}
+
+.nc-ports--output {
+  padding-right: 6px;
+  align-items: flex-end;
+}
+
+.nc-port {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px;
+  cursor: pointer;
+}
+
+.nc-port:hover .nc-port-dot {
+  transform: scale(1.4);
+}
+
+.nc-port-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-text-dim);
+  border: 1.5px solid transparent;
+  flex-shrink: 0;
+  transition: transform 0.12s;
+}
+
+.nc-port-label {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  color: var(--color-text-dim);
+  white-space: nowrap;
+}
+
+/* Default port (no wire) — dashed outline dot */
+.nc-port[data-port-source="default"] .nc-port-dot {
+  background: transparent !important;
+  border: 1.5px dashed var(--color-text-dim);
+}
+
+/* -- Inline detail panel (under selected node) -- */
+
+.nc-node-detail {
+  border-top: 1px solid var(--color-border);
+  padding: 8px 10px;
+  background: var(--color-elevated);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.nc-detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.nc-detail-separator {
+  height: 1px;
+  background: var(--color-border);
+  margin: 2px 0;
+}
+
+.nc-detail-title {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--color-text-dim);
+}
+
+.nc-detail-subtitle {
+  font: 600 9px var(--font-mono);
+  color: var(--color-text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 4px 0 1px;
+}
+
+.nc-detail-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.nc-detail-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--color-text-dim);
+  width: 60px;
+  flex-shrink: 0;
+}
+
+.nc-detail-select {
+  flex: 1;
+  min-width: 0;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 3px 6px;
+  outline: none;
+}
+
+.nc-detail-select:focus {
+  border-color: var(--color-accent);
+}
+
+.nc-detail-textarea {
+  width: 100%;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 4px 6px;
+  resize: vertical;
+  outline: none;
+}
+
+.nc-detail-textarea:focus {
+  border-color: var(--color-accent);
+}
+
+.nc-detail-empty {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--color-text-dim);
+  font-style: italic;
+  padding: 2px 0;
+}
+
+/* -- Step rows in detail -- */
+
+.nc-step {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 4px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.nc-step:hover {
+  background: var(--color-surface);
+}
+
+.nc-step--selected {
+  background: var(--color-surface);
+  outline: 1px solid var(--color-accent-dim);
+}
+
+.nc-step-num {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  color: var(--color-text-dim);
+  width: 12px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.nc-step-badge {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 600;
+  padding: 1px 4px;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.nc-step-summary {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--color-text-muted);
+}
+
+.nc-step-actions {
+  display: flex;
+  gap: 1px;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.nc-step:hover .nc-step-actions {
+  opacity: 1;
+}
+
+.nc-step-actions button {
+  color: var(--color-text-dim);
+  padding: 1px;
+  border-radius: var(--radius-sm);
+  transition: color 0.12s;
+}
+
+.nc-step-actions button:hover {
+  color: var(--color-text);
+}
+
+/* -- Detail add/apply buttons -- */
+
+.nc-detail-add-row {
+  display: flex;
+  gap: 4px;
+}
+
+.nc-detail-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-dim);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  border: 1px solid var(--color-border);
+  transition: background 0.12s, color 0.12s;
+}
+
+.nc-detail-btn:hover {
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+}
+
+.nc-detail-btn--child {
+  border: none;
+  padding: 2px 4px;
+}
+
+.nc-detail-apply {
+  align-self: flex-end;
+  padding: 4px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--color-accent);
+  color: var(--color-bg);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  border: 1px solid var(--color-accent);
+  cursor: pointer;
+  transition: background 0.12s;
+  margin-top: 4px;
+}
+
+.nc-detail-apply:hover {
+  background: var(--color-accent-light);
+}
+
+/* Wire-aware input badges in detail panel */
+.nc-detail-inputs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 2px 0;
+}
+
+.nc-detail-input-badge {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.nc-detail-detach {
+  cursor: pointer;
+  opacity: 0.5;
+  font-size: 10px;
+  line-height: 1;
+}
+
+.nc-detail-detach:hover {
+  opacity: 1;
+}
+
+.nc-detail-sources {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  color: rgba(255, 255, 255, 0.4);
+  padding: 2px 0;
+}
+
+.nc-detail-hint {
+  font-family: var(--font-body);
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.35);
+  font-style: italic;
+  padding: 2px 0;
+}
+
+/* -- Drag ghosts and drop previews -- */
+
+.nc-drag-ghost {
+  position: fixed;
+  pointer-events: none;
+  z-index: 1000;
+  padding: 4px 10px;
+  background: var(--color-elevated);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--color-accent);
+  box-shadow: var(--shadow-lg);
+  opacity: 0.9;
+}
+
+.nc-drop-preview {
+  position: absolute;
+  width: 200px;
+  height: 40px;
+  border: 2px dashed var(--color-accent-dim);
+  border-radius: var(--radius-lg);
+  background: rgba(232, 168, 81, 0.05);
+  pointer-events: none;
 }
 
 /* ============================================================================

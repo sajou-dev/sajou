@@ -109,7 +109,7 @@ export async function initWorkspace(): Promise<void> {
   initSignalView();
   initChoreographyView();
 
-  // Rideau (curtain slider between Choreographer and Theme)
+  // Rideau (curtain slider between zone-left and Theme)
   initRideau();
 
   // Connector bars (badges showing wired connections between zones)
