@@ -73,6 +73,42 @@ const STATUS_DOT_COLORS: Record<string, string> = {
 };
 
 // ---------------------------------------------------------------------------
+// Active source selection
+// ---------------------------------------------------------------------------
+
+/**
+ * Which source badge is "active" (selected) on the bar-H.
+ * When set, signal-type badges are tinted with the source's identity color
+ * and drag-to-create/connect will auto-create signal→signal-type wires.
+ * null = union view (all sources, default signal-type colors).
+ */
+let activeSourceId: string | null = null;
+
+/** Listeners notified when the active source changes. */
+const activeSourceListeners: Array<() => void> = [];
+
+/** Get the currently active source on the bar-H (null = union view). */
+export function getActiveBarHSource(): string | null {
+  return activeSourceId;
+}
+
+/** Set the active source on the bar-H. Triggers re-render + notifications. */
+export function setActiveBarHSource(id: string | null): void {
+  activeSourceId = id;
+  render();
+  for (const fn of activeSourceListeners) fn();
+}
+
+/** Subscribe to active source changes. Returns unsubscribe function. */
+export function subscribeActiveSource(fn: () => void): () => void {
+  activeSourceListeners.push(fn);
+  return () => {
+    const idx = activeSourceListeners.indexOf(fn);
+    if (idx >= 0) activeSourceListeners.splice(idx, 1);
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Init
 // ---------------------------------------------------------------------------
 
@@ -181,13 +217,15 @@ function render(): void {
 
   if (sources.length > 0) {
     for (const source of sources) {
+      const isSelected = activeSourceId === source.id;
       const badge = document.createElement("button");
       badge.className = "connector-bar-h-badge";
+      if (isSelected) badge.classList.add("connector-bar-h-badge--selected");
       badge.dataset.wireZone = "signal";
       badge.dataset.wireId = source.id;
 
       // Identity color: border + text tint
-      badge.style.borderColor = `${source.color}44`;
+      badge.style.borderColor = isSelected ? source.color : `${source.color}44`;
       badge.style.color = source.color;
 
       const dot = document.createElement("span");
@@ -207,6 +245,12 @@ function render(): void {
         badge.appendChild(rateSpan);
       }
 
+      // Click to toggle active source
+      badge.addEventListener("click", (e: MouseEvent) => {
+        e.stopPropagation();
+        setActiveBarHSource(isSelected ? null : source.id);
+      });
+
       sourcesRow.appendChild(badge);
     }
   } else {
@@ -222,6 +266,11 @@ function render(): void {
   const typesRow = document.createElement("div");
   typesRow.className = "connector-bar-h-row connector-bar-h-row--types";
 
+  // Resolve active source's identity color for tinting signal-type badges
+  const activeSource = activeSourceId
+    ? sources.find((s) => s.id === activeSourceId) ?? null
+    : null;
+
   for (const signalType of SIGNAL_TYPES) {
     const badge = document.createElement("button");
     badge.className = "connector-bar-h-type-badge";
@@ -235,12 +284,14 @@ function render(): void {
     badge.dataset.wireZone = "signal-type";
     badge.dataset.wireId = signalType;
 
-    const color = SIGNAL_TYPE_COLORS[signalType] ?? "#6E6E8A";
+    // When a source is selected, tint with its identity color
+    const typeColor = SIGNAL_TYPE_COLORS[signalType] ?? "#6E6E8A";
+    const color = activeSource ? activeSource.color : typeColor;
 
     // Colored dot
     const dot = document.createElement("span");
     dot.className = "connector-bar-h-type-dot";
-    dot.style.background = isActive ? color : "#3A3A52";
+    dot.style.background = isActive || activeSource ? color : "#3A3A52";
     badge.appendChild(dot);
 
     // Label
@@ -255,6 +306,10 @@ function render(): void {
       badge.style.color = color;
 
       badge.title = `${signalType}: ${choreos.length} choreograph${choreos.length > 1 ? "ies" : "y"}`;
+    } else if (activeSource) {
+      badge.style.borderColor = `${color}33`;
+      badge.style.color = `${color}99`;
+      badge.title = `${signalType} (${activeSource.name})`;
     } else {
       badge.title = `${signalType} (no choreographies)`;
     }

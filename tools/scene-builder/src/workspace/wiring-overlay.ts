@@ -27,6 +27,12 @@ import {
 } from "../state/wiring-state.js";
 import { subscribeEditor } from "../state/editor-state.js";
 import { subscribeChoreography } from "../state/choreography-state.js";
+import { getSource } from "../state/signal-source-state.js";
+import { getSourcesForChoreo } from "../state/wiring-queries.js";
+import {
+  getActiveBarHSource,
+  subscribeActiveSource,
+} from "./connector-bar-horizontal.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -78,6 +84,7 @@ export function initWiringOverlay(): void {
   subscribeWiring(renderWires);
   subscribeEditor(renderWires);
   subscribeChoreography(renderWires);
+  subscribeActiveSource(renderWires);
   window.addEventListener("resize", renderWires);
 
   renderWires();
@@ -152,12 +159,53 @@ function createWirePath(wire: WireConnection, wsRect: DOMRect): SVGPathElement |
   const { fromX, fromY, toX, toY, curveDirection, cpOffset } = endpoints;
   const d = buildBezierD(fromX, fromY, toX, toY, curveDirection, cpOffset);
 
+  // Resolve wire color and dimming based on source provenance
+  const activeSource = getActiveBarHSource();
+  let wireColor = WIRE_COLOR;
+  let isDimmed = false;
+
+  if (wire.fromZone === "signal" && wire.toZone === "signal-type") {
+    // Signal→signal-type: use source identity color
+    const source = getSource(wire.fromId);
+    if (source) wireColor = source.color;
+    // Dim if active source is set and this wire is from a different source
+    if (activeSource && wire.fromId !== activeSource) isDimmed = true;
+  } else if (wire.fromZone === "signal-type" && wire.toZone === "choreographer") {
+    // Signal-type→choreographer: resolve source via 2-hop provenance
+    const provenance = getSourcesForChoreo(wire.toId);
+    if (provenance.length === 1) {
+      // Single source → use its identity color
+      const source = getSource(provenance[0]!.sourceId);
+      if (source) wireColor = source.color;
+    } else if (provenance.length > 1 && activeSource) {
+      // Multiple sources but one is active → use its color
+      const activeEntry = provenance.find((p) => p.sourceId === activeSource);
+      if (activeEntry) {
+        const source = getSource(activeSource);
+        if (source) wireColor = source.color;
+      }
+    }
+    // Dim if active source is set and this choreo is not connected to it
+    if (activeSource) {
+      const connected = provenance.some((p) => p.sourceId === activeSource);
+      if (!connected) isDimmed = true;
+    }
+  } else if (wire.fromZone === "choreographer" && wire.toZone === "theme") {
+    // Choreographer→theme: check if the choreo is connected to active source
+    if (activeSource) {
+      const provenance = getSourcesForChoreo(wire.fromId);
+      const connected = provenance.some((p) => p.sourceId === activeSource);
+      if (!connected) isDimmed = true;
+    }
+  }
+
   const path = document.createElementNS(SVG_NS, "path");
   path.setAttribute("d", d);
   path.setAttribute("fill", "none");
-  path.setAttribute("stroke", WIRE_COLOR);
+  path.setAttribute("stroke", wireColor);
   path.setAttribute("stroke-width", String(WIRE_WIDTH));
   path.setAttribute("stroke-linecap", "round");
+  if (isDimmed) path.setAttribute("opacity", "0.12");
   path.classList.add("wire-path");
   path.dataset.wireId = wire.id;
 

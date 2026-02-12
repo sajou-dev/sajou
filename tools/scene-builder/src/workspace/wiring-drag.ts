@@ -25,6 +25,7 @@ import {
   setInterfaceState,
 } from "../state/editor-state.js";
 import { setPreviewWire, type PreviewWire } from "./wiring-overlay.js";
+import { getActiveBarHSource } from "./connector-bar-horizontal.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -40,6 +41,8 @@ interface DragSession {
   fromId: string;
   /** Expected destination zone. */
   targetZone: WireZone;
+  /** Active source at drag start (for auto-creating signal→signal-type wires). */
+  sourceContext: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -108,6 +111,7 @@ function onMouseDown(e: MouseEvent): void {
     fromZone: zone,
     fromId: id,
     targetZone,
+    sourceContext: getActiveBarHSource(),
   };
 
   // Add dragging class to badge
@@ -158,6 +162,19 @@ function onMouseUp(e: MouseEvent): void {
         toZone: targetZone as "signal-type" | "choreographer" | "theme",
         toId,
       });
+
+      // If dragging signal-type → choreographer and a source is active,
+      // also create signal → signal-type wire (2-hop provenance)
+      const src = session?.sourceContext;
+      if (fromZone === "signal-type" && targetZone === "choreographer"
+          && src && !hasWire("signal", src, "signal-type", fromId)) {
+        addWire({
+          fromZone: "signal",
+          fromId: src,
+          toZone: "signal-type",
+          toId: fromId,
+        });
+      }
 
       // Auto-transition interfaceState
       autoTransition(fromZone, targetZone);

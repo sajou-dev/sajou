@@ -23,9 +23,11 @@ import {
   getWiringState,
   updateWiringState,
   removeWire,
+  hasWire,
   type WireConnection,
 } from "../state/wiring-state.js";
 import { executeCommand } from "../state/undo.js";
+import { getActiveBarHSource } from "../workspace/connector-bar-horizontal.js";
 
 // ---------------------------------------------------------------------------
 // ID generation
@@ -145,6 +147,7 @@ function initNodeReposition(canvas: NodeCanvas): void {
 function initDragToCreate(canvas: NodeCanvas): void {
   let dragging = false;
   let signalType = "";
+  let sourceContext: string | null = null;
   let ghost: HTMLElement | null = null;
   let preview: HTMLElement | null = null;
   const DRAG_THRESHOLD = 5;
@@ -166,6 +169,7 @@ function initDragToCreate(canvas: NodeCanvas): void {
     mouseDownX = e.clientX;
     mouseDownY = e.clientY;
     signalType = type;
+    sourceContext = getActiveBarHSource();
     thresholdMet = false;
     dragging = true;
 
@@ -251,17 +255,32 @@ function initDragToCreate(canvas: NodeCanvas): void {
       collapsed: false,
     };
 
-    // Auto-create a signal-type→choreographer wire alongside the choreography
-    const wireId = crypto.randomUUID();
-    const newWire: WireConnection = {
-      id: wireId,
+    // Auto-create wire(s) alongside the choreography
+    const typeWireId = crypto.randomUUID();
+    const typeWire: WireConnection = {
+      id: typeWireId,
       fromZone: "signal-type",
       fromId: signalType,
       toZone: "choreographer",
       toId: newChoreo.id,
     };
 
-    // Use undoable command — atomic: creates both choreo and wire
+    // If a source is active, also create signal→signal-type wire (2-hop)
+    const capturedSource = sourceContext;
+    const needsSourceWire = capturedSource !== null
+      && !hasWire("signal", capturedSource, "signal-type", signalType);
+    const sourceWireId = crypto.randomUUID();
+    const sourceWire: WireConnection | null = needsSourceWire && capturedSource
+      ? {
+          id: sourceWireId,
+          fromZone: "signal",
+          fromId: capturedSource,
+          toZone: "signal-type",
+          toId: signalType,
+        }
+      : null;
+
+    // Use undoable command — atomic: creates choreo + type wire + optional source wire
     const cmd: UndoableCommand = {
       execute() {
         const { choreographies } = getChoreographyState();
@@ -271,7 +290,9 @@ function initDragToCreate(canvas: NodeCanvas): void {
           selectedStepId: null,
         });
         const { wires } = getWiringState();
-        updateWiringState({ wires: [...wires, newWire] });
+        const newWires = [...wires, typeWire];
+        if (sourceWire) newWires.push(sourceWire);
+        updateWiringState({ wires: newWires });
       },
       undo() {
         const { choreographies } = getChoreographyState();
@@ -280,9 +301,10 @@ function initDragToCreate(canvas: NodeCanvas): void {
           selectedChoreographyId: null,
           selectedStepId: null,
         });
-        removeWire(wireId);
+        removeWire(typeWireId);
+        if (sourceWire) removeWire(sourceWireId);
       },
-      description: `Add ${signalType} choreography`,
+      description: `Add ${signalType} choreography${capturedSource ? ` (from source)` : ""}`,
     };
     executeCommand(cmd);
   });

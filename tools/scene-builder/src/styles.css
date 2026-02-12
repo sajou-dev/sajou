@@ -506,6 +506,12 @@ button {
   box-shadow: 0 0 4px rgba(232, 168, 81, 0.1);
 }
 
+.connector-bar-h-badge--selected {
+  border-color: currentColor;
+  box-shadow: 0 0 8px currentColor;
+  background: rgba(255, 255, 255, 0.04);
+}
+
 .connector-bar-h-dot {
   width: 6px;
   height: 6px;
@@ -4796,6 +4802,13 @@ button {
 .nc-node--dragging {
   opacity: 0.85;
   z-index: 100;
+}
+
+.nc-node--dimmed {
+  opacity: 0.2;
+  filter: grayscale(0.6);
+  pointer-events: none;
+  transition: opacity 0.2s, filter 0.2s;
 }
 
 /* -- Node header -- */

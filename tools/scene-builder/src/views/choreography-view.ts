@@ -13,6 +13,7 @@
 
 import { subscribeChoreography } from "../state/choreography-state.js";
 import { subscribeWiring } from "../state/wiring-state.js";
+import { subscribeActiveSource } from "../workspace/connector-bar-horizontal.js";
 import { createNodeCanvas } from "./node-canvas.js";
 import { renderAllNodes } from "./node-renderer.js";
 import { initNodeDrag } from "./node-drag.js";
@@ -49,6 +50,7 @@ export function initChoreographyView(): void {
   // Subscribe to state changes
   subscribeChoreography(renderNodes);
   subscribeWiring(renderNodes);
+  subscribeActiveSource(renderNodes);
 }
 
 // ---------------------------------------------------------------------------

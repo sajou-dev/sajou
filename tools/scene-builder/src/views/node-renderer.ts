@@ -17,7 +17,8 @@ import {
   getChoreographyState,
   toggleNodeCollapsed,
 } from "../state/choreography-state.js";
-import { getChoreoInputInfo } from "../state/wiring-queries.js";
+import { getChoreoInputInfo, getSourcesForChoreo } from "../state/wiring-queries.js";
+import { getActiveBarHSource } from "../workspace/connector-bar-horizontal.js";
 import { renderNodeDetail } from "./node-detail-inline.js";
 
 // ---------------------------------------------------------------------------
@@ -59,10 +60,19 @@ export function renderAllNodes(container: HTMLElement): void {
   container.innerHTML = "";
 
   const { choreographies, selectedChoreographyId } = getChoreographyState();
+  const activeSource = getActiveBarHSource();
 
   for (const choreo of choreographies) {
     const isSelected = choreo.id === selectedChoreographyId;
     const node = renderNode(choreo, isSelected);
+
+    // Dim nodes not connected to the active source
+    if (activeSource) {
+      const provenance = getSourcesForChoreo(choreo.id);
+      const connected = provenance.some((p) => p.sourceId === activeSource);
+      if (!connected) node.classList.add("nc-node--dimmed");
+    }
+
     container.appendChild(node);
   }
 }
