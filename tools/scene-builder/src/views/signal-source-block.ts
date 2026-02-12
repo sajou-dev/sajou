@@ -1,8 +1,13 @@
 /**
- * Signal source block — renders a single source card in the expanded signal zone.
+ * Signal source block — renders a single source card in the signal zone.
  *
- * Shows: name, URL input, protocol badge, status dot, event rate, connect/disconnect.
- * Used by signal-view.ts in expanded mode.
+ * Pure render function: creates a DOM element from a SignalSource snapshot.
+ * Does NOT subscribe to global state — the parent (signal-view) handles
+ * re-rendering when state changes. This avoids infinite recursion loops
+ * (block → updateSource → notify → renderBlocks → createBlock → repeat).
+ *
+ * Each source block manages its own independent connection via
+ * connectSource/disconnectSource (per-source architecture).
  */
 
 import type { SignalSource } from "../types.js";
@@ -10,16 +15,12 @@ import {
   updateSource,
   removeSource,
   detectProtocol,
-  subscribeSignalSources,
-  getSignalSourcesState,
 } from "../state/signal-source-state.js";
 import {
-  getConnectionState,
-  connect,
-  disconnect,
-  setConnectionUrl,
-  setApiKey,
-  subscribeConnection,
+  connectSource,
+  disconnectSource,
+  sendPromptToSource,
+  stopSourcePrompt,
 } from "./signal-connection.js";
 
 // ---------------------------------------------------------------------------
@@ -37,11 +38,13 @@ const STATUS_COLORS: Record<string, string> = {
 // Render
 // ---------------------------------------------------------------------------
 
-/** Create a source block DOM element for a given source. */
+/** Create a source block DOM element from a source snapshot. */
 export function createSourceBlock(source: SignalSource): HTMLElement {
   const block = document.createElement("div");
   block.className = "source-block";
   block.dataset.sourceId = source.id;
+  block.style.borderLeftColor = source.color;
+  block.style.borderLeftWidth = "3px";
 
   // -- Header row: name + remove button --
   const header = document.createElement("div");
@@ -61,7 +64,7 @@ export function createSourceBlock(source: SignalSource): HTMLElement {
   removeBtn.textContent = "\u00D7";
   removeBtn.title = "Remove source";
   removeBtn.addEventListener("click", () => {
-    disconnect();
+    disconnectSource(source.id);
     removeSource(source.id);
   });
   header.appendChild(removeBtn);
@@ -74,14 +77,22 @@ export function createSourceBlock(source: SignalSource): HTMLElement {
 
   const dot = document.createElement("span");
   dot.className = "source-block-dot";
+  dot.style.background = STATUS_COLORS[source.status] ?? STATUS_COLORS.disconnected;
   statusRow.appendChild(dot);
 
+  const protoLabels: Record<string, string> = {
+    websocket: "WS",
+    sse: "SSE",
+    openai: "OPENAI",
+  };
   const protoBadge = document.createElement("span");
-  protoBadge.className = "source-block-proto";
+  protoBadge.className = `source-block-proto source-block-proto--${source.protocol}`;
+  protoBadge.textContent = protoLabels[source.protocol] ?? source.protocol;
   statusRow.appendChild(protoBadge);
 
   const rateEl = document.createElement("span");
   rateEl.className = "source-block-rate";
+  rateEl.textContent = source.eventsPerSecond > 0 ? `${source.eventsPerSecond} evt/s` : "";
   statusRow.appendChild(rateEl);
 
   block.appendChild(statusRow);
@@ -95,11 +106,10 @@ export function createSourceBlock(source: SignalSource): HTMLElement {
   urlInput.type = "text";
   urlInput.placeholder = "ws://localhost:9100";
   urlInput.value = source.url;
-  urlInput.addEventListener("input", () => {
+  urlInput.addEventListener("change", () => {
     const url = urlInput.value;
     const proto = detectProtocol(url);
     updateSource(source.id, { url, protocol: proto });
-    setConnectionUrl(url);
   });
   urlRow.appendChild(urlInput);
 
@@ -114,88 +124,101 @@ export function createSourceBlock(source: SignalSource): HTMLElement {
   keyInput.type = "password";
   keyInput.placeholder = "API key (optional)";
   keyInput.value = source.apiKey;
-  keyInput.addEventListener("input", () => {
+  keyInput.addEventListener("change", () => {
     updateSource(source.id, { apiKey: keyInput.value });
-    setApiKey(keyInput.value);
   });
   keyRow.appendChild(keyInput);
 
   block.appendChild(keyRow);
 
   // -- Connect/Disconnect button --
+  const isActive = source.status === "connected" || source.status === "connecting";
   const actionBtn = document.createElement("button");
-  actionBtn.className = "source-block-action";
+  actionBtn.className = `source-block-action source-block-action--${isActive ? "disconnect" : "connect"}`;
+  actionBtn.textContent = isActive ? "Disconnect" : "Connect";
+  if (isActive) {
+    urlInput.disabled = true;
+    keyInput.disabled = true;
+  }
   actionBtn.addEventListener("click", () => {
-    const connState = getConnectionState();
-    if (connState.status === "connected" || connState.status === "connecting") {
-      disconnect();
+    if (source.status === "connected" || source.status === "connecting") {
+      disconnectSource(source.id);
     } else {
-      connect(urlInput.value);
+      connectSource(source.id, urlInput.value, keyInput.value);
     }
   });
   block.appendChild(actionBtn);
 
-  // -- Error display --
-  const errorEl = document.createElement("div");
-  errorEl.className = "source-block-error";
-  errorEl.hidden = true;
-  block.appendChild(errorEl);
+  // -- OpenAI prompt row (only when connected in OpenAI mode) --
+  if (source.protocol === "openai" && source.status === "connected") {
+    const promptRow = document.createElement("div");
+    promptRow.className = "source-block-prompt";
 
-  // -- Sync from connection state --
-  function syncFromConnection(): void {
-    const st = getConnectionState();
-
-    // Map connection state to source state
-    updateSource(source.id, {
-      status: st.status,
-      error: st.error,
-      protocol: st.protocol,
-    });
-
-    // Dot color
-    dot.style.background = STATUS_COLORS[st.status] ?? STATUS_COLORS.disconnected;
-
-    // Protocol badge
-    const protoLabels: Record<string, string> = {
-      websocket: "WS",
-      sse: "SSE",
-      openai: "OPENAI",
-    };
-    protoBadge.textContent = protoLabels[st.protocol] ?? st.protocol;
-    protoBadge.className = `source-block-proto source-block-proto--${st.protocol}`;
-
-    // Action button
-    if (st.status === "connected" || st.status === "connecting") {
-      actionBtn.textContent = "Disconnect";
-      actionBtn.className = "source-block-action source-block-action--disconnect";
-      urlInput.disabled = true;
-      keyInput.disabled = true;
-    } else {
-      actionBtn.textContent = "Connect";
-      actionBtn.className = "source-block-action source-block-action--connect";
-      urlInput.disabled = false;
-      keyInput.disabled = false;
+    // Model display
+    if (source.selectedModel) {
+      const modelBadge = document.createElement("span");
+      modelBadge.className = "source-block-model";
+      modelBadge.textContent = source.selectedModel;
+      promptRow.appendChild(modelBadge);
     }
 
-    // Error
-    if (st.error) {
-      errorEl.textContent = st.error;
-      errorEl.hidden = false;
+    const promptInput = document.createElement("input");
+    promptInput.className = "source-block-url";
+    promptInput.type = "text";
+    promptInput.placeholder = "Test prompt…";
+
+    if (source.streaming) {
+      promptInput.disabled = true;
+      const stopBtn = document.createElement("button");
+      stopBtn.className = "source-block-action source-block-action--disconnect";
+      stopBtn.textContent = "Stop";
+      stopBtn.addEventListener("click", () => stopSourcePrompt(source.id));
+      promptRow.appendChild(promptInput);
+      promptRow.appendChild(stopBtn);
     } else {
-      errorEl.hidden = true;
+      const sendBtn = document.createElement("button");
+      sendBtn.className = "source-block-action source-block-action--connect";
+      sendBtn.textContent = "Send";
+      sendBtn.addEventListener("click", () => {
+        const text = promptInput.value.trim();
+        if (!text) return;
+        sendPromptToSource(
+          source.id,
+          source.url,
+          source.apiKey,
+          source.selectedModel,
+          text,
+        );
+      });
+      // Enter to send
+      promptInput.addEventListener("keydown", (e: KeyboardEvent) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          const text = promptInput.value.trim();
+          if (!text) return;
+          sendPromptToSource(
+            source.id,
+            source.url,
+            source.apiKey,
+            source.selectedModel,
+            text,
+          );
+        }
+      });
+      promptRow.appendChild(promptInput);
+      promptRow.appendChild(sendBtn);
     }
+
+    block.appendChild(promptRow);
   }
 
-  subscribeConnection(syncFromConnection);
-  syncFromConnection();
-
-  // -- Sync event rate from source state --
-  subscribeSignalSources(() => {
-    const s = getSignalSourcesState().sources.find((x) => x.id === source.id);
-    if (s) {
-      rateEl.textContent = s.eventsPerSecond > 0 ? `${s.eventsPerSecond} evt/s` : "";
-    }
-  });
+  // -- Error display --
+  if (source.error) {
+    const errorEl = document.createElement("div");
+    errorEl.className = "source-block-error";
+    errorEl.textContent = source.error;
+    block.appendChild(errorEl);
+  }
 
   return block;
 }

@@ -5,7 +5,7 @@
  * Not saved to the scene file.
  */
 
-import type { EditorState, InterfaceState, PanelId, PanelLayout, ToolId, ViewId } from "../types.js";
+import type { EditorState, InterfaceState, NodeCanvasViewport, PanelId, PanelLayout, ToolId, ViewId } from "../types.js";
 
 // ---------------------------------------------------------------------------
 // Default state
@@ -39,6 +39,7 @@ function createDefault(): EditorState {
     activeLayerId: "midground",
     routeCreationPreview: null,
     rideauSplit: 0.5,
+    nodeCanvasViewport: { panX: 0, panY: 0, zoom: 1 },
   };
 }
 
@@ -162,6 +163,12 @@ export function setSnapToGrid(enabled: boolean): void {
 /** Set the rideau split ratio (0 = full preview, 1 = full workspace). Clamped to [0, 1]. */
 export function setRideauSplit(ratio: number): void {
   state = { ...state, rideauSplit: Math.max(0, Math.min(1, ratio)) };
+  notify();
+}
+
+/** Set the choreographer node canvas viewport. */
+export function setNodeCanvasViewport(viewport: NodeCanvasViewport): void {
+  state = { ...state, nodeCanvasViewport: viewport };
   notify();
 }
 

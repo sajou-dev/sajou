@@ -1,35 +1,70 @@
 /**
- * Horizontal connector bar — signal ↔ choreographer.
+ * Horizontal connector bar — signal ↔ choreographer hub.
  *
- * Sits between `#zone-signal` and `#zone-lower` (24px strip).
- * Shows a badge per signal source that has an active wire to a choreography.
- * Each badge shows: [●source-name → choreo-name].
- * Clicking a badge focuses the wire endpoints.
+ * Sits between `#zone-signal` and `#zone-choreographer` inside `#zone-left`.
+ * TouchDesigner-style hub: shows **signal types** (token_usage, tool_call, …)
+ * as connection endpoints that link the signal stream to choreographies.
  *
- * This bar is the visual representation of signal→choreographer connections.
- * Wiring (drag-connect) is Phase 4 — for now we show badges for all
- * signal sources as potential connection points.
+ * Each signal type badge = a channel on the bus.
+ * Active badges glow with their signal-type color.
+ * Source badges show which sources feed into this bus.
+ *
+ * Also supports drag-resize: dragging the bar up/down adjusts the
+ * signal/choreographer split ratio within the left column.
+ *
+ * Bézier wires from signal-view source blocks converge onto this bar.
  */
 
 import {
   getSignalSourcesState,
   subscribeSignalSources,
-  setSignalZoneExpanded,
 } from "../state/signal-source-state.js";
-import {
-  getWiresBetween,
-  subscribeWiring,
-} from "../state/wiring-state.js";
 import {
   getChoreographyState,
   subscribeChoreography,
+  selectChoreography,
 } from "../state/choreography-state.js";
-import { initCompositorView } from "../compositor/compositor-view.js";
+import { subscribeWiring } from "../state/wiring-state.js";
+import {
+  getAllActiveSignalTypes,
+  getChoreoInputInfo,
+} from "../state/wiring-queries.js";
 
 // ---------------------------------------------------------------------------
-// Status colors (same as signal-connector-bar.ts)
+// Signal type definitions (channels on the bus)
 // ---------------------------------------------------------------------------
 
+/** All known signal types — these appear as connection endpoints. */
+const SIGNAL_TYPES: string[] = [
+  "task_dispatch", "tool_call", "tool_result",
+  "token_usage", "agent_state_change", "error", "completion",
+];
+
+/** Signal type badge colors (shared palette). */
+const SIGNAL_TYPE_COLORS: Record<string, string> = {
+  task_dispatch: "#E8A851",
+  tool_call: "#5B8DEF",
+  tool_result: "#4EC9B0",
+  token_usage: "#C586C0",
+  agent_state_change: "#6A9955",
+  error: "#F44747",
+  completion: "#4EC9B0",
+  event: "#8E8EA0",
+};
+
+/** Short display labels for signal types. */
+const SIGNAL_TYPE_LABELS: Record<string, string> = {
+  task_dispatch: "task",
+  tool_call: "tool↗",
+  tool_result: "tool↙",
+  token_usage: "tokens",
+  agent_state_change: "state",
+  error: "error",
+  completion: "done",
+  event: "event",
+};
+
+/** Status dot colors for sources. */
 const STATUS_DOT_COLORS: Record<string, string> = {
   disconnected: "#6E6E8A",
   connecting: "#E8A851",
@@ -42,6 +77,7 @@ const STATUS_DOT_COLORS: Record<string, string> = {
 // ---------------------------------------------------------------------------
 
 let barEl: HTMLElement | null = null;
+let containerEl: HTMLElement | null = null;
 let initialized = false;
 
 /** Initialize the horizontal connector bar. */
@@ -49,27 +85,69 @@ export function initConnectorBarH(): void {
   if (initialized) return;
   initialized = true;
 
-  const container = document.getElementById("connector-bar-h");
-  if (!container) return;
+  containerEl = document.getElementById("connector-bar-h");
+  if (!containerEl) return;
 
   barEl = document.createElement("div");
   barEl.className = "connector-bar-h-inner";
-  container.appendChild(barEl);
+  containerEl.appendChild(barEl);
 
-  // Label
-  const label = document.createElement("span");
-  label.className = "connector-bar-h-label";
-  label.textContent = "signal → choreo";
-  container.insertBefore(label, barEl);
+  // Drag-to-resize signal/choreo split
+  initDragResize(containerEl);
 
-  // Compositor view (filter editor — expands below the bar)
-  initCompositorView(container);
-
-  // React to source, wiring, and choreography changes
+  // React to source, choreography, and wiring changes
   subscribeSignalSources(render);
-  subscribeWiring(render);
   subscribeChoreography(render);
+  subscribeWiring(render);
   render();
+}
+
+// ---------------------------------------------------------------------------
+// Drag resize — adjust signal/choreographer split
+// ---------------------------------------------------------------------------
+
+function initDragResize(bar: HTMLElement): void {
+  let dragging = false;
+  let startY = 0;
+  let startSignalHeight = 0;
+
+  bar.addEventListener("mousedown", (e: MouseEvent) => {
+    // Only respond to direct bar clicks (not badge clicks)
+    if ((e.target as HTMLElement).closest("button")) return;
+
+    const zoneSignal = document.getElementById("zone-signal");
+    if (!zoneSignal) return;
+
+    dragging = true;
+    startY = e.clientY;
+    startSignalHeight = zoneSignal.getBoundingClientRect().height;
+
+    document.body.style.cursor = "row-resize";
+    document.body.style.userSelect = "none";
+    e.preventDefault();
+  });
+
+  document.addEventListener("mousemove", (e: MouseEvent) => {
+    if (!dragging) return;
+
+    const zoneSignal = document.getElementById("zone-signal");
+    if (!zoneSignal) return;
+
+    const delta = e.clientY - startY;
+    const newHeight = Math.max(60, startSignalHeight + delta);
+    zoneSignal.style.height = `${newHeight}px`;
+    zoneSignal.style.flex = "none";
+
+    // Redraw signal wires on resize
+    window.dispatchEvent(new Event("resize"));
+  });
+
+  document.addEventListener("mouseup", () => {
+    if (!dragging) return;
+    dragging = false;
+    document.body.style.cursor = "";
+    document.body.style.userSelect = "";
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -81,83 +159,116 @@ function render(): void {
   barEl.innerHTML = "";
 
   const { sources } = getSignalSourcesState();
-  const wires = getWiresBetween("signal", "choreographer");
   const { choreographies } = getChoreographyState();
 
-  // Build a lookup: sourceId → list of choreo names connected
-  const wireMap = new Map<string, string[]>();
-  for (const wire of wires) {
-    const choreo = choreographies.find((c) => c.id === wire.toId);
-    const names = wireMap.get(wire.fromId) ?? [];
-    names.push(choreo?.on ?? "?");
-    wireMap.set(wire.fromId, names);
+  // Determine which signal types are active (wire-driven, with on fallback)
+  const wiredTypes = getAllActiveSignalTypes();
+
+  // Build choreo lookup by effective signal type (wire-driven)
+  const choreosByType = new Map<string, typeof choreographies>();
+  for (const choreo of choreographies) {
+    const info = getChoreoInputInfo(choreo.id);
+    for (const sigType of info.effectiveTypes) {
+      const list = choreosByType.get(sigType) ?? [];
+      list.push(choreo);
+      choreosByType.set(sigType, list);
+    }
   }
 
-  // Show badge for each source
-  for (const source of sources) {
-    const badge = document.createElement("button");
-    badge.className = "connector-bar-h-badge";
+  // ── Row 1: Source badges ──
+  const sourcesRow = document.createElement("div");
+  sourcesRow.className = "connector-bar-h-row connector-bar-h-row--sources";
 
-    // Wire endpoint data attributes for drag-connect system
-    badge.dataset.wireZone = "signal";
-    badge.dataset.wireId = source.id;
+  if (sources.length > 0) {
+    for (const source of sources) {
+      const badge = document.createElement("button");
+      badge.className = "connector-bar-h-badge";
+      badge.dataset.wireZone = "signal";
+      badge.dataset.wireId = source.id;
 
-    const connected = wireMap.has(source.id);
-    if (connected) {
-      badge.classList.add("connector-bar-h-badge--wired");
+      // Identity color: border + text tint
+      badge.style.borderColor = `${source.color}44`;
+      badge.style.color = source.color;
+
+      const dot = document.createElement("span");
+      dot.className = "connector-bar-h-dot";
+      dot.style.background = STATUS_DOT_COLORS[source.status] ?? STATUS_DOT_COLORS.disconnected;
+      badge.appendChild(dot);
+
+      const nameSpan = document.createElement("span");
+      nameSpan.className = "connector-bar-h-name";
+      nameSpan.textContent = source.name;
+      badge.appendChild(nameSpan);
+
+      if (source.eventsPerSecond > 0) {
+        const rateSpan = document.createElement("span");
+        rateSpan.className = "connector-bar-h-rate";
+        rateSpan.textContent = `${source.eventsPerSecond}/s`;
+        badge.appendChild(rateSpan);
+      }
+
+      sourcesRow.appendChild(badge);
     }
-
-    badge.title = connected
-      ? `${source.name} → ${wireMap.get(source.id)!.join(", ")}`
-      : `${source.name} (drag to connect)`;
-
-    // Status dot
-    const dot = document.createElement("span");
-    dot.className = "connector-bar-h-dot";
-    dot.style.background = STATUS_DOT_COLORS[source.status] ?? STATUS_DOT_COLORS.disconnected;
-    badge.appendChild(dot);
-
-    // Source name
-    const nameSpan = document.createElement("span");
-    nameSpan.className = "connector-bar-h-name";
-    nameSpan.textContent = source.name;
-    badge.appendChild(nameSpan);
-
-    // Arrow + target if wired
-    if (connected) {
-      const arrow = document.createElement("span");
-      arrow.className = "connector-bar-h-arrow";
-      arrow.textContent = "→";
-      badge.appendChild(arrow);
-
-      const targets = wireMap.get(source.id)!;
-      const targetSpan = document.createElement("span");
-      targetSpan.className = "connector-bar-h-target";
-      targetSpan.textContent = targets.join(", ");
-      badge.appendChild(targetSpan);
-    }
-
-    // Rate
-    if (source.eventsPerSecond > 0) {
-      const rateSpan = document.createElement("span");
-      rateSpan.className = "connector-bar-h-rate";
-      rateSpan.textContent = `${source.eventsPerSecond}/s`;
-      badge.appendChild(rateSpan);
-    }
-
-    badge.addEventListener("click", () => {
-      // Click badge → expand signal zone, focus on source
-      setSignalZoneExpanded(true);
-    });
-
-    barEl.appendChild(badge);
-  }
-
-  // Empty state
-  if (sources.length === 0) {
+  } else {
     const hint = document.createElement("span");
     hint.className = "connector-bar-h-hint";
-    hint.textContent = "No signal sources configured";
-    barEl.appendChild(hint);
+    hint.textContent = "No signal sources";
+    sourcesRow.appendChild(hint);
   }
+
+  barEl.appendChild(sourcesRow);
+
+  // ── Row 2: Signal type badges (connection channels) ──
+  const typesRow = document.createElement("div");
+  typesRow.className = "connector-bar-h-row connector-bar-h-row--types";
+
+  for (const signalType of SIGNAL_TYPES) {
+    const badge = document.createElement("button");
+    badge.className = "connector-bar-h-type-badge";
+
+    const isActive = wiredTypes.has(signalType);
+    if (isActive) {
+      badge.classList.add("connector-bar-h-type-badge--active");
+    }
+
+    // Wire endpoint data attributes
+    badge.dataset.wireZone = "signal-type";
+    badge.dataset.wireId = signalType;
+
+    const color = SIGNAL_TYPE_COLORS[signalType] ?? "#6E6E8A";
+
+    // Colored dot
+    const dot = document.createElement("span");
+    dot.className = "connector-bar-h-type-dot";
+    dot.style.background = isActive ? color : "#3A3A52";
+    badge.appendChild(dot);
+
+    // Label
+    const label = document.createElement("span");
+    label.textContent = SIGNAL_TYPE_LABELS[signalType] ?? signalType;
+    badge.appendChild(label);
+
+    // Count of choreographies on this type
+    const choreos = choreosByType.get(signalType);
+    if (choreos && choreos.length > 0) {
+      badge.style.borderColor = color + "66";
+      badge.style.color = color;
+
+      badge.title = `${signalType}: ${choreos.length} choreograph${choreos.length > 1 ? "ies" : "y"}`;
+    } else {
+      badge.title = `${signalType} (no choreographies)`;
+    }
+
+    // Click → select first choreography of this type, or hint to create one
+    badge.addEventListener("click", () => {
+      const typeChoreos = choreosByType.get(signalType);
+      if (typeChoreos && typeChoreos.length > 0) {
+        selectChoreography(typeChoreos[0]!.id);
+      }
+    });
+
+    typesRow.appendChild(badge);
+  }
+
+  barEl.appendChild(typesRow);
 }

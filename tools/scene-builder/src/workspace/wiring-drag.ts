@@ -5,7 +5,12 @@
  * follows the cursor. Valid drop targets highlight on hover. Releasing on
  * a valid target creates a WireConnection; releasing elsewhere cancels.
  *
- * Auto-transitions: first signal->choreo wire moves interfaceState to 2,
+ * Three wire directions (TouchDesigner-style):
+ *   - signal badge → signal-type badge (intra bar-H: "this source feeds this channel")
+ *   - signal-type badge → choreographer node input (vertical: "this channel triggers this choreo")
+ *   - choreographer output → theme (vertical: "this choreo sends to theme")
+ *
+ * Auto-transitions: first signal-type->choreo wire moves interfaceState to 2,
  * first choreo->theme wire moves it to 3.
  */
 
@@ -33,8 +38,6 @@ interface DragSession {
   fromZone: WireZone;
   /** Endpoint ID of the source badge. */
   fromId: string;
-  /** Direction of the wire being dragged. */
-  direction: "horizontal" | "vertical";
   /** Expected destination zone. */
   targetZone: WireZone;
 }
@@ -78,23 +81,22 @@ function onMouseDown(e: MouseEvent): void {
   e.preventDefault();
   e.stopPropagation();
 
-  // Determine drag direction and target zone
-  let direction: "horizontal" | "vertical";
+  // Determine target zone based on source badge zone
   let targetZone: WireZone;
 
   if (zone === "signal") {
-    direction = "horizontal";
+    // Source badge (on bar-H) → drag to a signal-type badge (intra bar-H)
+    targetZone = "signal-type";
+  } else if (zone === "signal-type") {
+    // Signal type badge (on bar-H) → drag down to a choreographer node input
     targetZone = "choreographer";
   } else if (zone === "choreographer") {
-    // Could be on H-bar (target from signal) or V-bar (target for theme)
-    // Check if badge is in the horizontal bar or vertical bar
+    // Could be on H-bar (not draggable) or a node output port / V-bar badge
     const isOnHBar = badge.closest(".connector-bar-h") !== null;
     if (isOnHBar) {
-      // Badge is a choreography endpoint on the H-bar — can't drag from it
-      // H-bar badges are signal sources; choreo targets are on V-bar
+      // Choreo badges on the H-bar are targets, not drag sources
       return;
     }
-    direction = "vertical";
     targetZone = "theme";
   } else {
     // Theme badges — can't initiate from theme side for now
@@ -105,7 +107,6 @@ function onMouseDown(e: MouseEvent): void {
     fromBadge: badge,
     fromZone: zone,
     fromId: id,
-    direction,
     targetZone,
   };
 
@@ -123,7 +124,7 @@ function onMouseMove(e: MouseEvent): void {
   // Update preview wire
   const preview: PreviewWire = {
     fromBadge: session.fromBadge,
-    direction: session.direction,
+    fromZone: session.fromZone,
     cursorX: e.clientX,
     cursorY: e.clientY,
   };
@@ -152,9 +153,9 @@ function onMouseUp(e: MouseEvent): void {
     if (toId && !hasWire(fromZone, fromId, targetZone, toId)) {
       // Create wire
       addWire({
-        fromZone: fromZone as "signal" | "choreographer",
+        fromZone: fromZone as "signal" | "signal-type" | "choreographer",
         fromId,
-        toZone: targetZone as "choreographer" | "theme",
+        toZone: targetZone as "signal-type" | "choreographer" | "theme",
         toId,
       });
 
@@ -172,16 +173,16 @@ function onMouseUp(e: MouseEvent): void {
 
 /**
  * Progress the interfaceState when first wires are created.
- * signal->choreo → state 2, choreo->theme → state 3.
+ * signal-type->choreo → state 2, choreo->theme → state 3.
  */
 function autoTransition(fromZone: WireZone, toZone: WireZone): void {
   const { interfaceState } = getEditorState();
   const { wires } = getWiringState();
 
-  if (fromZone === "signal" && toZone === "choreographer" && interfaceState < 2) {
-    // Check if this is the first signal->choreo wire
-    const signalChoreoWires = wires.filter((w) => w.fromZone === "signal" && w.toZone === "choreographer");
-    if (signalChoreoWires.length >= 1) {
+  if (fromZone === "signal-type" && toZone === "choreographer" && interfaceState < 2) {
+    // Check if this is the first signal-type->choreo wire
+    const typeChoreoWires = wires.filter((w) => w.fromZone === "signal-type" && w.toZone === "choreographer");
+    if (typeChoreoWires.length >= 1) {
       setInterfaceState(2);
     }
   }

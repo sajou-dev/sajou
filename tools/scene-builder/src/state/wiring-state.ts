@@ -1,8 +1,13 @@
 /**
  * Wiring state store.
  *
- * Holds all wire connections between zones (signal→choreographer, choreographer→theme).
- * Each wire has a source zone+id and destination zone+id, plus optional mapping config.
+ * Holds all wire connections between zones in the TouchDesigner-style patch bay.
+ * Three wire layers flow through the connector bar H as a hub:
+ *   1. signal → signal-type : "this source feeds this channel"
+ *   2. signal-type → choreographer : "this channel triggers this choreography"
+ *   3. choreographer → theme : "this choreography outputs to the theme"
+ *
+ * Each wire has a source zone+id and destination zone+id, plus optional mapping.
  * Pub/sub pattern — subscribe to get notified on every change.
  */
 
@@ -11,19 +16,19 @@
 // ---------------------------------------------------------------------------
 
 /** A zone that can be a wire endpoint. */
-export type WireZone = "signal" | "choreographer" | "theme";
+export type WireZone = "signal" | "signal-type" | "choreographer" | "theme";
 
 /** A single wire connection between two zone endpoints. */
 export interface WireConnection {
   /** Unique wire ID. */
   id: string;
   /** Source zone. */
-  fromZone: "signal" | "choreographer";
-  /** Source endpoint ID (signal source ID or choreography ID). */
+  fromZone: "signal" | "signal-type" | "choreographer";
+  /** Source endpoint ID (signal source ID, signal type name, or choreography ID). */
   fromId: string;
   /** Destination zone. */
-  toZone: "choreographer" | "theme";
-  /** Destination endpoint ID (choreography ID or theme slot). */
+  toZone: "signal-type" | "choreographer" | "theme";
+  /** Destination endpoint ID (signal type name, choreography ID, or theme slot). */
   toId: string;
   /** Optional mapping function applied to routed data. */
   mapping?: { fn: string; args: number[] };

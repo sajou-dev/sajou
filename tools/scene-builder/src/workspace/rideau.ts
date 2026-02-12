@@ -1,21 +1,22 @@
 /**
- * Rideau (curtain) — vertical slider between Choreographer and Theme zones.
+ * Rideau (curtain) — vertical slider between left column and Theme zone.
  *
  * Drag to resize the split ratio. Double-click to cycle presets.
- * Publishes rideauSplit to editor state, which drives CSS flex-basis.
+ * Publishes rideauSplit to editor state, which drives CSS widths.
+ *
+ * Layout: #zone-left | #rideau | #zone-theme (children of #workspace).
  */
 
 import { getEditorState, setRideauSplit, subscribeEditor } from "../state/editor-state.js";
 
 // ---------------------------------------------------------------------------
-// Preset cycle: balanced → full-choreo → full-preview → balanced
+// Preset cycle: balanced → full-left → full-theme → balanced
 // ---------------------------------------------------------------------------
 
 const PRESETS = [0.5, 1.0, 0.0] as const;
 
 /** Find next preset (cycle). */
 function nextPreset(current: number): number {
-  // Find closest preset and move to the next one
   let closest = 0;
   let minDist = Infinity;
   for (let i = 0; i < PRESETS.length; i++) {
@@ -38,37 +39,36 @@ const MIN_ZONE_PX = 200;
 // Init
 // ---------------------------------------------------------------------------
 
-/** Initialize the rideau (curtain slider) between Choreographer and Theme zones. */
+/** Initialize the rideau (curtain slider) between left column and Theme. */
 export function initRideau(): void {
   const _r = document.getElementById("rideau");
-  const _l = document.getElementById("zone-lower");
-  const _c = document.getElementById("zone-choreographer");
+  const _w = document.getElementById("workspace");
+  const _l = document.getElementById("zone-left");
   const _t = document.getElementById("zone-theme");
-  if (!_r || !_l || !_c || !_t) return;
+  if (!_r || !_w || !_l || !_t) return;
 
-  // Reassign to non-null consts so TypeScript narrows inside closures
   const rideauEl: HTMLElement = _r;
-  const zoneLower: HTMLElement = _l;
-  const zoneChoreo: HTMLElement = _c;
+  const workspaceEl: HTMLElement = _w;
+  const zoneLeft: HTMLElement = _l;
   const zoneTheme: HTMLElement = _t;
 
   // ── Sync layout from state ──
   function applyLayout(): void {
     const { rideauSplit } = getEditorState();
-    const totalWidth = zoneLower.clientWidth;
+    const totalWidth = workspaceEl.clientWidth;
     const rideauWidth = rideauEl.offsetWidth || 6;
     const available = totalWidth - rideauWidth;
 
-    const choreoWidth = Math.round(available * rideauSplit);
-    const themeWidth = available - choreoWidth;
+    const leftWidth = Math.round(available * rideauSplit);
+    const themeWidth = available - leftWidth;
 
-    zoneChoreo.style.width = `${choreoWidth}px`;
-    zoneChoreo.style.flex = "none";
+    zoneLeft.style.width = `${leftWidth}px`;
+    zoneLeft.style.flex = "none";
     zoneTheme.style.width = `${themeWidth}px`;
     zoneTheme.style.flex = "none";
 
     // Hide zones at extremes
-    zoneChoreo.style.display = rideauSplit <= 0.02 ? "none" : "flex";
+    zoneLeft.style.display = rideauSplit <= 0.02 ? "none" : "flex";
     zoneTheme.style.display = rideauSplit >= 0.98 ? "none" : "flex";
   }
 
@@ -89,17 +89,16 @@ export function initRideau(): void {
     dragging = true;
     rideauEl.classList.add("rideau--dragging");
     document.body.style.cursor = "col-resize";
-    // Prevent text selection during drag
     document.body.style.userSelect = "none";
   });
 
   document.addEventListener("mousemove", (e: MouseEvent) => {
     if (!dragging) return;
-    const rect = zoneLower.getBoundingClientRect();
+    const rect = workspaceEl.getBoundingClientRect();
     const rideauWidth = rideauEl.offsetWidth || 6;
     const available = rect.width - rideauWidth;
 
-    // Mouse position relative to zone-lower left edge
+    // Mouse position relative to workspace left edge
     const mouseX = e.clientX - rect.left;
     let ratio = mouseX / (available || 1);
 

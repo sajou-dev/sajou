@@ -5,11 +5,17 @@
  * Each WireConnection produces a solid cubic bezier curve. A preview wire
  * (dashed, accent-colored) is drawn during drag-to-connect interactions.
  *
+ * Three wire layers (TouchDesigner-style):
+ *   1. signal → signal-type : intra bar-H horizontal S-curve
+ *   2. signal-type → choreographer : vertical S-curve (bar-H down to node)
+ *   3. choreographer → theme : horizontal S-curve (across the rideau)
+ *
  * Wire endpoints are resolved from DOM badge positions using
  * `getBoundingClientRect()`. The overlay recalculates on:
  *   - window resize
  *   - rideau drag (editor state change)
  *   - wiring state change
+ *   - choreography state change (node moved/added/removed)
  */
 
 import {
@@ -17,8 +23,10 @@ import {
   removeWire,
   subscribeWiring,
   type WireConnection,
+  type WireZone,
 } from "../state/wiring-state.js";
 import { subscribeEditor } from "../state/editor-state.js";
+import { subscribeChoreography } from "../state/choreography-state.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -46,8 +54,8 @@ let previewWire: PreviewWire | null = null;
 export interface PreviewWire {
   /** Badge element the drag started from. */
   fromBadge: HTMLElement;
-  /** Direction of the drag (which bar the badge is on). */
-  direction: "horizontal" | "vertical";
+  /** Zone of the source badge — determines wire routing style. */
+  fromZone: WireZone;
   /** Current cursor position in page coordinates. */
   cursorX: number;
   cursorY: number;
@@ -69,6 +77,7 @@ export function initWiringOverlay(): void {
   // Subscribe to state changes that affect wire positions
   subscribeWiring(renderWires);
   subscribeEditor(renderWires);
+  subscribeChoreography(renderWires);
   window.addEventListener("resize", renderWires);
 
   renderWires();
@@ -128,35 +137,20 @@ function renderWires(): void {
  */
 function createWirePath(wire: WireConnection, wsRect: DOMRect): SVGPathElement | null {
   const fromBadge = findBadge(wire.fromZone, wire.fromId);
-  const toBadge = findBadge(wire.toZone, wire.toId);
+  // For signal-type→choreographer wires, target the specific input port by signal type
+  const toBadge = wire.fromZone === "signal-type" && wire.toZone === "choreographer"
+    ? findBadge(wire.toZone, wire.toId, wire.fromId)
+    : findBadge(wire.toZone, wire.toId);
   if (!fromBadge || !toBadge) return null;
 
   const fromRect = fromBadge.getBoundingClientRect();
   const toRect = toBadge.getBoundingClientRect();
 
-  let fromX: number;
-  let fromY: number;
-  let toX: number;
-  let toY: number;
-  let cpOffset: number;
+  const endpoints = resolveEndpoints(wire.fromZone, wire.toZone, fromRect, toRect, wsRect);
+  if (!endpoints) return null;
 
-  if (wire.fromZone === "signal" && wire.toZone === "choreographer") {
-    // Horizontal bar: connect from badge bottom-center to choreo zone top area
-    fromX = fromRect.left + fromRect.width / 2 - wsRect.left;
-    fromY = fromRect.bottom - wsRect.top;
-    toX = toRect.left + toRect.width / 2 - wsRect.left;
-    toY = toRect.top - wsRect.top;
-    cpOffset = Math.max(CONTROL_POINT_OFFSET, Math.abs(toY - fromY) * 0.4);
-  } else {
-    // Vertical bar: connect from badge right side to theme zone left area
-    fromX = fromRect.right - wsRect.left;
-    fromY = fromRect.top + fromRect.height / 2 - wsRect.top;
-    toX = toRect.left - wsRect.left;
-    toY = toRect.top + toRect.height / 2 - wsRect.top;
-    cpOffset = Math.max(CONTROL_POINT_OFFSET, Math.abs(toX - fromX) * 0.4);
-  }
-
-  const d = buildBezierD(fromX, fromY, toX, toY, wire.fromZone === "signal" ? "vertical" : "horizontal", cpOffset);
+  const { fromX, fromY, toX, toY, curveDirection, cpOffset } = endpoints;
+  const d = buildBezierD(fromX, fromY, toX, toY, curveDirection, cpOffset);
 
   const path = document.createElementNS(SVG_NS, "path");
   path.setAttribute("d", d);
@@ -213,18 +207,27 @@ function createPreviewPath(preview: PreviewWire, wsRect: DOMRect): SVGPathElemen
   let fromY: number;
   const toX = preview.cursorX - wsRect.left;
   const toY = preview.cursorY - wsRect.top;
+  let curveDir: "vertical" | "horizontal";
 
-  if (preview.direction === "horizontal") {
-    fromX = fromRect.left + fromRect.width / 2 - wsRect.left;
-    fromY = fromRect.bottom - wsRect.top;
-  } else {
+  if (preview.fromZone === "signal") {
+    // Intra bar-H: right edge of source badge → cursor (horizontal S-curve)
     fromX = fromRect.right - wsRect.left;
     fromY = fromRect.top + fromRect.height / 2 - wsRect.top;
+    curveDir = "horizontal";
+  } else if (preview.fromZone === "signal-type") {
+    // Bar-H badge → down to choreo node (vertical S-curve)
+    fromX = fromRect.left + fromRect.width / 2 - wsRect.left;
+    fromY = fromRect.bottom - wsRect.top;
+    curveDir = "vertical";
+  } else {
+    // Choreographer → theme: right edge → left (horizontal S-curve)
+    fromX = fromRect.right - wsRect.left;
+    fromY = fromRect.top + fromRect.height / 2 - wsRect.top;
+    curveDir = "horizontal";
   }
 
-  const curveDir = preview.direction === "horizontal" ? "vertical" : "horizontal";
   const cpOffset = Math.max(CONTROL_POINT_OFFSET * 0.6, Math.abs(
-    curveDir === "vertical" ? toY - fromY : toX - fromX
+    curveDir === "vertical" ? toY - fromY : toX - fromX,
   ) * 0.35);
 
   const d = buildBezierD(fromX, fromY, toX, toY, curveDir, cpOffset);
@@ -243,14 +246,77 @@ function createPreviewPath(preview: PreviewWire, wsRect: DOMRect): SVGPathElemen
 }
 
 // ---------------------------------------------------------------------------
+// Endpoint resolution
+// ---------------------------------------------------------------------------
+
+/** Resolved wire endpoint coordinates and curve parameters. */
+interface WireEndpoints {
+  fromX: number;
+  fromY: number;
+  toX: number;
+  toY: number;
+  curveDirection: "vertical" | "horizontal";
+  cpOffset: number;
+}
+
+/**
+ * Resolve from/to pixel positions and curve direction for a wire connection.
+ *
+ * Three wire types:
+ *   - signal → signal-type : intra bar-H, right→left, horizontal S-curve
+ *   - signal-type → choreographer : bar-H → node, bottom→top, vertical S-curve
+ *   - choreographer → theme : node → theme, right→left, horizontal S-curve
+ */
+function resolveEndpoints(
+  fromZone: WireZone,
+  toZone: WireZone,
+  fromRect: DOMRect,
+  toRect: DOMRect,
+  wsRect: DOMRect,
+): WireEndpoints | null {
+  if (fromZone === "signal" && toZone === "signal-type") {
+    // Intra bar-H: right-center of source badge → left-center of signal-type badge
+    const fromX = fromRect.right - wsRect.left;
+    const fromY = fromRect.top + fromRect.height / 2 - wsRect.top;
+    const toX = toRect.left - wsRect.left;
+    const toY = toRect.top + toRect.height / 2 - wsRect.top;
+    const cpOffset = Math.max(CONTROL_POINT_OFFSET * 0.5, Math.abs(toX - fromX) * 0.4);
+    return { fromX, fromY, toX, toY, curveDirection: "horizontal", cpOffset };
+  }
+
+  if (fromZone === "signal-type" && toZone === "choreographer") {
+    // Bar-H → choreo node: bottom-center of signal-type badge → top-center of node port
+    const fromX = fromRect.left + fromRect.width / 2 - wsRect.left;
+    const fromY = fromRect.bottom - wsRect.top;
+    const toX = toRect.left + toRect.width / 2 - wsRect.left;
+    const toY = toRect.top - wsRect.top;
+    const cpOffset = Math.max(CONTROL_POINT_OFFSET, Math.abs(toY - fromY) * 0.4);
+    return { fromX, fromY, toX, toY, curveDirection: "vertical", cpOffset };
+  }
+
+  if (fromZone === "choreographer" && toZone === "theme") {
+    // Choreo → theme: right-center of choreo badge → left-center of theme badge
+    const fromX = fromRect.right - wsRect.left;
+    const fromY = fromRect.top + fromRect.height / 2 - wsRect.top;
+    const toX = toRect.left - wsRect.left;
+    const toY = toRect.top + toRect.height / 2 - wsRect.top;
+    const cpOffset = Math.max(CONTROL_POINT_OFFSET, Math.abs(toX - fromX) * 0.4);
+    return { fromX, fromY, toX, toY, curveDirection: "horizontal", cpOffset };
+  }
+
+  // Unknown wire type
+  return null;
+}
+
+// ---------------------------------------------------------------------------
 // Bezier helpers
 // ---------------------------------------------------------------------------
 
 /**
  * Build a cubic bezier `d` attribute string.
  *
- * @param curveDirection - "vertical" = S-curve bends up/down (for H-bar wires),
- *                          "horizontal" = S-curve bends left/right (for V-bar wires).
+ * @param curveDirection - "vertical" = S-curve bends up/down (signal-type→choreo),
+ *                          "horizontal" = S-curve bends left/right (signal→signal-type, choreo→theme).
  */
 function buildBezierD(
   x1: number, y1: number,
@@ -284,8 +350,17 @@ function buildBezierD(
 /**
  * Find a connector badge element in the DOM by zone and endpoint ID.
  * Badges are expected to have `data-wire-zone` and `data-wire-id` attributes.
+ *
+ * When `portType` is provided, tries to match a specific input port
+ * (via `data-port-type`) first, falling back to any badge in the zone.
  */
-function findBadge(zone: string, id: string): HTMLElement | null {
+function findBadge(zone: string, id: string, portType?: string): HTMLElement | null {
+  if (portType) {
+    const specific = document.querySelector(
+      `[data-wire-zone="${zone}"][data-wire-id="${id}"][data-port-type="${portType}"]`,
+    ) as HTMLElement | null;
+    if (specific) return specific;
+  }
   return document.querySelector(
     `[data-wire-zone="${zone}"][data-wire-id="${id}"]`,
   ) as HTMLElement | null;
