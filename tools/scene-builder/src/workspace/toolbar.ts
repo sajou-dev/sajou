@@ -111,7 +111,6 @@ const PANEL_TOGGLES: PanelToggleDef[] = [
   { panelId: "asset-manager", label: "Assets", iconKey: "assets", shortcut: "A" },
   { panelId: "entity-editor", label: "Entities", iconKey: "entities", shortcut: "E" },
   { panelId: "layers", label: "Layers", iconKey: "layers", shortcut: "L" },
-  { panelId: "signal-timeline", label: "Signals", iconKey: "signal", shortcut: "S" },
   { panelId: "settings", label: "Settings", iconKey: "settings", shortcut: "" },
 ];
 
