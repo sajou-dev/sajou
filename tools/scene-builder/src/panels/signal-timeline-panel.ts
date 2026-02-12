@@ -54,6 +54,7 @@ const SIGNAL_TYPE_COLORS: Record<SignalType, string> = {
   agent_state_change: "#6A9955",
   error: "#F44747",
   completion: "#4EC9B0",
+  event: "#8E8EA0",
 };
 
 /** Correlation ID → color palette (cycled via hash). */
@@ -101,6 +102,8 @@ function createDefaultPayload(type: SignalType): SignalPayloadMap[SignalType] {
       return { message: "Something went wrong", severity: "error" };
     case "completion":
       return { taskId: "task-001", success: true };
+    case "event":
+      return {};
   }
 }
 
@@ -153,6 +156,8 @@ function summarizePayload(type: SignalType, payload: SignalPayloadMap[SignalType
       if (tokens !== undefined) return `${icon} ${tokens} tokens (${reason ?? "done"})`;
       return icon;
     }
+    case "event":
+      return JSON.stringify(payload).slice(0, 60);
   }
 }
 
@@ -652,6 +657,13 @@ function renderPayloadFields(
         success: fSuccess.checked,
         result: fResult.value || undefined,
       });
+    }
+    case "event": {
+      const fJson = jsonTextarea(payload);
+      container.appendChild(detailRow("payload", fJson));
+      return () => {
+        try { return JSON.parse(fJson.value) as Record<string, unknown>; } catch { return {}; }
+      };
     }
   }
 }

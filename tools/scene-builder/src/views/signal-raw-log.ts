@@ -3,11 +3,16 @@
  *
  * Maintains a circular buffer of incoming signal entries (max 500).
  * Renders color-coded entries with badge, timestamp, and summary.
- * Supports text search, type filters, clear, and auto-scroll.
+ * Supports text search, type filters, source/connection filters,
+ * clear, and auto-scroll.
  */
 
 import type { ReceivedSignal } from "./signal-connection.js";
 import type { SignalType } from "../types.js";
+import {
+  getSignalSourcesState,
+  subscribeSignalSources,
+} from "../state/signal-source-state.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -24,6 +29,7 @@ const SIGNAL_TYPE_COLORS: Record<SignalType, string> = {
   agent_state_change: "#6A9955",
   error: "#F44747",
   completion: "#4EC9B0",
+  event: "#8E8EA0",
 };
 
 const ALL_SIGNAL_TYPES: SignalType[] = [
@@ -34,6 +40,7 @@ const ALL_SIGNAL_TYPES: SignalType[] = [
   "agent_state_change",
   "error",
   "completion",
+  "event",
 ];
 
 // ---------------------------------------------------------------------------
@@ -49,33 +56,51 @@ export interface RawLogEntry {
   isDebug?: boolean;
   /** Debug level (only set when isDebug is true). */
   debugLevel?: "info" | "warn" | "error";
+  /** The connection source ID that generated this entry. */
+  sourceId?: string;
 }
 
 let entries: RawLogEntry[] = [];
 let searchText = "";
 let activeFilters: Set<SignalType> = new Set(ALL_SIGNAL_TYPES);
 
+/**
+ * Source filter state.
+ * null = "all sources" (no filtering).
+ * Set<string> = only show entries from these sourceIds.
+ */
+let activeSourceFilter: Set<string> | null = null;
+
+/** Track which sourceIds we've seen in the log (for dynamic filter buttons). */
+const knownSourceIds = new Set<string>();
+
 // ---------------------------------------------------------------------------
 // Public API — state
 // ---------------------------------------------------------------------------
 
 /** Add a signal to the raw log. */
-export function addLogEntry(signal: ReceivedSignal): void {
+export function addLogEntry(signal: ReceivedSignal, sourceId?: string): void {
   const entry: RawLogEntry = {
     id: signal.id,
     receivedAt: Date.now(),
     signal,
+    sourceId,
   };
   entries.push(entry);
   if (entries.length > MAX_ENTRIES) {
     entries = entries.slice(entries.length - MAX_ENTRIES);
   }
+  if (sourceId) trackSource(sourceId);
   renderPending = true;
   scheduleRender();
 }
 
 /** Add a debug/lifecycle entry to the raw log (not a signal — system message). */
-export function addDebugEntry(message: string, level: "info" | "warn" | "error"): void {
+export function addDebugEntry(
+  message: string,
+  level: "info" | "warn" | "error",
+  sourceId?: string,
+): void {
   const now = Date.now();
   const entry: RawLogEntry = {
     id: crypto.randomUUID(),
@@ -90,11 +115,13 @@ export function addDebugEntry(message: string, level: "info" | "warn" | "error")
     },
     isDebug: true,
     debugLevel: level,
+    sourceId,
   };
   entries.push(entry);
   if (entries.length > MAX_ENTRIES) {
     entries = entries.slice(entries.length - MAX_ENTRIES);
   }
+  if (sourceId) trackSource(sourceId);
   renderPending = true;
   scheduleRender();
 }
@@ -112,12 +139,24 @@ export function getLogCount(): number {
 }
 
 // ---------------------------------------------------------------------------
+// Source tracking
+// ---------------------------------------------------------------------------
+
+/** Track a new sourceId and rebuild source filter buttons if needed. */
+function trackSource(sourceId: string): void {
+  if (knownSourceIds.has(sourceId)) return;
+  knownSourceIds.add(sourceId);
+  rebuildSourceFilters();
+}
+
+// ---------------------------------------------------------------------------
 // Rendering
 // ---------------------------------------------------------------------------
 
 let container: HTMLElement | null = null;
 let logEl: HTMLElement | null = null;
 let searchInput: HTMLInputElement | null = null;
+let sourceFiltersEl: HTMLElement | null = null;
 let renderPending = false;
 let userScrolledUp = false;
 
@@ -180,14 +219,59 @@ function summarize(signal: ReceivedSignal): string {
       if (tokens !== undefined) return `${icon} ${tokens} tokens (${reason ?? "done"})`;
       return `${p["taskId"] ?? ""} ${icon} ${p["result"] ?? ""}`;
     }
-    default:
-      return JSON.stringify(p).slice(0, 80);
+    case "event": {
+      // OpenClaw: {"type":"event","event":"agent","payload":{"runId":...,"stream":"assistant","data":{...}}}
+      const evtName = p["event"] ?? "";
+      const inner = p["payload"] as Record<string, unknown> | undefined;
+      if (inner) {
+        const stream = inner["stream"] ?? "";
+        const data = inner["data"] as Record<string, unknown> | undefined;
+        const text = data?.["text"] ?? data?.["content"] ?? "";
+        if (stream === "assistant" && text) {
+          return `${String(text).slice(0, 150)}`;
+        }
+        if (stream === "tool") {
+          const toolName = data?.["name"] ?? data?.["toolName"] ?? "tool";
+          return `tool: ${toolName}`;
+        }
+        if (stream === "lifecycle") {
+          const phase = data?.["phase"] ?? "";
+          return `${evtName} ${phase}`;
+        }
+        if (stream === "thinking") {
+          const thought = data?.["text"] ?? "";
+          return `thinking: ${String(thought).slice(0, 100)}`;
+        }
+        return `${evtName}/${stream} ${JSON.stringify(data ?? {}).slice(0, 120)}`;
+      }
+      // Fallback: generic JSON event
+      return `${evtName} ${JSON.stringify(p).slice(0, 150)}`;
+    }
+    default: {
+      // Generic unknown type — best-effort summary
+      const eventField = p["event"] ?? p["stream"] ?? p["action"] ?? "";
+      const dataField = p["data"] ?? p["message"] ?? p["result"] ?? "";
+      if (eventField) {
+        const dataSummary = typeof dataField === "object"
+          ? JSON.stringify(dataField).slice(0, 120)
+          : String(dataField).slice(0, 120);
+        return `${eventField} ${dataSummary}`;
+      }
+      return JSON.stringify(p).slice(0, 200);
+    }
   }
 }
 
-/** Get filtered entries based on active filters and search text. */
+/** Get filtered entries based on active filters, source filter, and search text. */
 function getFilteredEntries(): RawLogEntry[] {
   let result = entries;
+
+  // Source filter (connection-based)
+  if (activeSourceFilter !== null) {
+    result = result.filter(
+      (e) => e.sourceId !== undefined && activeSourceFilter!.has(e.sourceId),
+    );
+  }
 
   // Type filter (debug entries always pass through)
   if (activeFilters.size < ALL_SIGNAL_TYPES.length) {
@@ -205,6 +289,30 @@ function getFilteredEntries(): RawLogEntry[] {
   }
 
   return result;
+}
+
+/** Resolve a sourceId to its identity color (unique per source). */
+function getSourceIdentityColor(sourceId: string): string {
+  const { sources } = getSignalSourcesState();
+  const source = sources.find((s) => s.id === sourceId);
+  return source?.color ?? "#6E6E8A";
+}
+
+/** Resolve a sourceId to its connection status color. */
+function getSourceStatusColor(sourceId: string): string {
+  const { sources } = getSignalSourcesState();
+  const source = sources.find((s) => s.id === sourceId);
+  if (source?.status === "connected") return "#4A9E6E";
+  if (source?.status === "connecting") return "#E8A851";
+  if (source?.status === "error") return "#C44040";
+  return "#6E6E8A";
+}
+
+/** Resolve a sourceId to a human-readable name via the signal-source-state store. */
+function getSourceName(sourceId: string): string {
+  const { sources } = getSignalSourcesState();
+  const source = sources.find((s) => s.id === sourceId);
+  return source?.name ?? sourceId.slice(0, 8);
 }
 
 /** Render the full log area. */
@@ -237,6 +345,26 @@ function render(): void {
       ts.textContent = formatTime(entry.receivedAt);
       row.appendChild(ts);
 
+      // Source tag for debug entries — identity color + status dot
+      if (entry.sourceId) {
+        const idColor = getSourceIdentityColor(entry.sourceId);
+        const src = document.createElement("span");
+        src.className = "sv-log-source-tag";
+        src.style.background = `${idColor}18`;
+        src.style.color = idColor;
+
+        const srcDot = document.createElement("span");
+        srcDot.className = "sv-log-source-tag-dot";
+        srcDot.style.background = getSourceStatusColor(entry.sourceId);
+        src.appendChild(srcDot);
+
+        const srcLabel = document.createElement("span");
+        srcLabel.textContent = getSourceName(entry.sourceId);
+        src.appendChild(srcLabel);
+
+        row.appendChild(src);
+      }
+
       const badge = document.createElement("span");
       badge.className = `sv-log-debug-badge sv-log-debug-badge--${entry.debugLevel ?? "info"}`;
       badge.textContent = entry.debugLevel ?? "info";
@@ -257,8 +385,25 @@ function render(): void {
       ts.textContent = formatTime(entry.signal.timestamp);
       row.appendChild(ts);
 
-      // Source tag (multi-source support)
-      if (entry.signal.source && entry.signal.source !== "system") {
+      // Source tag (connection name) — identity color tint + status dot
+      if (entry.sourceId) {
+        const idColor = getSourceIdentityColor(entry.sourceId);
+        const src = document.createElement("span");
+        src.className = "sv-log-source-tag";
+        src.style.background = `${idColor}18`;
+        src.style.color = idColor;
+
+        const srcDot = document.createElement("span");
+        srcDot.className = "sv-log-source-tag-dot";
+        srcDot.style.background = getSourceStatusColor(entry.sourceId);
+        src.appendChild(srcDot);
+
+        const srcLabel = document.createElement("span");
+        srcLabel.textContent = getSourceName(entry.sourceId);
+        src.appendChild(srcLabel);
+
+        row.appendChild(src);
+      } else if (entry.signal.source && entry.signal.source !== "system") {
         const src = document.createElement("span");
         src.className = "sv-log-source";
         src.textContent = entry.signal.source;
@@ -278,6 +423,23 @@ function render(): void {
       row.appendChild(summary);
     }
 
+    // Click-to-expand: toggle raw JSON display
+    row.addEventListener("click", () => {
+      const existing = row.querySelector(".sv-log-raw-expand");
+      if (existing) {
+        existing.remove();
+        return;
+      }
+      const rawEl = document.createElement("pre");
+      rawEl.className = "sv-log-raw-expand";
+      try {
+        rawEl.textContent = JSON.stringify(JSON.parse(entry.signal.raw), null, 2);
+      } catch {
+        rawEl.textContent = entry.signal.raw;
+      }
+      row.appendChild(rawEl);
+    });
+
     frag.appendChild(row);
   }
 
@@ -290,7 +452,7 @@ function render(): void {
   }
 }
 
-/** Build the toolbar (search + filters + clear). */
+/** Build the toolbar (search + source filters + type filters + clear). */
 function buildToolbar(parent: HTMLElement): void {
   const toolbar = document.createElement("div");
   toolbar.className = "sv-log-toolbar";
@@ -307,7 +469,12 @@ function buildToolbar(parent: HTMLElement): void {
   });
   toolbar.appendChild(searchInput);
 
-  // Filters
+  // Source filters container (dynamic — rebuilt when new sources appear)
+  sourceFiltersEl = document.createElement("div");
+  sourceFiltersEl.className = "sv-log-source-filters";
+  toolbar.appendChild(sourceFiltersEl);
+
+  // Type filters
   const filters = document.createElement("div");
   filters.className = "sv-log-filters";
 
@@ -342,6 +509,89 @@ function buildToolbar(parent: HTMLElement): void {
   toolbar.appendChild(clearBtn);
 
   parent.appendChild(toolbar);
+
+  // Initial source filters render
+  rebuildSourceFilters();
+}
+
+/** Rebuild the source filter buttons (called when new sources appear). */
+function rebuildSourceFilters(): void {
+  if (!sourceFiltersEl) return;
+  sourceFiltersEl.innerHTML = "";
+
+  // Merge known sourceIds from log entries with current sources from state
+  const { sources } = getSignalSourcesState();
+  const allIds = new Set(knownSourceIds);
+  for (const s of sources) allIds.add(s.id);
+
+  // Don't show source filters if there's only 0 or 1 source
+  if (allIds.size <= 1) return;
+
+  // "All" button
+  const allBtn = document.createElement("button");
+  allBtn.className = "sv-log-source-filter";
+  if (activeSourceFilter === null) {
+    allBtn.classList.add("sv-log-source-filter--active");
+  }
+  allBtn.textContent = "All";
+  allBtn.addEventListener("click", () => {
+    activeSourceFilter = null;
+    rebuildSourceFilters();
+    renderPending = true;
+    scheduleRender();
+  });
+  sourceFiltersEl.appendChild(allBtn);
+
+  // Per-source buttons
+  for (const srcId of allIds) {
+    const name = getSourceName(srcId);
+    const source = sources.find((s) => s.id === srcId);
+    const idColor = source?.color ?? "#6E6E8A";
+
+    const btn = document.createElement("button");
+    btn.className = "sv-log-source-filter";
+    btn.style.color = idColor;
+
+    if (activeSourceFilter !== null && activeSourceFilter.has(srcId)) {
+      btn.classList.add("sv-log-source-filter--active");
+    }
+
+    // Status dot (status color, not identity)
+    const dot = document.createElement("span");
+    dot.className = "sv-log-source-filter-dot";
+    const statusColor = source?.status === "connected" ? "#4A9E6E"
+      : source?.status === "connecting" ? "#E8A851"
+      : source?.status === "error" ? "#C44040"
+      : "#6E6E8A";
+    dot.style.background = statusColor;
+    btn.appendChild(dot);
+
+    const label = document.createElement("span");
+    label.textContent = name;
+    btn.appendChild(label);
+
+    btn.addEventListener("click", () => {
+      if (activeSourceFilter !== null && activeSourceFilter.has(srcId)) {
+        // Toggle off this source
+        activeSourceFilter.delete(srcId);
+        if (activeSourceFilter.size === 0) {
+          activeSourceFilter = null; // back to "all"
+        }
+      } else {
+        // Toggle on — if coming from "all", start fresh set with just this source
+        if (activeSourceFilter === null) {
+          activeSourceFilter = new Set([srcId]);
+        } else {
+          activeSourceFilter.add(srcId);
+        }
+      }
+      rebuildSourceFilters();
+      renderPending = true;
+      scheduleRender();
+    });
+
+    sourceFiltersEl.appendChild(btn);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -365,6 +615,11 @@ export function initRawLog(parent: HTMLElement): void {
     if (!logEl) return;
     const distFromBottom = logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight;
     userScrolledUp = distFromBottom > 40;
+  });
+
+  // Rebuild source filters when sources change (new source added, name changed, etc.)
+  subscribeSignalSources(() => {
+    rebuildSourceFilters();
   });
 
   // Initial render (empty state)

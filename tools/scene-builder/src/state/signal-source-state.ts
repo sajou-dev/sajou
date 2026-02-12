@@ -9,6 +9,35 @@
 import type { SignalSource, SignalSourcesState, TransportProtocol } from "../types.js";
 
 // ---------------------------------------------------------------------------
+// Source identity palette
+// ---------------------------------------------------------------------------
+
+/**
+ * Rotating palette of visually distinct identity colors for sources.
+ * These are NOT status colors — they identify which source a signal came from.
+ */
+const SOURCE_PALETTE: string[] = [
+  "#5B8DEF",  // blue
+  "#E8A851",  // amber
+  "#4EC9B0",  // teal
+  "#C586C0",  // purple
+  "#6A9955",  // green
+  "#F44747",  // red
+  "#D4A0E0",  // lavender
+  "#4DC9F6",  // cyan
+];
+
+/** Track how many sources have been created to cycle through the palette. */
+let sourceCounter = 0;
+
+/** Get the next identity color from the palette. */
+function nextSourceColor(): string {
+  const color = SOURCE_PALETTE[sourceCounter % SOURCE_PALETTE.length]!;
+  sourceCounter++;
+  return color;
+}
+
+// ---------------------------------------------------------------------------
 // Default state
 // ---------------------------------------------------------------------------
 
@@ -18,6 +47,7 @@ export function createSource(name?: string): SignalSource {
   return {
     id,
     name: name ?? `source-${id.slice(0, 4)}`,
+    color: nextSourceColor(),
     protocol: "websocket",
     url: "ws://localhost:9100",
     apiKey: "",

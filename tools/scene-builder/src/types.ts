@@ -214,6 +214,16 @@ export interface RouteCreationPreview {
   cursor: { x: number; y: number } | null;
 }
 
+/** Choreographer node canvas viewport state. */
+export interface NodeCanvasViewport {
+  /** Pan offset X in canvas coordinates. */
+  panX: number;
+  /** Pan offset Y in canvas coordinates. */
+  panY: number;
+  /** Zoom level (1.0 = 100%). */
+  zoom: number;
+}
+
 /** Editor UI state (transient, not saved to scene file). */
 export interface EditorState {
   /** Currently active workspace view (V1 compat — used for keyboard focus zone). */
@@ -239,6 +249,8 @@ export interface EditorState {
   routeCreationPreview: RouteCreationPreview | null;
   /** Rideau split ratio: 0 = full preview (theme only), 1 = full workspace (choreo only). Default: 0.5. */
   rideauSplit: number;
+  /** Choreographer node canvas viewport (pan/zoom). */
+  nodeCanvasViewport: NodeCanvasViewport;
 }
 
 // ---------------------------------------------------------------------------
@@ -442,6 +454,8 @@ export interface UndoableCommand {
 /**
  * Signal types supported in V1.
  * Mirrors `@sajou/schema` SignalType — kept local to avoid adding a dependency.
+ * `"event"` is a catch-all for generic backend events (OpenClaw, custom APIs…)
+ * that don't map to a known sajou type. The full JSON is preserved as payload.
  */
 export type SignalType =
   | "task_dispatch"
@@ -450,7 +464,8 @@ export type SignalType =
   | "token_usage"
   | "agent_state_change"
   | "error"
-  | "completion";
+  | "completion"
+  | "event";
 
 /** Agent lifecycle states (mirrors @sajou/schema AgentState). */
 export type AgentState = "idle" | "thinking" | "acting" | "waiting" | "done" | "error";
@@ -467,6 +482,7 @@ export interface SignalPayloadMap {
   agent_state_change: { agentId: string; from: AgentState; to: AgentState; reason?: string };
   error: { agentId?: string; code?: string; message: string; severity: ErrorSeverity };
   completion: { taskId: string; agentId?: string; success: boolean; result?: string };
+  event: Record<string, unknown>;
 }
 
 /** A single step in a signal scenario timeline. */
@@ -588,7 +604,11 @@ export interface ChoreographyStepDef {
 export interface ChoreographyDef {
   /** Editor-internal unique ID (stripped on export). */
   id: string;
-  /** The signal type that triggers this choreography. */
+  /**
+   * Default signal type trigger (bootstrap/fallback).
+   * When signal-type→choreographer wires target this choreography, those are authoritative.
+   * When no wires exist, `on` is used as the implicit trigger.
+   */
   on: string;
   /** Optional condition filter on signal payload. */
   when?: WhenClauseDef;
@@ -596,6 +616,12 @@ export interface ChoreographyDef {
   interrupts: boolean;
   /** Ordered sequence of steps. */
   steps: ChoreographyStepDef[];
+  /** Editor-only: node X position on the choreographer canvas. */
+  nodeX: number;
+  /** Editor-only: node Y position on the choreographer canvas. */
+  nodeY: number;
+  /** Editor-only: whether the node is collapsed (header only). */
+  collapsed: boolean;
 }
 
 /** Full state for the choreography editor. */
@@ -627,6 +653,8 @@ export interface SignalSource {
   id: string;
   /** Display name (user-editable). */
   name: string;
+  /** Identity color — visually distinguishes this source across the UI. */
+  color: string;
   /** Transport protocol. */
   protocol: TransportProtocol;
   /** Connection URL. */
