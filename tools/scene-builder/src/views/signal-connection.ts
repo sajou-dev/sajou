@@ -790,7 +790,7 @@ function debug(message: string, level: "info" | "warn" | "error", sourceId = "")
   for (const fn of debugListeners) fn(message, level, sourceId);
 }
 
-function dispatchSignal(signal: ReceivedSignal, sourceId = ""): void {
+export function dispatchSignal(signal: ReceivedSignal, sourceId = ""): void {
   for (const fn of signalListeners) fn(signal, sourceId);
 }
 

@@ -27,6 +27,7 @@ import {
 } from "../state/signal-source-state.js";
 import { createSourceBlock } from "./signal-source-block.js";
 import { initRawLog, addLogEntry, addDebugEntry } from "./signal-raw-log.js";
+import { createSimulatorBar } from "./simulator-bar.js";
 
 // ---------------------------------------------------------------------------
 // DOM references
@@ -65,6 +66,10 @@ export function initSignalView(): void {
   sourcesArea.appendChild(addBtn);
 
   zoneEl.appendChild(sourcesArea);
+
+  // ── Simulator bar (between sources and log) ──
+  const simulatorBar = createSimulatorBar();
+  zoneEl.appendChild(simulatorBar);
 
   // ── Lower area: raw log ──
   const lowerArea = document.createElement("div");
