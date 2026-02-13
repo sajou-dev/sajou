@@ -23,6 +23,7 @@ import type {
 
 import { getEntitySpriteById } from "../canvas/scene-renderer.js";
 import { resolveEntityId, resolvePosition } from "./run-mode-resolve.js";
+import { switchAnimation } from "./run-mode-animator.js";
 import type { Sprite } from "pixi.js";
 
 // ---------------------------------------------------------------------------
@@ -63,7 +64,14 @@ export function createRunModeSink(): CommandSink {
   return {
     onActionStart(cmd: ActionStartCommand): void {
       const placedId = resolveEntityId(cmd.entityRef);
-      if (!placedId) return;
+      if (!placedId) {
+        if (cmd.entityRef) {
+          console.warn(`[run-mode] ${cmd.action} start: entity "${cmd.entityRef}" not found`);
+        } else {
+          console.warn(`[run-mode] ${cmd.action} start: no entity specified`);
+        }
+        return;
+      }
 
       const sprite = getEntitySpriteById(placedId);
       if (!sprite) return;
@@ -150,7 +158,14 @@ export function createRunModeSink(): CommandSink {
 
     onActionExecute(cmd: ActionExecuteCommand): void {
       const placedId = resolveEntityId(cmd.entityRef);
-      if (!placedId) return;
+      if (!placedId) {
+        if (cmd.entityRef) {
+          console.warn(`[run-mode] ${cmd.action}: entity "${cmd.entityRef}" not found in scene`);
+        } else {
+          console.warn(`[run-mode] ${cmd.action}: no entity specified`);
+        }
+        return;
+      }
 
       const sprite = getEntitySpriteById(placedId);
       if (!sprite) return;
@@ -172,6 +187,9 @@ export function createRunModeSink(): CommandSink {
       } else if (cmd.action === "playSound") {
         // Skip V1 — just log
         console.log("[run-mode] playSound:", cmd.params["sound"]);
+      } else if (cmd.action === "setAnimation") {
+        const newState = cmd.params["state"] as string | undefined;
+        if (newState) switchAnimation(placedId, newState);
       }
     },
 

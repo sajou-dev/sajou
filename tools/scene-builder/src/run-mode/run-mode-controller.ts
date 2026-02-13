@@ -237,13 +237,15 @@ function convertStep(editorStep: ChoreographyStepDef, choreo: ChoreographyDef): 
   };
 
   // Entity: explicit step value > choreography default target > omitted
-  if (editorStep.entity !== undefined) {
+  // Treat empty string as "not set" — fall through to default target
+  if (editorStep.entity) {
     step["entity"] = editorStep.entity;
   } else if (choreo.defaultTargetEntityId) {
     step["entity"] = choreo.defaultTargetEntityId;
   }
 
-  if (editorStep.target !== undefined) step["target"] = editorStep.target;
+  if (editorStep.target) step["target"] = editorStep.target;
+  if (editorStep.delay !== undefined && editorStep.delay > 0) step["delay"] = editorStep.delay;
   if (editorStep.duration !== undefined) step["duration"] = editorStep.duration;
   if (editorStep.easing !== undefined) step["easing"] = editorStep.easing;
 

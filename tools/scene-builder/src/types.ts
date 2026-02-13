@@ -699,6 +699,8 @@ export interface ChoreographyStepDef {
   entity?: string;
   /** Target entity reference (for actions like flash). */
   target?: string;
+  /** Delay in ms before the action starts. Defaults to 0. */
+  delay?: number;
   /** Duration in ms. Absent = instant action. */
   duration?: number;
   /** Easing function name. */

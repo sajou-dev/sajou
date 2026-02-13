@@ -39,6 +39,15 @@ const DURATION_INPUT: InputDeclaration = {
   default: 500,
 };
 
+const DELAY_INPUT: InputDeclaration = {
+  type: "duration",
+  key: "delay",
+  label: "Delay",
+  min: 0,
+  max: 5000,
+  default: 0,
+};
+
 const EASING_INPUT: InputDeclaration = {
   type: "easing",
   key: "easing",
@@ -52,7 +61,7 @@ const EASING_INPUT: InputDeclaration = {
 
 const MOVE_SCHEMA: ActionInputSchema = {
   action: "move",
-  common: [ENTITY_INPUT, DURATION_INPUT, EASING_INPUT],
+  common: [ENTITY_INPUT, DELAY_INPUT, DURATION_INPUT, EASING_INPUT],
   params: [
     {
       type: "position-ref",
@@ -66,7 +75,7 @@ const MOVE_SCHEMA: ActionInputSchema = {
 
 const FLY_SCHEMA: ActionInputSchema = {
   action: "fly",
-  common: [ENTITY_INPUT, DURATION_INPUT, EASING_INPUT],
+  common: [ENTITY_INPUT, DELAY_INPUT, DURATION_INPUT, EASING_INPUT],
   params: [
     {
       type: "position-ref",
@@ -80,7 +89,7 @@ const FLY_SCHEMA: ActionInputSchema = {
 
 const SPAWN_SCHEMA: ActionInputSchema = {
   action: "spawn",
-  common: [ENTITY_INPUT],
+  common: [ENTITY_INPUT, DELAY_INPUT],
   params: [
     {
       type: "position-ref",
@@ -94,13 +103,13 @@ const SPAWN_SCHEMA: ActionInputSchema = {
 
 const DESTROY_SCHEMA: ActionInputSchema = {
   action: "destroy",
-  common: [ENTITY_INPUT],
+  common: [ENTITY_INPUT, DELAY_INPUT],
   params: [],
 };
 
 const FLASH_SCHEMA: ActionInputSchema = {
   action: "flash",
-  common: [TARGET_INPUT, DURATION_INPUT, EASING_INPUT],
+  common: [TARGET_INPUT, DELAY_INPUT, DURATION_INPUT, EASING_INPUT],
   params: [
     {
       type: "color",
@@ -119,7 +128,7 @@ const WAIT_SCHEMA: ActionInputSchema = {
 
 const PLAY_SOUND_SCHEMA: ActionInputSchema = {
   action: "playSound",
-  common: [],
+  common: [DELAY_INPUT],
   params: [
     {
       type: "string",
@@ -135,6 +144,19 @@ const PLAY_SOUND_SCHEMA: ActionInputSchema = {
       max: 1,
       step: 0.1,
       default: 1,
+    },
+  ],
+};
+
+const SET_ANIMATION_SCHEMA: ActionInputSchema = {
+  action: "setAnimation",
+  common: [ENTITY_INPUT, DELAY_INPUT],
+  params: [
+    {
+      type: "string",
+      key: "state",
+      label: "State",
+      placeholder: "idle, walk, attack, ...",
     },
   ],
 };
@@ -171,6 +193,7 @@ const ACTION_SCHEMAS: Map<string, ActionInputSchema> = new Map([
   ["flash", FLASH_SCHEMA],
   ["wait", WAIT_SCHEMA],
   ["playSound", PLAY_SOUND_SCHEMA],
+  ["setAnimation", SET_ANIMATION_SCHEMA],
   ["parallel", PARALLEL_SCHEMA],
   ["onArrive", ON_ARRIVE_SCHEMA],
   ["onInterrupt", ON_INTERRUPT_SCHEMA],

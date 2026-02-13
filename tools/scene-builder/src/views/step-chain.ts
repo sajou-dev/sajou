@@ -11,6 +11,7 @@ import type { ChoreographyDef, ChoreographyStepDef } from "../types.js";
 import { STRUCTURAL_ACTIONS } from "../types.js";
 import { getChoreographyState } from "../state/choreography-state.js";
 import { ACTION_COLORS, addStepCmd, createDefaultStep } from "./step-commands.js";
+import { attachPillDragBehavior, isStepDragSuppressed, DRAGGABLE_ACTIONS } from "../workspace/step-drag.js";
 
 // ---------------------------------------------------------------------------
 // Action icons (short emoji/symbol per action type)
@@ -24,6 +25,7 @@ const ACTION_ICONS: Record<string, string> = {
   flash: "\u26A1",      // ⚡
   wait: "\u23F1",       // ⏱
   playSound: "\u266B",  // ♫
+  setAnimation: "\u25B6", // ▶
   parallel: "\u2503",   // ┃ (split)
   onArrive: "\u2691",   // ⚑
   onInterrupt: "\u26A0", // ⚠
@@ -74,7 +76,7 @@ export function renderStepChain(
       chain.appendChild(arrow);
     }
 
-    const pill = renderPill(step, step.id === selectedStepId, callbacks.onStepClick);
+    const pill = renderPill(step, step.id === selectedStepId, callbacks.onStepClick, choreo.id);
     chain.appendChild(pill);
   }
 
@@ -99,6 +101,7 @@ function renderPill(
   step: ChoreographyStepDef,
   isSelected: boolean,
   onClick: (stepId: string) => void,
+  choreoId: string,
 ): HTMLElement {
   const pill = document.createElement("button");
   pill.className = "nc-chain-pill" + (isSelected ? " nc-chain-pill--selected" : "");
@@ -106,6 +109,11 @@ function renderPill(
 
   const color = ACTION_COLORS[step.action] ?? "#888899";
   pill.style.setProperty("--pill-color", color);
+
+  // Mark incomplete pills (draggable action with no entity configured)
+  if (DRAGGABLE_ACTIONS.has(step.action) && !step.entity && !step.target) {
+    pill.classList.add("nc-chain-pill--incomplete");
+  }
 
   // Icon
   const icon = document.createElement("span");
@@ -126,7 +134,13 @@ function renderPill(
 
   pill.appendChild(label);
 
+  // Attach drag-to-entity behavior for draggable actions
+  if (DRAGGABLE_ACTIONS.has(step.action)) {
+    attachPillDragBehavior(pill, step, choreoId);
+  }
+
   pill.addEventListener("click", (e) => {
+    if (isStepDragSuppressed()) return;
     e.stopPropagation();
     onClick(step.id);
   });
@@ -175,6 +189,7 @@ const PICKER_ITEMS: { action: string; icon: string; label: string }[] = [
   { action: "flash", icon: "\u26A1", label: "flash" },
   { action: "wait", icon: "\u23F1", label: "wait" },
   { action: "playSound", icon: "\u266B", label: "sound" },
+  { action: "setAnimation", icon: "\u25B6", label: "animation" },
   { action: "parallel", icon: "\u2503", label: "parallel" },
   { action: "onArrive", icon: "\u2691", label: "onArrive" },
   { action: "onInterrupt", icon: "\u26A0", label: "onInterrupt" },

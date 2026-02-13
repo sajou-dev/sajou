@@ -19,6 +19,7 @@ import {
   ACTION_TYPES,
   flattenSteps,
   updateStepCmd,
+  removeStepCmd,
 } from "./step-commands.js";
 
 // ---------------------------------------------------------------------------
@@ -107,6 +108,7 @@ export function openStepPopover(
     const updates: Partial<ChoreographyStepDef> = {};
     if (key === "entity") { updates.entity = value as string; }
     else if (key === "target") { updates.target = value as string; }
+    else if (key === "delay") { updates.delay = value as number; }
     else if (key === "duration") { updates.duration = value as number; }
     else if (key === "easing") { updates.easing = value as string; }
     else { updates.params = { ...step.params, [key]: value }; }
@@ -120,6 +122,7 @@ export function openStepPopover(
       let currentValue: unknown;
       if (decl.key === "entity") currentValue = step.entity;
       else if (decl.key === "target") currentValue = step.target;
+      else if (decl.key === "delay") currentValue = step.delay;
       else if (decl.key === "duration") currentValue = step.duration;
       else if (decl.key === "easing") currentValue = step.easing;
       const control = createInputControl(decl, currentValue, onChange);
@@ -154,6 +157,17 @@ export function openStepPopover(
     content.appendChild(textarea);
   }
 
+  // Delete button
+  const deleteBtn = document.createElement("button");
+  deleteBtn.className = "nc-popover-delete";
+  deleteBtn.textContent = "\u2716 Delete step";
+  deleteBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    removeStepCmd(choreoId, stepId);
+    closeStepPopover();
+  });
+  content.appendChild(deleteBtn);
+
   el.appendChild(content);
   document.body.appendChild(el);
   popoverEl = el;
@@ -161,10 +175,13 @@ export function openStepPopover(
   // Position the popover below the anchor pill
   positionPopover(el, arrow, anchorEl);
 
+  // Track the current anchor — it may be replaced by re-renders
+  let currentAnchor = anchorEl;
+
   // Close on click outside or Escape
   const onDocClick = (e: MouseEvent) => {
     if (el.contains(e.target as Node)) return;
-    if (anchorEl.contains(e.target as Node)) return;
+    if (currentAnchor.contains(e.target as Node)) return;
     closeStepPopover();
   };
   const onKeyDown = (e: KeyboardEvent) => {
@@ -177,14 +194,24 @@ export function openStepPopover(
     document.addEventListener("keydown", onKeyDown);
   });
 
-  // Re-position when choreography state changes (e.g. node pan/zoom)
-  // If anchor was removed from DOM (re-render), close popover.
+  // Re-position when choreography state changes (e.g. node pan/zoom).
+  // If the anchor pill was re-rendered (DOM replaced), find the new one
+  // by data-step-id and re-anchor. Only close if the step truly vanished.
   const unsub = subscribeChoreography(() => {
-    if (!anchorEl.isConnected) {
-      closeStepPopover();
-      return;
+    if (!currentAnchor.isConnected) {
+      // Pill was re-rendered — try to find its replacement
+      const replacement = document.querySelector<HTMLElement>(
+        `.nc-chain-pill[data-step-id="${stepId}"]`,
+      );
+      if (replacement) {
+        currentAnchor = replacement;
+      } else {
+        // Step was deleted — close popover
+        closeStepPopover();
+        return;
+      }
     }
-    if (popoverEl) positionPopover(popoverEl, arrow, anchorEl);
+    if (popoverEl) positionPopover(popoverEl, arrow, currentAnchor);
   });
 
   cleanupFn = () => {

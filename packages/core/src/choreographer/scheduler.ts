@@ -26,7 +26,7 @@ import type {
 let performanceIdCounter = 0;
 
 /** Actions that are instant (no duration, no frame updates). */
-const INSTANT_ACTIONS = new Set(["spawn", "destroy", "playSound"]);
+const INSTANT_ACTIONS = new Set(["spawn", "destroy", "playSound", "setAnimation"]);
 
 /**
  * Creates a unique performance ID.
@@ -256,6 +256,23 @@ export class Scheduler {
 
     // Regular action step
     const actionStep = step as ActionStep;
+
+    // Handle delay — wait before starting the action
+    const delayMs = typeof actionStep.delay === "number" ? actionStep.delay : 0;
+    if (delayMs > 0) {
+      if (cursor.delayUntil === null) {
+        // Start the delay timer
+        cursor.delayUntil = timestamp + delayMs;
+        return;
+      }
+      if (timestamp < cursor.delayUntil) {
+        // Still waiting
+        return;
+      }
+      // Delay expired — clear and proceed to action
+      cursor.delayUntil = null;
+    }
+
     const isInstant = INSTANT_ACTIONS.has(actionStep.action) || actionStep.duration === undefined;
 
     if (isInstant) {
@@ -413,6 +430,7 @@ function createCursor(steps: readonly ChoreographyStep[]): StepCursor {
     index: 0,
     activeAction: null,
     children: null,
+    delayUntil: null,
   };
 }
 
@@ -457,7 +475,7 @@ function resolveStepParams(
   step: ActionStep,
   signal: PerformanceSignal,
 ): Record<string, unknown> {
-  const excluded = new Set(["action", "entity", "target", "duration", "easing", "steps"]);
+  const excluded = new Set(["action", "entity", "target", "delay", "duration", "easing", "steps"]);
   const raw: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(step)) {
     if (!excluded.has(key)) {

@@ -127,6 +127,8 @@ interface ActionStepBase {
  */
 export interface ActionStep extends ActionStepBase {
   readonly action: Exclude<string, "parallel" | "onArrive" | "onInterrupt">;
+  /** Delay in milliseconds before the action starts. Defaults to 0 (no delay). */
+  readonly delay?: number;
   /** Duration in milliseconds. Absence means instant action. */
   readonly duration?: number;
   /** Easing function name. Defaults to "linear" if not specified. */
@@ -208,6 +210,8 @@ export interface StepCursor {
   activeAction: ActiveAction | null;
   /** For parallel steps: cursors for each child. */
   children: StepCursor[] | null;
+  /** Timestamp when a delay expires. null = no pending delay. */
+  delayUntil: number | null;
 }
 
 /** Timing state for an in-progress animated action. */

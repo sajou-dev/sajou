@@ -5475,6 +5475,25 @@ button {
   box-shadow: 0 0 8px color-mix(in srgb, var(--pill-color, #888899) 30%, transparent);
 }
 
+/* Pill incomplete (entity not configured — drag to assign) */
+.nc-chain-pill--incomplete {
+  border-style: dashed;
+  opacity: 0.55;
+}
+.nc-chain-pill--incomplete:hover {
+  opacity: 0.85;
+}
+
+/* Ghost pill during step-drag */
+.nc-step-drag-ghost {
+  position: fixed;
+  z-index: 10000;
+  pointer-events: none;
+  opacity: 0.85;
+  transform: scale(1.1);
+  transition: none;
+}
+
 .nc-pill-icon {
   font-size: 11px;
   line-height: 1;
@@ -5639,6 +5658,24 @@ button {
 
 .nc-popover-textarea:focus {
   border-color: var(--color-accent-dim);
+}
+
+.nc-popover-delete {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 4px 0;
+  border: none;
+  border-top: 1px solid var(--color-border);
+  background: transparent;
+  color: #F44747;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  cursor: pointer;
+  text-align: center;
+}
+.nc-popover-delete:hover {
+  background: rgba(244, 71, 71, 0.12);
 }
 
 /* -- Quick-action picker -- */
