@@ -29,40 +29,11 @@ import {
   getAllActiveSignalTypes,
   getChoreoInputInfo,
 } from "../state/wiring-queries.js";
-
-// ---------------------------------------------------------------------------
-// Signal type definitions (channels on the bus)
-// ---------------------------------------------------------------------------
-
-/** All known signal types — these appear as connection endpoints. */
-const SIGNAL_TYPES: string[] = [
-  "task_dispatch", "tool_call", "tool_result",
-  "token_usage", "agent_state_change", "error", "completion",
-];
-
-/** Signal type badge colors (shared palette). */
-const SIGNAL_TYPE_COLORS: Record<string, string> = {
-  task_dispatch: "#E8A851",
-  tool_call: "#5B8DEF",
-  tool_result: "#4EC9B0",
-  token_usage: "#C586C0",
-  agent_state_change: "#6A9955",
-  error: "#F44747",
-  completion: "#4EC9B0",
-  event: "#8E8EA0",
-};
-
-/** Short display labels for signal types. */
-const SIGNAL_TYPE_LABELS: Record<string, string> = {
-  task_dispatch: "task",
-  tool_call: "tool↗",
-  tool_result: "tool↙",
-  token_usage: "tokens",
-  agent_state_change: "state",
-  error: "error",
-  completion: "done",
-  event: "event",
-};
+import {
+  SIGNAL_TYPES,
+  SIGNAL_TYPE_COLORS,
+  SIGNAL_TYPE_LABELS,
+} from "../views/step-commands.js";
 
 /** Status dot colors for sources. */
 const STATUS_DOT_COLORS: Record<string, string> = {

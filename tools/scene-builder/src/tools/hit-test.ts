@@ -36,6 +36,16 @@ export function hitTestPosition(sx: number, sy: number, radius = DEFAULT_RADIUS)
   return closest;
 }
 
+/** Result of an entity hit-test. */
+export interface EntityHitResult {
+  /** Placed entity instance ID. */
+  placedId: string;
+  /** Entity definition ID (e.g. "refugee-2"). */
+  entityId: string;
+  /** Semantic actor ID, or null if the entity has none (decor). */
+  semanticId: string | null;
+}
+
 /**
  * AABB hit-test against placed entities with a semanticId (actors only).
  *
@@ -47,6 +57,18 @@ export function hitTestEntity(sx: number, sy: number): {
   placedId: string;
   semanticId: string;
 } | null {
+  const hit = hitTestAnyEntity(sx, sy);
+  if (hit && hit.semanticId) return { placedId: hit.placedId, semanticId: hit.semanticId };
+  return null;
+}
+
+/**
+ * AABB hit-test against ANY placed entity (including decor without semanticId).
+ *
+ * Returns the topmost hit entity info (with nullable semanticId), or null.
+ * Hidden entities and entities on hidden/locked layers are skipped.
+ */
+export function hitTestAnyEntity(sx: number, sy: number): EntityHitResult | null {
   const { entities, layers } = getSceneState();
   const entityStore = getEntityStore();
 
@@ -64,8 +86,6 @@ export function hitTestEntity(sx: number, sy: number): {
   });
 
   for (const placed of sorted) {
-    // Only actors (entities with semanticId) are valid binding targets
-    if (!placed.semanticId) continue;
     if (!placed.visible) continue;
 
     // Skip entities on hidden or locked layers
@@ -82,7 +102,11 @@ export function hitTestEntity(sx: number, sy: number): {
     const top = placed.y - h * ay;
 
     if (sx >= left && sx <= left + w && sy >= top && sy <= top + h) {
-      return { placedId: placed.id, semanticId: placed.semanticId };
+      return {
+        placedId: placed.id,
+        entityId: placed.entityId,
+        semanticId: placed.semanticId ?? null,
+      };
     }
   }
 

@@ -10,6 +10,7 @@
 import { Application, Container, Graphics } from "pixi.js";
 import { getSceneState, subscribeScene } from "../state/scene-state.js";
 import { getEditorState, subscribeEditor } from "../state/editor-state.js";
+import { isRunModeActive } from "../run-mode/run-mode-state.js";
 import type { ToolId } from "../types.js";
 
 // ---------------------------------------------------------------------------
@@ -394,22 +395,27 @@ export async function initCanvas(): Promise<void> {
   });
 
   // Tool handler forwarding (only when not panning, left-click only)
+  // In run mode, only pan/zoom are active — all other tools are soft-disabled.
   canvasContainer.addEventListener("mousedown", (e) => {
     if (e.button !== 0 || spaceDown || panning) return;
     if (getEditorState().activeTool === "hand") return;
+    if (isRunModeActive()) return;
     toolHandler?.onMouseDown?.(e, screenToScene(e));
   });
   document.addEventListener("mousemove", (e) => {
     if (panning) return;
+    if (isRunModeActive()) return;
     toolHandler?.onMouseMove?.(e, screenToScene(e));
   });
   document.addEventListener("mouseup", (e) => {
     if (e.button !== 0) return;
+    if (isRunModeActive()) return;
     toolHandler?.onMouseUp?.(e, screenToScene(e));
   });
   canvasContainer.addEventListener("dblclick", (e) => {
     if (e.button !== 0 || spaceDown || panning) return;
     if (getEditorState().activeTool === "hand") return;
+    if (isRunModeActive()) return;
     toolHandler?.onDoubleClick?.(e, screenToScene(e));
   });
 

@@ -12,7 +12,13 @@ import { initToolbar } from "./toolbar.js";
 import { initHeader } from "./header.js";
 import { initHelpBar } from "./help-bar.js";
 import { initUndoManager } from "../state/undo.js";
-import { getEditorState, subscribeEditor } from "../state/editor-state.js";
+import {
+  getEditorState,
+  subscribeEditor,
+  setSelection,
+  setPositionSelection,
+  setRouteSelection,
+} from "../state/editor-state.js";
 import { createPanel } from "./panel.js";
 import { initViewTabs } from "./view-tabs.js";
 import { initRideau } from "./rideau.js";
@@ -54,7 +60,14 @@ function initToolSwitching(): void {
   const { handler: routeTool, cancelCreation: cancelRouteCreation, getHoveredPoint } = createRouteTool();
 
   function syncTool(): void {
-    const { activeTool } = getEditorState();
+    const { activeTool, selectedPositionIds, selectedRouteIds, selectedIds } = getEditorState();
+
+    // Clear cross-tool selections on tool switch to avoid stale inspector state.
+    // Guard: only clear if non-empty to avoid infinite notify loops.
+    if (activeTool !== "position" && selectedPositionIds.length > 0) setPositionSelection([]);
+    if (activeTool !== "route" && selectedRouteIds.length > 0) setRouteSelection([]);
+    if (activeTool !== "select" && selectedIds.length > 0) setSelection([]);
+
     switch (activeTool) {
       case "select":
         setToolHandler(selectTool);

@@ -237,10 +237,16 @@ export async function exportScene(): Promise<void> {
   const wiringState = getWiringState();
   const bindingState = getBindingState();
 
+  // Exclude signal→signal-type wires — sources are session-ephemeral
+  // and won't exist on re-import, creating orphaned references
+  const persistentWires = wiringState.wires.filter(
+    (w) => w.fromZone !== "signal",
+  );
+
   const choreoJson: ChoreographyExportJson = {
     version: 1,
     choreographies: choreoState.choreographies,
-    wires: wiringState.wires,
+    wires: persistentWires,
     bindings: bindingState.bindings,
   };
 

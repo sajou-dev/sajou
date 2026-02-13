@@ -1,12 +1,15 @@
 /**
- * Binding drop menu.
+ * Binding drop menu — radial / OPie-style.
  *
- * Contextual popup that appears when the user drops a choreographer output
- * wire onto an entity in the scene (cross-rideau drag). Lists bindable
- * properties: animation states first (for spritesheets), then generic
- * spatial/visual/topological properties.
+ * Contextual pie menu that appears when the user drops a choreographer output
+ * wire onto an entity in the scene (cross-rideau drag). Bindable properties
+ * are arranged in a ring around the drop point. Click one to create a binding.
  *
- * Selecting an item creates an EntityBinding via the binding store.
+ * Behaviour:
+ *   - Items fan out radially from the drop point.
+ *   - Hover highlights the slice.
+ *   - Click creates the binding and closes the menu.
+ *   - Click outside or Escape closes without creating.
  */
 
 import { addBinding } from "../state/binding-store.js";
@@ -20,39 +23,67 @@ let menuEl: HTMLElement | null = null;
 let cleanupFn: (() => void) | null = null;
 
 // ---------------------------------------------------------------------------
-// Property definitions for the menu
+// Property definitions
 // ---------------------------------------------------------------------------
 
-interface MenuProperty {
+interface RadialItem {
   /** Property key for the binding. */
   key: string;
-  /** Display label. */
+  /** Short display label. */
   label: string;
+  /** Icon character (emoji or symbol). */
+  icon: string;
   /** Inferred source type when this property is selected. */
   sourceType: BindingValueType;
-  /** Category for grouping. */
-  category: "animation" | "spatial" | "visual" | "topological";
+  /** Optional action payload (for animation states). */
+  action?: { animationDuring: string };
 }
 
-/** Static list of generic bindable properties shown in the menu. */
-const GENERIC_PROPERTIES: readonly MenuProperty[] = [
-  // Spatial
-  { key: "position.x", label: "Position X", sourceType: "float", category: "spatial" },
-  { key: "position.y", label: "Position Y", sourceType: "float", category: "spatial" },
-  { key: "rotation", label: "Rotation", sourceType: "float", category: "spatial" },
-  { key: "scale", label: "Scale", sourceType: "float", category: "spatial" },
-  // Visual
-  { key: "opacity", label: "Opacity", sourceType: "float", category: "visual" },
-  { key: "visible", label: "Visible", sourceType: "bool", category: "visual" },
-  { key: "zIndex", label: "Z-Index", sourceType: "int", category: "visual" },
-];
+/** Build the list of radial items based on entity capabilities. */
+function buildItems(
+  hasTopology: boolean,
+  animationStates: string[],
+): RadialItem[] {
+  const items: RadialItem[] = [];
 
-/** Topological properties (only shown if entity has topology). */
-const TOPO_PROPERTIES: readonly MenuProperty[] = [
-  { key: "moveTo:waypoint", label: "Move To", sourceType: "event", category: "topological" },
-  { key: "followRoute", label: "Follow Route", sourceType: "event", category: "topological" },
-  { key: "teleportTo", label: "Teleport To", sourceType: "event", category: "topological" },
-];
+  // Topological actions first (most common intent for game entities)
+  if (hasTopology) {
+    items.push({ key: "moveTo:waypoint", label: "Move To", icon: "\u279C", sourceType: "event" });
+    items.push({ key: "followRoute", label: "Follow Route", icon: "\u21BB", sourceType: "event" });
+    items.push({ key: "teleportTo", label: "Teleport", icon: "\u26A1", sourceType: "event" });
+  }
+
+  // Animation states (spritesheet)
+  for (const state of animationStates) {
+    items.push({
+      key: "animation.state",
+      label: state,
+      icon: "\u25B6",
+      sourceType: "event",
+      action: { animationDuring: state },
+    });
+  }
+
+  // Core spatial/visual properties
+  items.push({ key: "position.x", label: "Pos X", icon: "\u2194", sourceType: "float" });
+  items.push({ key: "position.y", label: "Pos Y", icon: "\u2195", sourceType: "float" });
+  items.push({ key: "rotation", label: "Rotation", icon: "\u21BB", sourceType: "float" });
+  items.push({ key: "scale", label: "Scale", icon: "\u2922", sourceType: "float" });
+  items.push({ key: "opacity", label: "Opacity", icon: "\u25D1", sourceType: "float" });
+  items.push({ key: "visible", label: "Visible", icon: "\u25C9", sourceType: "bool" });
+
+  return items;
+}
+
+// ---------------------------------------------------------------------------
+// Geometry constants
+// ---------------------------------------------------------------------------
+
+/** Radius of the item ring from center (px). */
+const RING_RADIUS = 100;
+
+/** Size of each item button (px). */
+const ITEM_SIZE = 56;
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -73,9 +104,8 @@ export interface BindingDropMenuOptions {
   animationStates: string[];
 }
 
-/** Show the binding drop menu at the drop point. */
+/** Show the radial binding menu at the drop point. */
 export function showBindingDropMenu(options: BindingDropMenuOptions): void {
-  // Close any existing menu first
   hideBindingDropMenu();
 
   const {
@@ -86,94 +116,78 @@ export function showBindingDropMenu(options: BindingDropMenuOptions): void {
     animationStates,
   } = options;
 
-  // Build the menu element
-  const menu = document.createElement("div");
-  menu.className = "binding-drop-menu";
+  const items = buildItems(hasTopology, animationStates);
+  if (items.length === 0) return;
 
-  // Animation states section (spritesheet only)
-  if (animationStates.length > 0) {
-    const header = document.createElement("div");
-    header.className = "bdm-header";
-    header.textContent = "Animation";
-    menu.appendChild(header);
+  // Container — covers the full viewport to capture clicks outside
+  const overlay = document.createElement("div");
+  overlay.className = "radial-overlay";
 
-    for (const state of animationStates) {
-      const item = createItem(`\u25B6 ${state}`, () => {
-        addBinding({
-          targetEntityId: targetSemanticId,
-          property: "animation.state",
-          sourceChoreographyId: choreographyId,
-          sourceType: "event",
-          action: { animationDuring: state },
-        });
-        hideBindingDropMenu();
-      });
-      menu.appendChild(item);
-    }
+  // Ring container — positioned at the drop point
+  const ring = document.createElement("div");
+  ring.className = "radial-ring";
+  ring.style.left = `${x}px`;
+  ring.style.top = `${y}px`;
 
-    // Separator
-    const sep = document.createElement("div");
-    sep.className = "bdm-separator";
-    menu.appendChild(sep);
-  }
+  // Center dot
+  const center = document.createElement("div");
+  center.className = "radial-center";
+  ring.appendChild(center);
 
-  // Generic properties
-  const propHeader = document.createElement("div");
-  propHeader.className = "bdm-header";
-  propHeader.textContent = "Properties";
-  menu.appendChild(propHeader);
+  // Place items around the ring
+  const count = items.length;
+  const startAngle = -Math.PI / 2; // 12 o'clock
 
-  for (const prop of GENERIC_PROPERTIES) {
-    const item = createItem(prop.label, () => {
+  for (let i = 0; i < count; i++) {
+    const item = items[i]!;
+    const angle = startAngle + (2 * Math.PI * i) / count;
+    const ix = Math.cos(angle) * RING_RADIUS;
+    const iy = Math.sin(angle) * RING_RADIUS;
+
+    const btn = document.createElement("button");
+    btn.className = "radial-item";
+    btn.style.left = `${ix - ITEM_SIZE / 2}px`;
+    btn.style.top = `${iy - ITEM_SIZE / 2}px`;
+    btn.title = item.label;
+
+    const iconSpan = document.createElement("span");
+    iconSpan.className = "radial-item-icon";
+    iconSpan.textContent = item.icon;
+
+    const labelSpan = document.createElement("span");
+    labelSpan.className = "radial-item-label";
+    labelSpan.textContent = item.label;
+
+    btn.appendChild(iconSpan);
+    btn.appendChild(labelSpan);
+
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
       addBinding({
         targetEntityId: targetSemanticId,
-        property: prop.key,
+        property: item.key,
         sourceChoreographyId: choreographyId,
-        sourceType: prop.sourceType,
+        sourceType: item.sourceType,
+        ...(item.action ? { action: item.action } : {}),
       });
       hideBindingDropMenu();
     });
-    menu.appendChild(item);
+
+    ring.appendChild(btn);
   }
 
-  // Topological properties (if entity has topology)
-  if (hasTopology) {
-    const topoSep = document.createElement("div");
-    topoSep.className = "bdm-separator";
-    menu.appendChild(topoSep);
+  overlay.appendChild(ring);
+  document.body.appendChild(overlay);
+  menuEl = overlay;
 
-    const topoHeader = document.createElement("div");
-    topoHeader.className = "bdm-header";
-    topoHeader.textContent = "Topology";
-    menu.appendChild(topoHeader);
+  // Animate in
+  requestAnimationFrame(() => {
+    ring.classList.add("radial-ring--open");
+  });
 
-    for (const prop of TOPO_PROPERTIES) {
-      const item = createItem(prop.label, () => {
-        addBinding({
-          targetEntityId: targetSemanticId,
-          property: prop.key,
-          sourceChoreographyId: choreographyId,
-          sourceType: prop.sourceType,
-        });
-        hideBindingDropMenu();
-      });
-      menu.appendChild(item);
-    }
-  }
-
-  // Position the menu — clamp to viewport
-  document.body.appendChild(menu);
-  const menuRect = menu.getBoundingClientRect();
-  const clampedX = Math.min(x, window.innerWidth - menuRect.width - 8);
-  const clampedY = Math.min(y, window.innerHeight - menuRect.height - 8);
-  menu.style.left = `${Math.max(4, clampedX)}px`;
-  menu.style.top = `${Math.max(4, clampedY)}px`;
-
-  menuEl = menu;
-
-  // Close on click-outside or Escape
-  const onClickOutside = (e: MouseEvent) => {
-    if (!menu.contains(e.target as Node)) {
+  // Close on overlay click or Escape
+  const onOverlayClick = (e: MouseEvent) => {
+    if (e.target === overlay) {
       hideBindingDropMenu();
     }
   };
@@ -183,19 +197,16 @@ export function showBindingDropMenu(options: BindingDropMenuOptions): void {
     }
   };
 
-  // Delay adding click listener to avoid the same mouseup closing it
-  requestAnimationFrame(() => {
-    document.addEventListener("mousedown", onClickOutside);
-    document.addEventListener("keydown", onKeyDown);
-  });
+  overlay.addEventListener("mousedown", onOverlayClick);
+  document.addEventListener("keydown", onKeyDown);
 
   cleanupFn = () => {
-    document.removeEventListener("mousedown", onClickOutside);
+    overlay.removeEventListener("mousedown", onOverlayClick);
     document.removeEventListener("keydown", onKeyDown);
   };
 }
 
-/** Hide and remove the binding drop menu. */
+/** Hide and remove the radial binding menu. */
 export function hideBindingDropMenu(): void {
   if (cleanupFn) {
     cleanupFn();
@@ -205,20 +216,4 @@ export function hideBindingDropMenu(): void {
     menuEl.remove();
     menuEl = null;
   }
-}
-
-// ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
-
-/** Create a clickable menu item. */
-function createItem(label: string, onClick: () => void): HTMLElement {
-  const item = document.createElement("div");
-  item.className = "bdm-item";
-  item.textContent = label;
-  item.addEventListener("click", (e) => {
-    e.stopPropagation();
-    onClick();
-  });
-  return item;
 }

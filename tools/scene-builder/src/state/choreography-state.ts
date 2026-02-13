@@ -6,6 +6,7 @@
  */
 
 import type { ChoreographyEditorState } from "../types.js";
+import { getWiringState, removeWire } from "./wiring-state.js";
 
 // ---------------------------------------------------------------------------
 // Default state
@@ -60,6 +61,28 @@ export function selectChoreography(id: string | null): void {
 /** Select a step by ID within the selected choreography (or null to deselect). */
 export function selectChoreographyStep(id: string | null): void {
   state = { ...state, selectedStepId: id };
+  notify();
+}
+
+/** Remove a choreography by ID. Also cleans up wires targeting it. */
+export function removeChoreography(id: string): void {
+  // Clean up wires referencing this choreography (signal-type→choreo, choreo→theme)
+  const { wires } = getWiringState();
+  for (const wire of wires) {
+    if (
+      (wire.toZone === "choreographer" && wire.toId === id) ||
+      (wire.fromZone === "choreographer" && wire.fromId === id)
+    ) {
+      removeWire(wire.id);
+    }
+  }
+
+  state = {
+    ...state,
+    choreographies: state.choreographies.filter((c) => c.id !== id),
+    selectedChoreographyId: state.selectedChoreographyId === id ? null : state.selectedChoreographyId,
+    selectedStepId: state.selectedChoreographyId === id ? null : state.selectedStepId,
+  };
   notify();
 }
 

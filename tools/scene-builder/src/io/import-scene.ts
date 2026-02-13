@@ -292,8 +292,13 @@ export async function importScene(): Promise<void> {
       selectedChoreographyId: null,
       selectedStepId: null,
     });
+    // Filter out signal→signal-type wires — sources are session-ephemeral
+    // and not included in exports, so these wires would be orphaned
+    const persistentWires = (choreoJson.wires ?? []).filter(
+      (w) => w.fromZone !== "signal",
+    );
     setWiringState({
-      wires: choreoJson.wires ?? [],
+      wires: persistentWires,
       draggingWireId: null,
     });
     // 5. Level 2 bindings (optional — old ZIPs may lack this field)

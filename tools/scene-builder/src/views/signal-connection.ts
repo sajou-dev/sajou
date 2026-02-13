@@ -16,6 +16,7 @@
 
 import type { SignalType } from "../types.js";
 import { updateSource } from "../state/signal-source-state.js";
+import { getSignalTimelineState } from "../state/signal-timeline-state.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -118,6 +119,75 @@ export function onDebug(fn: DebugListener): () => void {
     const idx = debugListeners.indexOf(fn);
     if (idx >= 0) debugListeners.splice(idx, 1);
   };
+}
+
+// ---------------------------------------------------------------------------
+// Public API — timeline playback
+// ---------------------------------------------------------------------------
+
+/** Pending timeout IDs for a running timeline playback (so we can cancel). */
+let playbackTimers: ReturnType<typeof setTimeout>[] = [];
+let playbackDoneCallback: (() => void) | null = null;
+
+/**
+ * Emit all Signal Timeline steps sequentially via `dispatchSignal()`.
+ *
+ * Each step is scheduled with a cumulative delay based on `step.delayMs`.
+ * The signals flow through the same internal bus that external sources use,
+ * so the Choreographer picks them up in Run Mode.
+ *
+ * @param onDone — optional callback invoked when all steps have been emitted.
+ * @returns a cancel function to abort remaining scheduled emissions.
+ */
+export function emitTimelineSignals(onDone?: () => void): () => void {
+  // Cancel any running playback first
+  cancelTimelinePlayback();
+
+  const { steps } = getSignalTimelineState();
+  if (steps.length === 0) {
+    onDone?.();
+    return () => {};
+  }
+
+  playbackDoneCallback = onDone ?? null;
+  let emittedCount = 0;
+  let cumulativeDelay = 0;
+
+  for (const step of steps) {
+    cumulativeDelay += step.delayMs;
+    const delay = cumulativeDelay;
+
+    const timer = setTimeout(() => {
+      dispatchSignal({
+        id: step.id + "-" + Date.now().toString(36),
+        type: step.type,
+        timestamp: Date.now(),
+        source: "timeline",
+        correlationId: step.correlationId,
+        payload: step.payload as Record<string, unknown>,
+        raw: JSON.stringify({ type: step.type, payload: step.payload }),
+      });
+      debug(`[timeline] Emitted ${step.type}`, "info", "timeline");
+
+      emittedCount++;
+      if (emittedCount >= steps.length) {
+        playbackTimers = [];
+        playbackDoneCallback?.();
+        playbackDoneCallback = null;
+      }
+    }, delay);
+
+    playbackTimers.push(timer);
+  }
+
+  return cancelTimelinePlayback;
+}
+
+/** Cancel any running timeline playback. */
+export function cancelTimelinePlayback(): void {
+  for (const t of playbackTimers) clearTimeout(t);
+  playbackTimers = [];
+  playbackDoneCallback = null;
 }
 
 // ---------------------------------------------------------------------------

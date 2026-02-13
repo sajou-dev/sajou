@@ -734,6 +734,8 @@ export interface ChoreographyDef {
   nodeY: number;
   /** Editor-only: whether the node is collapsed (header only). */
   collapsed: boolean;
+  /** Default target entity assigned by dragging choreography → entity on canvas. */
+  defaultTargetEntityId?: string;
 }
 
 /** Full state for the choreography editor. */

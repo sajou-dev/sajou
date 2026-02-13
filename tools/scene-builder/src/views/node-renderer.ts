@@ -12,44 +12,18 @@
  * Parent (choreography-view) handles re-rendering on state changes.
  */
 
-import type { ChoreographyDef, ChoreographyStepDef } from "../types.js";
+import type { ChoreographyDef } from "../types.js";
 import {
   getChoreographyState,
   toggleNodeCollapsed,
+  selectChoreographyStep,
 } from "../state/choreography-state.js";
 import { getChoreoInputInfo, getSourcesForChoreo } from "../state/wiring-queries.js";
 import { getActiveBarHSource } from "../workspace/connector-bar-horizontal.js";
 import { renderNodeDetail } from "./node-detail-inline.js";
-
-// ---------------------------------------------------------------------------
-// Signal type colors (shared palette)
-// ---------------------------------------------------------------------------
-
-const SIGNAL_TYPE_COLORS: Record<string, string> = {
-  task_dispatch: "#E8A851",
-  tool_call: "#5B8DEF",
-  tool_result: "#4EC9B0",
-  token_usage: "#C586C0",
-  agent_state_change: "#6A9955",
-  error: "#F44747",
-  completion: "#4EC9B0",
-  event: "#8E8EA0",
-};
-
-/** Short display labels for signal types. */
-const SIGNAL_TYPE_LABELS: Record<string, string> = {
-  task_dispatch: "task",
-  tool_call: "tool↗",
-  tool_result: "tool↙",
-  token_usage: "tokens",
-  agent_state_change: "state",
-  error: "error",
-  completion: "done",
-  event: "event",
-};
-
-/** Structural actions that have children. */
-const STRUCTURAL_ACTIONS = ["parallel", "onArrive", "onInterrupt"];
+import { renderStepChain, openActionPicker } from "./step-chain.js";
+import { openStepPopover, closeStepPopover } from "./step-popover.js";
+import { SIGNAL_TYPE_COLORS, SIGNAL_TYPE_LABELS } from "./step-commands.js";
 
 // ---------------------------------------------------------------------------
 // Render all nodes
@@ -142,34 +116,33 @@ function renderNode(
 
   node.appendChild(header);
 
-  // ── Body (step preview — hidden when collapsed) ──
+  // ── Body (step chain — hidden when collapsed) ──
   if (!choreo.collapsed) {
-    const body = document.createElement("div");
-    body.className = "nc-node-body";
-
-    if (choreo.steps.length === 0) {
-      const empty = document.createElement("div");
-      empty.className = "nc-node-empty";
-      empty.textContent = "No steps";
-      body.appendChild(empty);
-    } else {
-      const maxPreview = 5;
-      const steps = choreo.steps.slice(0, maxPreview);
-      for (let i = 0; i < steps.length; i++) {
-        const stepEl = document.createElement("div");
-        stepEl.className = "nc-node-step";
-        stepEl.textContent = `${i + 1}. ${summarizeStep(steps[i]!)}`;
-        body.appendChild(stepEl);
-      }
-      if (choreo.steps.length > maxPreview) {
-        const more = document.createElement("div");
-        more.className = "nc-node-step nc-node-step--more";
-        more.textContent = `+${choreo.steps.length - maxPreview} more`;
-        body.appendChild(more);
-      }
-    }
-
-    node.appendChild(body);
+    const chain = renderStepChain(choreo, {
+      onStepClick: (stepId) => {
+        const { selectedStepId } = getChoreographyState();
+        if (stepId === selectedStepId) {
+          // Toggle off
+          closeStepPopover();
+          selectChoreographyStep(null);
+        } else {
+          selectChoreographyStep(stepId);
+          // Open popover on the pill.
+          // selectChoreographyStep triggers a full re-render (renderAllNodes),
+          // so the old `node` ref is now detached. Query from the live DOM.
+          requestAnimationFrame(() => {
+            const livePill = document.querySelector(
+              `.nc-node[data-node-id="${choreo.id}"] .nc-chain-pill[data-step-id="${stepId}"]`,
+            );
+            if (livePill) openStepPopover(stepId, choreo.id, livePill as HTMLElement);
+          });
+        }
+      },
+      onAddClick: (anchorEl) => {
+        openActionPicker(anchorEl, choreo.id);
+      },
+    });
+    node.appendChild(chain);
   }
 
   // ── Output port (right side) ──
@@ -228,21 +201,3 @@ function createPort(nodeId: string, signalType: string, direction: "in" | "out",
   return port;
 }
 
-// ---------------------------------------------------------------------------
-// Step summary (compact)
-// ---------------------------------------------------------------------------
-
-/** Summarize a step for compact display. */
-function summarizeStep(step: ChoreographyStepDef): string {
-  const entity = step.entity ?? step.target ?? "";
-  const to = step.params["to"] ? ` → ${step.params["to"]}` : "";
-  const at = step.params["at"] ? ` @ ${step.params["at"]}` : "";
-  const dur = step.duration ? ` ${step.duration}ms` : "";
-
-  if (STRUCTURAL_ACTIONS.includes(step.action)) {
-    const count = step.children?.length ?? 0;
-    return `${step.action} (${count})`;
-  }
-  const detail = `${entity}${to}${at}${dur}`.trim();
-  return detail ? `${step.action} ${detail}` : step.action;
-}

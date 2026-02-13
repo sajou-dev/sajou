@@ -121,6 +121,9 @@ importers:
 
   tools/scene-builder:
     dependencies:
+      '@sajou/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       fflate:
         specifier: ^0.8.2
         version: 0.8.2

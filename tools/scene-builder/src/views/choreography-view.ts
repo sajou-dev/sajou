@@ -11,7 +11,11 @@
  *   - node-detail-inline.ts — inline step editor under selected node
  */
 
-import { subscribeChoreography } from "../state/choreography-state.js";
+import {
+  getChoreographyState,
+  subscribeChoreography,
+  removeChoreography,
+} from "../state/choreography-state.js";
 import { subscribeWiring } from "../state/wiring-state.js";
 import { subscribeActiveSource } from "../workspace/connector-bar-horizontal.js";
 import { createNodeCanvas } from "./node-canvas.js";
@@ -44,6 +48,9 @@ export function initChoreographyView(): void {
   // Initialize drag interactions (reposition + drag-to-create)
   initNodeDrag(canvas);
 
+  // Initialize keyboard shortcuts (Delete to remove selected node)
+  initChoreographyKeyboard(zoneEl);
+
   // Initial render
   renderNodes();
 
@@ -61,4 +68,28 @@ export function initChoreographyView(): void {
 function renderNodes(): void {
   if (!canvas) return;
   renderAllNodes(canvas.nodesContainer);
+}
+
+// ---------------------------------------------------------------------------
+// Keyboard shortcuts
+// ---------------------------------------------------------------------------
+
+/** Initialize Delete/Backspace shortcut for removing selected choreography node. */
+function initChoreographyKeyboard(zoneEl: HTMLElement): void {
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Delete" && e.key !== "Backspace") return;
+
+    // Don't interfere with text inputs
+    const tag = (e.target as HTMLElement).tagName;
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+
+    // Only act when choreographer zone is visible
+    if (zoneEl.offsetParent === null) return;
+
+    const { selectedChoreographyId } = getChoreographyState();
+    if (!selectedChoreographyId) return;
+
+    e.preventDefault();
+    removeChoreography(selectedChoreographyId);
+  });
 }

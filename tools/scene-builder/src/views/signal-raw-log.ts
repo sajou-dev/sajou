@@ -13,35 +13,16 @@ import {
   getSignalSourcesState,
   subscribeSignalSources,
 } from "../state/signal-source-state.js";
+import {
+  SIGNAL_TYPES as ALL_SIGNAL_TYPES,
+  SIGNAL_TYPE_COLORS,
+} from "./step-commands.js";
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
 const MAX_ENTRIES = 500;
-
-/** Signal type badge colors — matches signal-timeline-panel.ts palette. */
-const SIGNAL_TYPE_COLORS: Record<SignalType, string> = {
-  task_dispatch: "#E8A851",
-  tool_call: "#5B8DEF",
-  tool_result: "#4EC9B0",
-  token_usage: "#C586C0",
-  agent_state_change: "#6A9955",
-  error: "#F44747",
-  completion: "#4EC9B0",
-  event: "#8E8EA0",
-};
-
-const ALL_SIGNAL_TYPES: SignalType[] = [
-  "task_dispatch",
-  "tool_call",
-  "tool_result",
-  "token_usage",
-  "agent_state_change",
-  "error",
-  "completion",
-  "event",
-];
 
 // ---------------------------------------------------------------------------
 // State

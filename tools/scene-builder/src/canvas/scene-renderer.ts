@@ -15,6 +15,7 @@ import { getSceneState, subscribeScene } from "../state/scene-state.js";
 import { getEditorState, subscribeEditor } from "../state/editor-state.js";
 import { getEntityStore, subscribeEntities } from "../state/entity-store.js";
 import { getAssetStore, subscribeAssets } from "../state/asset-store.js";
+import { isRunModeActive } from "../run-mode/run-mode-state.js";
 import { getLayers } from "./canvas.js";
 import type { PlacedEntity, EntityEntry, SceneLayer } from "../types.js";
 import { buildPathPoints } from "../tools/route-tool.js";
@@ -114,6 +115,22 @@ const entitySprites = new Map<string, Sprite>();
 
 /** Map of PlacedEntity.id → fallback Graphics (colored rect). */
 const entityFallbacks = new Map<string, Graphics>();
+
+/**
+ * Get a PixiJS sprite by PlacedEntity ID.
+ * Used by run-mode-sink to drive sprite transforms during choreography execution.
+ */
+export function getEntitySpriteById(placedId: string): Sprite | null {
+  return entitySprites.get(placedId) ?? null;
+}
+
+/**
+ * Get a cached base texture by asset path.
+ * Used by run-mode-animator to slice spritesheet frame textures.
+ */
+export function getCachedTexture(assetPath: string): Texture | null {
+  return textureCache.get(assetPath) ?? null;
+}
 
 /** Resolve the entity definition for a placed entity. */
 function getEntityDef(entityId: string): EntityEntry | null {
@@ -225,7 +242,11 @@ async function renderEntities(): Promise<void> {
       });
     }
 
-    applyPlacedTransform(sprite, placed, def, layer);
+    // In run mode, the sink manages transforms — only apply on initial creation
+    // or when not in run mode. Always apply z-ordering and visibility.
+    if (!isRunModeActive()) {
+      applyPlacedTransform(sprite, placed, def, layer);
+    }
     sprite.visible = true;
   }
 
@@ -397,7 +418,6 @@ function renderBindingHighlight(): void {
   const { entities } = getSceneState();
 
   for (const placed of entities) {
-    if (!placed.semanticId) continue;
     if (!placed.visible) continue;
 
     const def = getEntityDef(placed.entityId);
@@ -409,7 +429,7 @@ function renderBindingHighlight(): void {
     const left = placed.x - w * ax;
     const top = placed.y - h * ay;
 
-    const isHovered = placed.semanticId === bindingDropHighlightId;
+    const isHovered = placed.id === bindingDropHighlightId;
 
     // Draw accent outline
     bindingHighlightGraphics.rect(left - 3, top - 3, w + 6, h + 6);

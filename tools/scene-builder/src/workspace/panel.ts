@@ -67,14 +67,29 @@ export function createPanel(config: PanelConfig): PanelInstance {
   el.appendChild(contentEl);
   el.appendChild(resizeHandle);
 
-  // Apply initial layout from state
+  // Apply initial layout from state, clamping to parent bounds
   function applyLayout(): void {
     const layout = getEditorState().panelLayouts[id];
-    el.style.left = `${layout.x}px`;
-    el.style.top = `${layout.y}px`;
-    el.style.width = `${layout.width}px`;
-    el.style.height = `${layout.height}px`;
     el.style.display = layout.visible ? "flex" : "none";
+
+    // Clamp position + size within parent bounds (visual only, no state write)
+    const parent = el.parentElement;
+    let { x, y, width, height } = layout;
+    if (parent && layout.visible) {
+      const pw = parent.clientWidth;
+      const ph = parent.clientHeight;
+      if (pw > 0 && ph > 0) {
+        width = Math.min(width, pw - 8);
+        height = Math.min(height, ph - 8);
+        x = Math.max(4, Math.min(x, pw - width - 4));
+        y = Math.max(4, Math.min(y, ph - height - 4));
+      }
+    }
+
+    el.style.left = `${x}px`;
+    el.style.top = `${y}px`;
+    el.style.width = `${width}px`;
+    el.style.height = `${height}px`;
   }
 
   applyLayout();

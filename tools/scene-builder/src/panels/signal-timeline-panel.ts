@@ -23,39 +23,24 @@ import type {
   ErrorSeverity,
   UndoableCommand,
 } from "../types.js";
+import {
+  SIGNAL_TYPES as ALL_SIGNAL_TYPES,
+  SIGNAL_TYPE_COLORS,
+} from "../views/step-commands.js";
+import {
+  emitTimelineSignals,
+  cancelTimelinePlayback,
+} from "../views/signal-connection.js";
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
-
-/** All signal types for the type dropdown. */
-const ALL_SIGNAL_TYPES: SignalType[] = [
-  "task_dispatch",
-  "tool_call",
-  "tool_result",
-  "token_usage",
-  "agent_state_change",
-  "error",
-  "completion",
-];
 
 /** Agent lifecycle states for dropdowns. */
 const AGENT_STATES: AgentState[] = ["idle", "thinking", "acting", "waiting", "done", "error"];
 
 /** Error severity levels for dropdown. */
 const ERROR_SEVERITIES: ErrorSeverity[] = ["warning", "error", "critical"];
-
-/** Signal type badge colors (Ember palette + complements). */
-const SIGNAL_TYPE_COLORS: Record<SignalType, string> = {
-  task_dispatch: "#E8A851",
-  tool_call: "#5B8DEF",
-  tool_result: "#4EC9B0",
-  token_usage: "#C586C0",
-  agent_state_change: "#6A9955",
-  error: "#F44747",
-  completion: "#4EC9B0",
-  event: "#8E8EA0",
-};
 
 /** Correlation ID → color palette (cycled via hash). */
 const CORRELATION_COLORS = ["#E8A851", "#5B8DEF", "#4EC9B0", "#C586C0", "#6A9955", "#F44747"];
@@ -71,6 +56,14 @@ function lucide(inner: string, size = 12): string {
 const ICON_CHEVRON_UP = lucide('<path d="m18 15-6-6-6 6"/>');
 const ICON_CHEVRON_DOWN = lucide('<path d="m6 9 6 6 6-6"/>');
 const ICON_TRASH = lucide('<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>');
+const ICON_PLAY = lucide('<polygon points="6 3 20 12 6 21 6 3"/>');
+const ICON_STOP = lucide('<rect width="14" height="14" x="5" y="5" rx="2"/>');
+
+// ---------------------------------------------------------------------------
+// Playback state
+// ---------------------------------------------------------------------------
+
+let isPlaying = false;
 
 // ---------------------------------------------------------------------------
 // ID generation
@@ -342,9 +335,36 @@ function renderToolbar(): HTMLElement {
   exportBtn.title = "Export scenario JSON";
   exportBtn.addEventListener("click", exportScenarioJson);
 
+  // Play / Stop button
+  const { steps } = getSignalTimelineState();
+  const playBtn = document.createElement("button");
+  playBtn.className = isPlaying
+    ? "st-toolbar-btn timeline-play-btn timeline-play-btn--playing"
+    : "st-toolbar-btn timeline-play-btn";
+  playBtn.innerHTML = isPlaying ? ICON_STOP : ICON_PLAY;
+  playBtn.title = isPlaying ? "Stop playback" : "Play timeline signals";
+  if (steps.length === 0 && !isPlaying) {
+    playBtn.disabled = true;
+  }
+  playBtn.addEventListener("click", () => {
+    if (isPlaying) {
+      cancelTimelinePlayback();
+      isPlaying = false;
+      render();
+    } else {
+      isPlaying = true;
+      render();
+      emitTimelineSignals(() => {
+        isPlaying = false;
+        render();
+      });
+    }
+  });
+
   bar.appendChild(nameInput);
   bar.appendChild(importBtn);
   bar.appendChild(exportBtn);
+  bar.appendChild(playBtn);
   return bar;
 }
 

@@ -7,6 +7,7 @@
  */
 
 import type { SignalSource, SignalSourcesState, TransportProtocol } from "../types.js";
+import { getWiringState, removeWire } from "./wiring-state.js";
 
 // ---------------------------------------------------------------------------
 // Source identity palette
@@ -102,8 +103,16 @@ export function addSource(name?: string): string {
   return source.id;
 }
 
-/** Remove a source by ID. */
+/** Remove a source by ID. Also cleans up any signal→signal-type wires referencing it. */
 export function removeSource(id: string): void {
+  // Clean up orphaned wires: remove all signal→signal-type wires from this source
+  const { wires } = getWiringState();
+  for (const wire of wires) {
+    if (wire.fromZone === "signal" && wire.fromId === id) {
+      removeWire(wire.id);
+    }
+  }
+
   state = {
     ...state,
     sources: state.sources.filter((s) => s.id !== id),

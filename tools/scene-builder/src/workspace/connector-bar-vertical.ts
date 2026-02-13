@@ -18,20 +18,7 @@ import {
   getWiresBetween,
   subscribeWiring,
 } from "../state/wiring-state.js";
-
-// ---------------------------------------------------------------------------
-// Signal type colors (reuse from timeline palette)
-// ---------------------------------------------------------------------------
-
-const SIGNAL_TYPE_COLORS: Record<string, string> = {
-  task_dispatch: "#E8A851",
-  tool_call: "#5B8DEF",
-  tool_result: "#4EC9B0",
-  token_usage: "#C586C0",
-  agent_state_change: "#6A9955",
-  error: "#F44747",
-  completion: "#4EC9B0",
-};
+import { SIGNAL_TYPE_COLORS } from "../views/step-commands.js";
 
 // ---------------------------------------------------------------------------
 // Init

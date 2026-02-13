@@ -28,13 +28,14 @@ import {
   setInterfaceState,
   updateEditorState,
 } from "../state/editor-state.js";
-import { getSceneState } from "../state/scene-state.js";
+import { getSceneState, updateSceneState } from "../state/scene-state.js";
 import { getEntityStore } from "../state/entity-store.js";
 import { setPreviewWire, type PreviewWire } from "./wiring-overlay.js";
 import { getActiveBarHSource } from "./connector-bar-horizontal.js";
 import { screenToScene } from "../canvas/canvas.js";
-import { hitTestEntity } from "../tools/hit-test.js";
+import { hitTestAnyEntity } from "../tools/hit-test.js";
 import { showBindingDropMenu } from "./binding-drop-menu.js";
+import { updateChoreographyCmd } from "../views/step-commands.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -162,8 +163,8 @@ function onMouseMove(e: MouseEvent): void {
 
       if (inThemeZone) {
         const scenePos = screenToScene(e);
-        const hit = hitTestEntity(scenePos.x, scenePos.y);
-        updateEditorState({ bindingDropHighlightId: hit?.semanticId ?? null });
+        const hit = hitTestAnyEntity(scenePos.x, scenePos.y);
+        updateEditorState({ bindingDropHighlightId: hit?.placedId ?? null });
       } else {
         updateEditorState({ bindingDropHighlightId: null });
       }
@@ -223,8 +224,22 @@ function onMouseUp(e: MouseEvent): void {
   // Level 2: if no DOM badge hit and targeting theme, try entity hit-test
   if (targetZone === "theme" && fromZone === "choreographer") {
     const scenePos = screenToScene(e);
-    const hit = hitTestEntity(scenePos.x, scenePos.y);
+    const hit = hitTestAnyEntity(scenePos.x, scenePos.y);
     if (hit) {
+      // Auto-assign Actor ID if the entity doesn't have one yet
+      let semanticId: string = hit.semanticId ?? "";
+      if (!semanticId) {
+        semanticId = generateSemanticId(hit.entityId);
+        const { entities } = getSceneState();
+        updateSceneState({
+          entities: entities.map((ent) =>
+            ent.id === hit.placedId
+              ? { ...ent, semanticId }
+              : ent,
+          ),
+        });
+      }
+
       // Gather entity info for the drop menu
       const { entities } = getSceneState();
       const placed = entities.find((ent) => ent.id === hit.placedId);
@@ -238,12 +253,15 @@ function onMouseUp(e: MouseEvent): void {
         animationStates.push(...Object.keys(def.visual.animations));
       }
 
+      // Assign this entity as the choreography's default target
+      updateChoreographyCmd(fromId, { defaultTargetEntityId: semanticId });
+
       // Show contextual binding menu at drop point
       showBindingDropMenu({
         x: e.clientX,
         y: e.clientY,
         choreographyId: fromId,
-        targetSemanticId: hit.semanticId,
+        targetSemanticId: semanticId,
         hasTopology: hasTopo,
         animationStates,
       });
@@ -341,3 +359,29 @@ function findTargetBadgeAt(x: number, y: number, zone: WireZone): HTMLElement | 
   }
   return null;
 }
+
+// ---------------------------------------------------------------------------
+// Auto Actor ID
+// ---------------------------------------------------------------------------
+
+/**
+ * Generate a unique semantic ID for an entity that doesn't have one yet.
+ * Uses the entityId as base (e.g. "refugee-2") and appends a suffix if
+ * another entity already uses that semantic ID.
+ */
+function generateSemanticId(entityId: string): string {
+  const { entities } = getSceneState();
+  const usedIds = new Set<string>();
+  for (const ent of entities) {
+    if (ent.semanticId) usedIds.add(ent.semanticId);
+  }
+
+  // Try base entityId first
+  if (!usedIds.has(entityId)) return entityId;
+
+  // Append incrementing suffix
+  let i = 2;
+  while (usedIds.has(`${entityId}-${i}`)) i++;
+  return `${entityId}-${i}`;
+}
+
