@@ -6,7 +6,7 @@
  */
 
 import type {
-  SignalType,
+  WellKnownSignalType,
   SignalEnvelope,
   SignalPayloadMap,
 } from "@sajou/schema";
@@ -35,7 +35,7 @@ export function resetCounter(): void {
  * });
  * ```
  */
-export function createSignal<T extends SignalType>(
+export function createSignal<T extends WellKnownSignalType>(
   type: T,
   payload: SignalPayloadMap[T],
   options?: {
@@ -45,6 +45,8 @@ export function createSignal<T extends SignalType>(
   },
 ): SignalEnvelope<T> {
   counter++;
+  // Cast is safe: T extends WellKnownSignalType ⊂ keyof SignalPayloadMap,
+  // but TS cannot simplify the conditional type in a generic context.
   return {
     id: `sig-${String(counter).padStart(4, "0")}`,
     type,
@@ -53,5 +55,5 @@ export function createSignal<T extends SignalType>(
     correlationId: options?.correlationId,
     metadata: options?.metadata,
     payload,
-  };
+  } as SignalEnvelope<T>;
 }

@@ -5,7 +5,7 @@
  * The emitter plays them back with realistic timing.
  */
 
-import type { SignalType, SignalPayloadMap } from "@sajou/schema";
+import type { WellKnownSignalType, SignalPayloadMap } from "@sajou/schema";
 
 /**
  * A single step in a scenario timeline.
@@ -13,7 +13,7 @@ import type { SignalType, SignalPayloadMap } from "@sajou/schema";
  * `delayMs` is the pause *before* emitting this signal,
  * relative to the previous step (not absolute time).
  */
-export interface ScenarioStep<T extends SignalType = SignalType> {
+export interface ScenarioStep<T extends WellKnownSignalType = WellKnownSignalType> {
   /** Milliseconds to wait before emitting this signal. */
   readonly delayMs: number;
   /** The signal type. */
