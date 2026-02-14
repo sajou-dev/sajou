@@ -83,6 +83,9 @@ export function initViewTabs(): void {
 
     btn.addEventListener("click", () => setActiveView(tab.view));
 
+    // Clicking anywhere inside the zone focuses it
+    zone.addEventListener("pointerdown", () => setActiveView(tab.view));
+
     zone.appendChild(btn);
     buttons.set(tab.view, btn);
   }
