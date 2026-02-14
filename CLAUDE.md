@@ -29,43 +29,24 @@ Never shortcut signal → render. The choreography layer is the product.
 ```
 sajou/
 ├── packages/
-│   ├── core/              # Signal bus + Choreographer runtime
-│   │   ├── src/
-│   │   │   ├── signal-bus/       # Signal reception, normalization, dispatch
-│   │   │   ├── choreographer/    # Runtime that interprets choreography JSON
-│   │   │   ├── primitives/       # Built-in action types (move, spawn, fly...)
-│   │   │   └── index.ts
-│   │   ├── tests/
-│   │   └── package.json
-│   ├── schema/            # JSON Schemas (signals, choreographies, themes, entities)
-│   │   ├── src/
-│   │   │   ├── signal.schema.json
-│   │   │   ├── choreography.schema.json
-│   │   │   ├── theme.schema.json
-│   │   │   └── entity.schema.json
-│   │   └── package.json
+│   ├── core/              # Signal bus + Choreographer runtime (vanilla TS, zero deps)
+│   ├── schema/            # JSON Schemas + TypeScript types for signal protocol
 │   ├── theme-api/         # Theme contract and renderer interfaces
-│   │   ├── src/
-│   │   │   ├── types.ts          # ThemeManifest, Renderer, EntityDefinition...
-│   │   │   └── index.ts
-│   │   └── package.json
-│   ├── theme-citadel/     # WC3-inspired theme (reference implementation)
-│   │   ├── src/
-│   │   │   ├── renderers/        # One renderer per primitive
-│   │   │   ├── entities/         # Entity definitions and assets
-│   │   │   ├── choreographies/   # Theme-specific choreography JSONs
-│   │   │   └── index.ts
-│   │   ├── assets/               # Sprites, models, sounds
-│   │   └── package.json
-│   └── emitter/           # Test signal emitter
-│       ├── src/
-│       │   ├── scenarios/        # Predefined signal sequences
-│       │   └── index.ts
-│       └── package.json
-├── adapters/
-│   ├── test/              # Dev signal source (WebSocket server)
-│   └── openclaw/          # OpenClaw → Sajou signal bridge
+│   ├── theme-citadel/     # WC3/Tiny Swords theme (PixiJS v8)
+│   ├── theme-office/      # Corporate/office theme (PixiJS v8)
+│   └── emitter/           # Test signal emitter (WebSocket)
+├── tools/
+│   ├── scene-builder/     # Visual scene editor — main authoring tool (Vite + PixiJS)
+│   ├── player/            # Scene player for exported scenes
+│   └── entity-editor/     # Entity editor (frozen — superseded by scene-builder)
+├── tests/
+│   └── integration/       # Cross-package integration tests
+├── docs/
+│   ├── adr/               # Architecture Decision Records
+│   ├── archive/           # Archived specs (implemented, kept for reference)
+│   └── brand/             # Brand guide and assets
 ├── SAJOU-MANIFESTO.md
+├── ARCHITECTURE.md        # Current state of the codebase
 ├── CLAUDE.md
 ├── README.md
 ├── pnpm-workspace.yaml
@@ -82,8 +63,17 @@ Multiple agents may work in parallel. Each agent owns a specific package. **Neve
 | `@sajou/schema` | JSON Schemas, TypeScript types generated from schemas | None |
 | `@sajou/core` | Signal bus, choreographer runtime, primitives | `@sajou/schema` |
 | `@sajou/theme-api` | Theme contract interfaces | `@sajou/schema` |
-| `@sajou/theme-citadel` | WC3 theme implementation | `@sajou/theme-api`, `@sajou/core` |
+| `@sajou/theme-citadel` | WC3/Tiny Swords theme (PixiJS v8) | `@sajou/theme-api`, `@sajou/core` |
+| `@sajou/theme-office` | Corporate/office theme (PixiJS v8) | `@sajou/theme-api`, `@sajou/core` |
 | `@sajou/emitter` | Test signal emitter | `@sajou/schema` |
+
+### Tools
+
+| Tool | Status | Description |
+|------|--------|-------------|
+| `scene-builder` | Active | Visual scene editor — main authoring tool. Wiring, node canvas, step chain, export/import ZIP, run mode. |
+| `player` | Active | Plays exported scene files |
+| `entity-editor` | Frozen | Superseded by scene-builder |
 
 **Rule: `@sajou/schema` is the shared contract.** Any change to schemas must be discussed and validated before implementation. If you need a schema change, propose it as a separate commit with justification — don't just change it.
 
@@ -132,7 +122,7 @@ Multiple agents may work in parallel. Each agent owns a specific package. **Neve
 
 ### Packages
 - npm scope: `@sajou/`
-- Package names: `@sajou/core`, `@sajou/schema`, `@sajou/theme-api`, `@sajou/theme-citadel`, `@sajou/emitter`
+- Package names: `@sajou/core`, `@sajou/schema`, `@sajou/theme-api`, `@sajou/theme-citadel`, `@sajou/theme-office`, `@sajou/emitter`
 
 ### Signals & Choreographies (JSON)
 - `snake_case` for signal types: `task_dispatch`, `tool_call`, `token_usage`
@@ -169,7 +159,7 @@ explore(theme-api): prototype renderer interface for 3D entities
 ```
 
 Types: `feat`, `fix`, `test`, `docs`, `refactor`, `chore`, `explore`
-Scopes: `core`, `schema`, `theme-api`, `theme-citadel`, `emitter`, `adapters`
+Scopes: `core`, `schema`, `theme-api`, `theme-citadel`, `theme-office`, `emitter`, `scene-builder`, `player`
 
 ### Rules
 - Every commit must compile (`pnpm typecheck` passes)
@@ -180,62 +170,7 @@ Scopes: `core`, `schema`, `theme-api`, `theme-citadel`, `emitter`, `adapters`
 
 ---
 
-## Process for Open Questions
-
-Several design decisions are intentionally left open. They need exploration, prototyping, and challenging — not premature locking.
-
-### How to Explore
-1. **Create an `explore/` branch** with a prototype
-2. **Write an ADR** (Architecture Decision Record) in `docs/adr/` with:
-   - Context: what problem are we solving?
-   - Options considered (at least 2)
-   - Tradeoffs of each
-   - Recommendation
-3. **Build a minimal proof-of-concept** that validates the recommendation
-4. **Commit the ADR + PoC** for review before implementing in the main codebase
-
-### Open Questions for V1
-
-#### 1. Entity Format
-How do we describe entities declaratively across complexity levels?
-- Static sprites (PNG, SVG)
-- Animated sprites (spritesheets, frame sequences)
-- 3D models (glTF with skeletal animations)
-- Particle systems
-- Procedural/shader effects
-
-The format must be rich enough for a WC3 theme but simple enough for an AI to generate. **This is the hardest design problem in V1.**
-
-#### 2. Choreographer Runtime
-- How do we handle concurrent choreographies? (multiple signals arriving simultaneously)
-- How do we handle interruptions? (error mid-animation)
-- What's the easing/timing system? (keyframes? tweens? physics-based?)
-- How does the choreographer communicate with theme renderers? (events? callbacks? observable state?)
-
-#### 3. Signal Protocol
-- What's the minimal set of signal types for V1?
-- How do we handle signal ordering and timing?
-- What metadata does a signal carry?
-- Do we need signal acknowledgment / completion feedback?
-
-#### 4. Theme ↔ Choreographer Contract
-- Does the theme just provide renderers, or does it also contribute choreographies?
-- How does a theme declare its capabilities? (e.g., "I support 3D entities" vs "I only do 2D")
-- How does the choreographer know what entities a theme has?
-
----
-
 ## Working with this Codebase
-
-### Bootstrap (repo initialization)
-```bash
-pnpm init
-# Create pnpm-workspace.yaml with packages/* and adapters/*
-# Create tsconfig.base.json with strict mode
-# Create each package with its own package.json and tsconfig.json
-# Setup Vitest config
-# Setup Vite config for dev server
-```
 
 ### Adding a new primitive to the choreographer
 1. Define the action type in `packages/schema/` (JSON Schema + TypeScript type)
@@ -251,11 +186,11 @@ pnpm init
 3. Update the emitter in `packages/emitter/`
 4. Update any affected choreographies
 
-### Working on the theme
+### Working on a theme
 - The theme implements renderers for each choreographer primitive
-- The theme owns its visual stack (Three.js for Citadel)
+- The theme owns its visual stack (PixiJS v8 for Citadel and Office)
 - The theme declares its available entities and their visual properties
-- Test with the emitter, not a real backend
+- Test with the emitter or scene-builder, not a real backend
 - Theme-specific logic never leaks into `@sajou/core`
 
 ---

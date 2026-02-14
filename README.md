@@ -49,23 +49,29 @@ The choreographer is the core product. Everything is declarative JSON — design
 sajou/
 ├── packages/
 │   ├── core/              # Signal bus + Choreographer runtime (vanilla TS, zero deps)
-│   ├── schema/            # JSON Schemas for signals, choreographies, themes
+│   ├── schema/            # JSON Schemas + TypeScript types for signal protocol
 │   ├── theme-api/         # Theme contract and renderer interfaces
-│   ├── theme-citadel/     # WC3-inspired theme (first reference theme)
-│   └── emitter/           # Test backend that emits realistic fake signals
-├── adapters/
-│   ├── test/              # Simple signal emitter for development
-│   └── openclaw/          # OpenClaw events → Sajou signals bridge
-├── SAJOU-MANIFESTO.md     # Project vision and design principles
-├── CLAUDE.md              # Instructions for AI agents working on this codebase
-└── README.md              # You are here
+│   ├── theme-citadel/     # WC3/Tiny Swords theme (PixiJS v8)
+│   ├── theme-office/      # Corporate/office theme (PixiJS v8)
+│   └── emitter/           # Test signal emitter (WebSocket)
+├── tools/
+│   ├── scene-builder/     # Visual scene editor — main authoring tool
+│   ├── player/            # Scene player for exported scenes
+│   └── entity-editor/     # Entity editor (frozen — superseded by scene-builder)
+├── docs/
+│   ├── adr/               # Architecture Decision Records
+│   ├── archive/           # Archived specs (implemented, kept for reference)
+│   └── brand/             # Brand guide and assets
+└── SAJOU-MANIFESTO.md     # Project vision and design principles
 ```
+
+See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed package descriptions and current state.
 
 ## Tech Stack
 
 - **Language**: TypeScript (strict mode)
 - **Core**: Vanilla TS, zero framework dependency — the choreographer is framework-agnostic
-- **Themes**: Each theme chooses its own render stack (Three.js, PixiJS, Canvas 2D, SVG...)
+- **Themes**: Each theme chooses its own render stack (PixiJS v8 for current themes)
 - **Communication**: JSON over WebSocket
 - **Monorepo**: pnpm workspaces
 - **Build**: Vite
@@ -73,7 +79,7 @@ sajou/
 
 ## Status
 
-🚧 **V1 in progress** — Building the core runtime, signal protocol, and first theme (Citadel/WC3).
+🚧 **V1 in progress** — Core runtime, signal protocol, and 2 themes (Citadel, Office) implemented. The scene-builder is the main authoring tool for creating and testing choreographies visually.
 
 This is a personal learning project. If it turns out well, it will become public.
 
@@ -83,8 +89,8 @@ This is a personal learning project. If it turns out well, it will become public
 # Install dependencies
 pnpm install
 
-# Dev mode (core + emitter + theme)
-pnpm dev
+# Launch the scene-builder (main dev tool)
+pnpm --filter scene-builder dev
 
 # Run tests
 pnpm test
