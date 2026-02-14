@@ -104,6 +104,9 @@ export function openStepPopover(
   content.appendChild(actionRow);
 
   // ISF inputs — commit on change (no Apply button)
+  // Re-read the step from the store on every change to avoid stale closure.
+  // Without this, modifying param A then param B would overwrite A with its
+  // pre-modification value because the spread uses a stale `step.params`.
   const onChange: OnInputChange = (key: string, value: unknown) => {
     const updates: Partial<ChoreographyStepDef> = {};
     if (key === "entity") { updates.entity = value as string; }
@@ -111,7 +114,12 @@ export function openStepPopover(
     else if (key === "delay") { updates.delay = value as number; }
     else if (key === "duration") { updates.duration = value as number; }
     else if (key === "easing") { updates.easing = value as string; }
-    else { updates.params = { ...step.params, [key]: value }; }
+    else {
+      // Read fresh params from store to avoid stale closure
+      const fresh = getFreshStep(choreoId, stepId);
+      const currentParams = fresh?.params ?? step.params;
+      updates.params = { ...currentParams, [key]: value };
+    }
     updateStepCmd(choreoId, stepId, updates);
   };
 
@@ -237,6 +245,14 @@ export function closeStepPopover(): void {
 // ---------------------------------------------------------------------------
 // Positioning
 // ---------------------------------------------------------------------------
+
+/** Read a step's current data fresh from the choreography store. */
+function getFreshStep(choreoId: string, stepId: string): ChoreographyStepDef | null {
+  const { choreographies } = getChoreographyState();
+  const choreo = choreographies.find((c) => c.id === choreoId);
+  if (!choreo) return null;
+  return flattenSteps(choreo.steps).find((s) => s.id === stepId) ?? null;
+}
 
 /** Position the popover below (or above) the anchor element. */
 function positionPopover(el: HTMLElement, arrow: HTMLElement, anchor: HTMLElement): void {
