@@ -157,6 +157,7 @@ export function getSource(id: string): SignalSource | undefined {
 export function detectProtocol(url: string): TransportProtocol {
   const lower = url.trim().toLowerCase();
   if (lower.startsWith("ws://") || lower.startsWith("wss://")) return "websocket";
+  if (lower.includes("anthropic")) return "anthropic";
   return "sse";
 }
 

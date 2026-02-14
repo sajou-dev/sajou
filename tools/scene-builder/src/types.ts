@@ -606,6 +606,7 @@ export interface UndoableCommand {
  * Mirrors `@sajou/schema` SignalType — kept local to avoid adding a dependency.
  * `"event"` is a catch-all for generic backend events (OpenClaw, custom APIs…)
  * that don't map to a known sajou type. The full JSON is preserved as payload.
+ * `"text_delta"` and `"thinking"` are streaming AI types (Anthropic, OpenAI…).
  */
 export type SignalType =
   | "task_dispatch"
@@ -615,6 +616,8 @@ export type SignalType =
   | "agent_state_change"
   | "error"
   | "completion"
+  | "text_delta"
+  | "thinking"
   | "event";
 
 /** Agent lifecycle states (mirrors @sajou/schema AgentState). */
@@ -632,6 +635,8 @@ export interface SignalPayloadMap {
   agent_state_change: { agentId: string; from: AgentState; to: AgentState; reason?: string };
   error: { agentId?: string; code?: string; message: string; severity: ErrorSeverity };
   completion: { taskId: string; agentId?: string; success: boolean; result?: string };
+  text_delta: { agentId: string; content: string; contentType?: "text" | "code" | "markdown"; index?: number };
+  thinking: { agentId: string; content: string };
   event: Record<string, unknown>;
 }
 
@@ -796,7 +801,7 @@ export interface ChoreographyEditorState {
 export type ConnectionStatus = "disconnected" | "connecting" | "connected" | "error";
 
 /** Transport protocol for a signal source. */
-export type TransportProtocol = "websocket" | "sse" | "openai";
+export type TransportProtocol = "websocket" | "sse" | "openai" | "anthropic";
 
 /**
  * A single signal source in the V2 multi-source architecture.

@@ -406,19 +406,38 @@ function render(): void {
 
     // Click-to-expand: toggle raw JSON display
     row.addEventListener("click", () => {
-      const existing = row.querySelector(".sv-log-raw-expand");
+      const existing = row.querySelector(".sv-log-raw-wrap");
       if (existing) {
         existing.remove();
         return;
       }
+      const wrap = document.createElement("div");
+      wrap.className = "sv-log-raw-wrap";
+
       const rawEl = document.createElement("pre");
       rawEl.className = "sv-log-raw-expand";
+      let text: string;
       try {
-        rawEl.textContent = JSON.stringify(JSON.parse(entry.signal.raw), null, 2);
+        text = JSON.stringify(JSON.parse(entry.signal.raw), null, 2);
       } catch {
-        rawEl.textContent = entry.signal.raw;
+        text = entry.signal.raw;
       }
-      row.appendChild(rawEl);
+      rawEl.textContent = text;
+
+      const copyBtn = document.createElement("button");
+      copyBtn.className = "sv-log-copy-btn";
+      copyBtn.textContent = "Copy";
+      copyBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        navigator.clipboard.writeText(text).then(() => {
+          copyBtn.textContent = "Copied!";
+          setTimeout(() => { copyBtn.textContent = "Copy"; }, 1200);
+        });
+      });
+
+      wrap.appendChild(copyBtn);
+      wrap.appendChild(rawEl);
+      row.appendChild(wrap);
     });
 
     frag.appendChild(row);

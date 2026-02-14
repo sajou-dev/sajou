@@ -84,6 +84,7 @@ export function createSourceBlock(source: SignalSource): HTMLElement {
     websocket: "WS",
     sse: "SSE",
     openai: "OPENAI",
+    anthropic: "ANTHROPIC",
   };
   const protoBadge = document.createElement("span");
   protoBadge.className = `source-block-proto source-block-proto--${source.protocol}`;
@@ -149,8 +150,8 @@ export function createSourceBlock(source: SignalSource): HTMLElement {
   });
   block.appendChild(actionBtn);
 
-  // -- OpenAI prompt row (only when connected in OpenAI mode) --
-  if (source.protocol === "openai" && source.status === "connected") {
+  // -- Prompt row (OpenAI or Anthropic when connected) --
+  if ((source.protocol === "openai" || source.protocol === "anthropic") && source.status === "connected") {
     const promptRow = document.createElement("div");
     promptRow.className = "source-block-prompt";
 
@@ -188,6 +189,7 @@ export function createSourceBlock(source: SignalSource): HTMLElement {
           source.apiKey,
           source.selectedModel,
           text,
+          source.protocol,
         );
       });
       // Enter to send

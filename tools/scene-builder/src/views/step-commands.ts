@@ -24,7 +24,8 @@ import { executeCommand } from "../state/undo.js";
 
 export const SIGNAL_TYPES: SignalType[] = [
   "task_dispatch", "tool_call", "tool_result",
-  "token_usage", "agent_state_change", "error", "completion", "event",
+  "token_usage", "agent_state_change", "error", "completion",
+  "text_delta", "thinking", "event",
 ];
 
 /** Signal type badge colors. */
@@ -36,6 +37,8 @@ export const SIGNAL_TYPE_COLORS: Record<string, string> = {
   agent_state_change: "#6A9955",
   error: "#F44747",
   completion: "#4EC9B0",
+  text_delta: "#4DC9F6",
+  thinking: "#D4A0E0",
   event: "#8E8EA0",
 };
 
@@ -48,6 +51,8 @@ export const SIGNAL_TYPE_LABELS: Record<string, string> = {
   agent_state_change: "state",
   error: "error",
   completion: "done",
+  text_delta: "text",
+  thinking: "think",
   event: "event",
 };
 

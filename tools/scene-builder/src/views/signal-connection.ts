@@ -26,7 +26,7 @@ import { getSignalTimelineState } from "../state/signal-timeline-state.js";
 export type ConnectionStatus = "disconnected" | "connecting" | "connected" | "error";
 
 /** Transport protocol. */
-export type TransportProtocol = "websocket" | "sse" | "openai";
+export type TransportProtocol = "websocket" | "sse" | "openai" | "anthropic";
 
 /** A parsed signal event received from a source. */
 export interface ReceivedSignal {
@@ -64,6 +64,8 @@ const KNOWN_TYPES = new Set<string>([
   "agent_state_change",
   "error",
   "completion",
+  "text_delta",
+  "thinking",
 ]);
 
 // ---------------------------------------------------------------------------
@@ -212,6 +214,26 @@ export async function connectSource(
 
   if (protocol === "websocket") {
     connectWebSocket(conn, url);
+  } else if (protocol === "anthropic") {
+    debug(`[${sourceId}] Probing for Anthropic API…`, "info", sourceId);
+    const probeResult = await probeAnthropic(url, apiKey, sourceId);
+    if (probeResult) {
+      setSourceState(sourceId, {
+        protocol: "anthropic",
+        availableModels: probeResult.models,
+        selectedModel: probeResult.models[0] ?? "",
+        status: "connected",
+        error: null,
+      });
+      debug(
+        `[${sourceId}] Anthropic API detected. ${probeResult.models.length} model(s) available.`,
+        "info",
+        sourceId,
+      );
+    } else {
+      debug(`[${sourceId}] Anthropic probe failed — falling back to SSE.`, "info", sourceId);
+      connectSSE(conn, url, apiKey);
+    }
   } else {
     debug(`[${sourceId}] Probing for OpenAI-compatible API…`, "info", sourceId);
     const probeResult = await probeOpenAI(url, apiKey, sourceId);
@@ -258,8 +280,23 @@ export function disconnectSource(sourceId: string): void {
   });
 }
 
-/** Send a prompt to an OpenAI-compatible source and stream the response. */
+/** Send a prompt to a connected source (OpenAI or Anthropic) and stream the response. */
 export async function sendPromptToSource(
+  sourceId: string,
+  url: string,
+  apiKey: string,
+  model: string,
+  prompt: string,
+  protocol?: TransportProtocol,
+): Promise<void> {
+  if (protocol === "anthropic") {
+    return sendAnthropicPrompt(sourceId, url, apiKey, model, prompt);
+  }
+  return sendOpenAIPrompt(sourceId, url, apiKey, model, prompt);
+}
+
+/** Send a prompt to an OpenAI-compatible source and stream the response. */
+async function sendOpenAIPrompt(
   sourceId: string,
   url: string,
   apiKey: string,
@@ -385,10 +422,11 @@ export function getConnectionState(): {
 // Protocol detection
 // ---------------------------------------------------------------------------
 
-/** Detect protocol from URL scheme (initial guess — OpenAI probe refines it). */
+/** Detect protocol from URL scheme (initial guess — probes refine it). */
 function detectProtocol(url: string): TransportProtocol {
   const lower = url.trim().toLowerCase();
   if (lower.startsWith("ws://") || lower.startsWith("wss://")) return "websocket";
+  if (lower.includes("anthropic")) return "anthropic";
   return "sse";
 }
 
@@ -649,19 +687,36 @@ async function readOpenAIStream(
             const delta = choice["delta"] as Record<string, unknown> | undefined;
             const finishReason = choice["finish_reason"] as string | null;
             const content = delta?.["content"] as string | undefined;
+            // GLM / DeepSeek send thinking via reasoning_content
+            const reasoning = delta?.["reasoning_content"] as string | undefined;
+
+            if (reasoning) {
+              dispatchSignal({
+                id: crypto.randomUUID(),
+                type: "thinking",
+                timestamp: Date.now(),
+                source: model,
+                correlationId,
+                payload: {
+                  agentId: String(chunk["model"] ?? model),
+                  content: reasoning,
+                },
+                raw: payload,
+              }, conn.sourceId);
+            }
 
             if (content) {
               tokenCount++;
               dispatchSignal({
                 id: crypto.randomUUID(),
-                type: "token_usage",
+                type: "text_delta",
                 timestamp: Date.now(),
                 source: model,
                 correlationId,
                 payload: {
+                  agentId: String(chunk["model"] ?? model),
                   content,
-                  tokenIndex: tokenCount,
-                  model: chunk["model"] ?? model,
+                  index: tokenCount - 1,
                 },
                 raw: payload,
               }, conn.sourceId);
@@ -710,6 +765,354 @@ async function readOpenAIStream(
     if (conn.sseAbort?.signal.aborted) return;
     const msg = e instanceof Error ? e.message : String(e);
     debug(`[${conn.sourceId}] Stream error: ${msg}`, "error", conn.sourceId);
+    setSourceState(conn.sourceId, { error: `Stream interrupted: ${msg}` });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Anthropic API
+// ---------------------------------------------------------------------------
+
+/** Default models to offer when Anthropic probe succeeds but no model list is available. */
+const ANTHROPIC_DEFAULT_MODELS = [
+  "claude-sonnet-4-5-20250929",
+  "claude-haiku-4-5-20251001",
+  "claude-opus-4-6",
+];
+
+/** Probe an Anthropic API endpoint. Returns available models on success. */
+async function probeAnthropic(
+  baseUrl: string,
+  apiKey: string,
+  sourceId: string,
+): Promise<{ models: string[] } | null> {
+  if (!apiKey) {
+    debug(`[${sourceId}] Anthropic probe requires an API key.`, "warn", sourceId);
+    return null;
+  }
+
+  try {
+    // Try listing models via the Anthropic models endpoint
+    const modelsUrl = baseUrl.replace(/\/+$/, "") + "/v1/models";
+    const resp = await fetch(proxyUrl(modelsUrl), {
+      headers: {
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      signal: AbortSignal.timeout(5000),
+    });
+
+    if (resp.ok) {
+      const json = (await resp.json()) as Record<string, unknown>;
+      const data = json["data"];
+      if (Array.isArray(data)) {
+        const models = data.map((m) => {
+          const entry = m as Record<string, unknown>;
+          return String(entry["id"] ?? "unknown");
+        });
+        if (models.length > 0) {
+          debug(`[${sourceId}] Anthropic probe: found ${models.length} model(s).`, "info", sourceId);
+          return { models };
+        }
+      }
+    }
+
+    // Fallback: if we got a 401/403 with a recognisable Anthropic error, the API is there
+    if (resp.status === 401 || resp.status === 403) {
+      debug(`[${sourceId}] Anthropic probe: auth error (${resp.status}) — API detected but key may be invalid.`, "warn", sourceId);
+      return null;
+    }
+
+    // If the models endpoint doesn't exist (404) but the URL looks Anthropic, offer defaults
+    if (resp.status === 404) {
+      debug(`[${sourceId}] Anthropic probe: models endpoint not found — using defaults.`, "info", sourceId);
+      return { models: ANTHROPIC_DEFAULT_MODELS };
+    }
+
+    debug(`[${sourceId}] Anthropic probe: HTTP ${resp.status} — using defaults.`, "info", sourceId);
+    return { models: ANTHROPIC_DEFAULT_MODELS };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    debug(`[${sourceId}] Anthropic probe error: ${msg}`, "warn", sourceId);
+    return null;
+  }
+}
+
+/** Send a prompt to an Anthropic source and stream the response as sajou signals. */
+async function sendAnthropicPrompt(
+  sourceId: string,
+  url: string,
+  apiKey: string,
+  model: string,
+  prompt: string,
+): Promise<void> {
+  let conn = connections.get(sourceId);
+  if (!conn) {
+    conn = { sourceId, ws: null, sseAbort: null };
+    connections.set(sourceId, conn);
+  }
+
+  const correlationId = crypto.randomUUID();
+  const baseUrl = url.replace(/\/+$/, "");
+  const endpoint = `${baseUrl}/v1/messages`;
+
+  conn.sseAbort = new AbortController();
+  setSourceState(sourceId, { streaming: true });
+
+  debug(`[${sourceId}] Sending prompt to Anthropic ${model}…`, "info", sourceId);
+
+  // Dispatch task_dispatch signal for the prompt
+  dispatchSignal({
+    id: crypto.randomUUID(),
+    type: "task_dispatch",
+    timestamp: Date.now(),
+    source: "user",
+    correlationId,
+    payload: { description: prompt, model },
+    raw: JSON.stringify({ prompt, model }),
+  }, sourceId);
+
+  try {
+    const resp = await fetch(proxyUrl(endpoint), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: "user", content: prompt }],
+        stream: true,
+        max_tokens: 4096,
+      }),
+      signal: conn.sseAbort.signal,
+    });
+
+    if (!resp.ok) {
+      const msg = `HTTP ${resp.status} ${resp.statusText}`;
+      debug(`[${sourceId}] Anthropic request failed: ${msg}`, "error", sourceId);
+      setSourceState(sourceId, { status: "error", error: msg, streaming: false });
+      return;
+    }
+
+    if (!resp.body) {
+      const msg = "Response has no streaming body.";
+      debug(`[${sourceId}] ${msg}`, "error", sourceId);
+      setSourceState(sourceId, { status: "error", error: msg, streaming: false });
+      return;
+    }
+
+    await readAnthropicStream(conn, resp.body, correlationId, model);
+  } catch (e) {
+    if (conn.sseAbort?.signal.aborted) return; // User stopped
+    const msg = e instanceof Error ? e.message : String(e);
+    debug(`[${sourceId}] Anthropic stream error: ${msg}`, "error", sourceId);
+    setSourceState(sourceId, { error: `Stream interrupted: ${msg}`, streaming: false });
+  } finally {
+    setSourceState(sourceId, { streaming: false });
+  }
+}
+
+/**
+ * Read an Anthropic SSE stream, translating events into sajou signals.
+ *
+ * Anthropic streaming events:
+ * - `message_start` → agent_state_change (idle → acting)
+ * - `content_block_delta` + `delta.type === "text_delta"` → text_delta signal
+ * - `content_block_delta` + `delta.type === "thinking_delta"` → thinking signal
+ * - `content_block_start` + `type === "tool_use"` → tool_call signal
+ * - `message_delta` with usage → token_usage signal
+ * - `message_stop` → completion signal
+ */
+async function readAnthropicStream(
+  conn: SourceConnection,
+  body: ReadableStream<Uint8Array>,
+  correlationId: string,
+  model: string,
+): Promise<void> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let textChunkIndex = 0;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+
+      let currentEventType = "";
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+
+        // SSE event type line
+        if (trimmed.startsWith("event:")) {
+          currentEventType = trimmed.slice(6).trim();
+          continue;
+        }
+
+        // SSE data line
+        if (!trimmed.startsWith("data:")) continue;
+
+        const payload = trimmed.slice(5).trim();
+        if (!payload) continue;
+
+        try {
+          const event = JSON.parse(payload) as Record<string, unknown>;
+
+          switch (currentEventType) {
+            case "message_start": {
+              // Agent starts responding
+              dispatchSignal({
+                id: crypto.randomUUID(),
+                type: "agent_state_change",
+                timestamp: Date.now(),
+                source: model,
+                correlationId,
+                payload: { agentId: model, from: "idle", to: "acting" },
+                raw: payload,
+              }, conn.sourceId);
+              break;
+            }
+
+            case "content_block_start": {
+              const contentBlock = event["content_block"] as Record<string, unknown> | undefined;
+              if (contentBlock?.["type"] === "tool_use") {
+                dispatchSignal({
+                  id: crypto.randomUUID(),
+                  type: "tool_call",
+                  timestamp: Date.now(),
+                  source: model,
+                  correlationId,
+                  payload: {
+                    toolName: String(contentBlock["name"] ?? "unknown"),
+                    agentId: model,
+                    callId: String(contentBlock["id"] ?? ""),
+                  },
+                  raw: payload,
+                }, conn.sourceId);
+              }
+              break;
+            }
+
+            case "content_block_delta": {
+              const delta = event["delta"] as Record<string, unknown> | undefined;
+              if (!delta) break;
+
+              if (delta["type"] === "text_delta") {
+                const text = String(delta["text"] ?? "");
+                if (text) {
+                  dispatchSignal({
+                    id: crypto.randomUUID(),
+                    type: "text_delta",
+                    timestamp: Date.now(),
+                    source: model,
+                    correlationId,
+                    payload: {
+                      agentId: model,
+                      content: text,
+                      index: textChunkIndex++,
+                    },
+                    raw: payload,
+                  }, conn.sourceId);
+                }
+              } else if (delta["type"] === "thinking_delta") {
+                const thinking = String(delta["thinking"] ?? "");
+                if (thinking) {
+                  dispatchSignal({
+                    id: crypto.randomUUID(),
+                    type: "thinking",
+                    timestamp: Date.now(),
+                    source: model,
+                    correlationId,
+                    payload: {
+                      agentId: model,
+                      content: thinking,
+                    },
+                    raw: payload,
+                  }, conn.sourceId);
+                }
+              }
+              break;
+            }
+
+            case "message_delta": {
+              const usage = event["usage"] as Record<string, unknown> | undefined;
+              if (usage) {
+                dispatchSignal({
+                  id: crypto.randomUUID(),
+                  type: "token_usage",
+                  timestamp: Date.now(),
+                  source: model,
+                  correlationId,
+                  payload: {
+                    agentId: model,
+                    promptTokens: Number(usage["input_tokens"] ?? 0),
+                    completionTokens: Number(usage["output_tokens"] ?? 0),
+                    model,
+                  },
+                  raw: payload,
+                }, conn.sourceId);
+              }
+              break;
+            }
+
+            case "message_stop": {
+              dispatchSignal({
+                id: crypto.randomUUID(),
+                type: "completion",
+                timestamp: Date.now(),
+                source: model,
+                correlationId,
+                payload: {
+                  success: true,
+                  totalTokens: textChunkIndex,
+                },
+                raw: payload,
+              }, conn.sourceId);
+              debug(
+                `[${conn.sourceId}] Anthropic stream complete — ${textChunkIndex} text chunks.`,
+                "info",
+                conn.sourceId,
+              );
+              break;
+            }
+
+            case "error": {
+              const errData = event["error"] as Record<string, unknown> | undefined;
+              const errMsg = String(errData?.["message"] ?? "Unknown Anthropic error");
+              dispatchSignal({
+                id: crypto.randomUUID(),
+                type: "error",
+                timestamp: Date.now(),
+                source: model,
+                correlationId,
+                payload: { message: errMsg, severity: "error" },
+                raw: payload,
+              }, conn.sourceId);
+              debug(`[${conn.sourceId}] Anthropic API error: ${errMsg}`, "error", conn.sourceId);
+              break;
+            }
+          }
+        } catch {
+          debug(`[${conn.sourceId}] [anthropic] Unparsed: ${payload.slice(0, 100)}`, "warn", conn.sourceId);
+        }
+
+        currentEventType = "";
+      }
+    }
+
+    debug(`[${conn.sourceId}] Anthropic response stream ended.`, "info", conn.sourceId);
+  } catch (e) {
+    if (conn.sseAbort?.signal.aborted) return;
+    const msg = e instanceof Error ? e.message : String(e);
+    debug(`[${conn.sourceId}] Anthropic stream error: ${msg}`, "error", conn.sourceId);
     setSourceState(conn.sourceId, { error: `Stream interrupted: ${msg}` });
   }
 }

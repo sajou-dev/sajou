@@ -457,8 +457,7 @@ button {
   background: var(--color-bg);
   border-top: 1px solid var(--color-border);
   border-bottom: 1px solid var(--color-border);
-  overflow-x: auto;
-  overflow-y: hidden;
+  overflow: visible;
   z-index: 2;
   cursor: row-resize;
 }
@@ -572,9 +571,6 @@ button {
 .connector-bar-h-target {
   color: var(--color-accent);
   font: inherit;
-  max-width: 100px;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .connector-bar-h-rate {
@@ -595,10 +591,10 @@ button {
   display: flex;
   align-items: center;
   gap: 3px;
-  padding: 2px 6px;
+  padding: 2px 8px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--color-border);
-  font: 8px var(--font-mono);
+  font: 9px var(--font-mono);
   font-weight: 600;
   color: var(--color-text-muted);
   cursor: pointer;
@@ -4515,6 +4511,12 @@ button {
   background: var(--color-elevated);
 }
 
+.sv-log-raw-wrap {
+  position: relative;
+  width: 100%;
+  margin: 4px 0 2px;
+}
+
 .sv-log-raw-expand {
   width: 100%;
   font-family: var(--font-mono);
@@ -4524,12 +4526,34 @@ button {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   padding: 6px 8px;
-  margin: 4px 0 2px;
+  margin: 0;
   white-space: pre-wrap;
   word-break: break-all;
   max-height: 300px;
   overflow-y: auto;
   line-height: 1.4;
+}
+
+.sv-log-copy-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  z-index: 1;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  padding: 2px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-elevated);
+  color: var(--color-text-dim);
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 0.15s, background 0.15s;
+}
+
+.sv-log-copy-btn:hover {
+  opacity: 1;
+  background: var(--color-surface);
 }
 
 .sv-log-ts {
