@@ -39,6 +39,8 @@ interface SceneExportJson {
   entities: SceneState["entities"];
   positions: SceneState["positions"];
   routes: SceneState["routes"];
+  zoneTypes: SceneState["zoneTypes"];
+  zoneGrid: SceneState["zoneGrid"];
 }
 
 interface EntityExportJson {
@@ -224,6 +226,8 @@ export async function exportScene(): Promise<void> {
     entities: sceneState.entities,
     positions: sceneState.positions,
     routes: sceneState.routes,
+    zoneTypes: sceneState.zoneTypes,
+    zoneGrid: sceneState.zoneGrid,
   };
 
   // 5. Build entities.json

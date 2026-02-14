@@ -108,6 +108,62 @@ function renderBackground(): void {
 }
 
 // ---------------------------------------------------------------------------
+// Zone grid overlay
+// ---------------------------------------------------------------------------
+
+let zoneGridGraphics: Graphics | null = null;
+
+/** Render the painted zone grid overlay. */
+function renderZoneGrid(): void {
+  const sceneLayers = getLayers();
+  if (!sceneLayers) return;
+
+  if (!zoneGridGraphics) {
+    zoneGridGraphics = new Graphics();
+    zoneGridGraphics.label = "zone-grid";
+    zoneGridGraphics.zIndex = 0;
+    sceneLayers.ground.addChild(zoneGridGraphics);
+  }
+
+  zoneGridGraphics.clear();
+
+  // Hide during run mode
+  if (isRunModeActive()) return;
+
+  const { zoneGrid, zoneTypes } = getSceneState();
+  const { activeTool } = getEditorState();
+  const isBackgroundTool = activeTool === "background";
+
+  // Alpha: full when background tool active, ghost otherwise
+  const alpha = isBackgroundTool ? 0.35 : 0.12;
+
+  // Build color lookup from zone types
+  const colorMap = new Map<string, number>();
+  for (const zt of zoneTypes) {
+    colorMap.set(zt.id, parseHexColor(zt.color));
+  }
+
+  const { cellSize, cols, rows, cells } = zoneGrid;
+
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const zoneId = cells[r * cols + c];
+      if (zoneId === null || zoneId === undefined) continue;
+      const color = colorMap.get(zoneId);
+      if (color === undefined) continue;
+
+      zoneGridGraphics.rect(c * cellSize, r * cellSize, cellSize, cellSize);
+      zoneGridGraphics.fill({ color, alpha });
+    }
+  }
+}
+
+/** Parse hex color string to numeric (e.g. "#E8A851" → 0xE8A851). */
+function parseHexColor(hex: string): number {
+  return parseInt(hex.replace("#", ""), 16);
+}
+
+// ---------------------------------------------------------------------------
 // Entity sprite management
 // ---------------------------------------------------------------------------
 
@@ -1128,6 +1184,7 @@ function scheduleRender(): void {
   requestAnimationFrame(() => {
     renderScheduled = false;
     renderBackground();
+    renderZoneGrid();
     void renderEntities();
     renderPositions();
     renderRoutes();

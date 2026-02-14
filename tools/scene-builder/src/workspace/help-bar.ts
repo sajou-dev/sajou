@@ -46,10 +46,23 @@ const TOOL_HINTS: Record<ToolId, () => string> = {
     hint("Scroll to zoom") + sep() +
     hint("<kbd>Space</kbd>+drag from any tool"),
 
-  background: () =>
-    toolLabel("Background") +
-    hint("Set scene dimensions and color") + sep() +
-    hint("Use the popover controls above"),
+  background: () => {
+    const { activeZoneTypeId } = getEditorState();
+    if (activeZoneTypeId !== null) {
+      return (
+        toolLabel("Background") +
+        hint("Drag to paint zone") + sep() +
+        hint("Right-click to erase") + sep() +
+        hint("<kbd>Alt</kbd>+click to erase") + sep() +
+        hint("Click chip to deselect")
+      );
+    }
+    return (
+      toolLabel("Background") +
+      hint("Set scene dimensions and color") + sep() +
+      hint("Select a zone type to paint")
+    );
+  },
 
   place: () =>
     toolLabel("Place") +

@@ -43,6 +43,7 @@ function createDefault(): EditorState {
     topologyAssociationPreview: null,
     bindingDragActive: false,
     bindingDropHighlightId: null,
+    activeZoneTypeId: null,
   };
 }
 
@@ -172,6 +173,12 @@ export function setRideauSplit(ratio: number): void {
 /** Set the choreographer node canvas viewport. */
 export function setNodeCanvasViewport(viewport: NodeCanvasViewport): void {
   state = { ...state, nodeCanvasViewport: viewport };
+  notify();
+}
+
+/** Set the active zone type brush for painting (null = deselect). */
+export function setActiveZoneType(id: string | null): void {
+  state = { ...state, activeZoneTypeId: id };
   notify();
 }
 

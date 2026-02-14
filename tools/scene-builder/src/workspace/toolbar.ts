@@ -143,7 +143,11 @@ export function initToolbar(): void {
     btn.dataset.toolId = tool.id;
     btn.title = `${tool.label} (${tool.shortcut})`;
     btn.innerHTML = ICON[tool.iconKey];
-    btn.addEventListener("click", () => setActiveTool(tool.id));
+    btn.addEventListener("click", () => {
+      // Toggle: clicking the already-active tool deselects it (back to Select)
+      const current = getEditorState().activeTool;
+      setActiveTool(current === tool.id ? "select" : tool.id);
+    });
     toolSection.appendChild(btn);
   }
 

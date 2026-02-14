@@ -260,6 +260,36 @@ export interface SceneRoute {
   toPositionId?: string;
 }
 
+// ---------------------------------------------------------------------------
+// Semantic zones (aligned with MCP server design §4)
+// ---------------------------------------------------------------------------
+
+/** A semantic zone type definition (command, production, perimeter…). */
+export interface ZoneTypeDef {
+  /** Unique zone type identifier (e.g. "command", "production"). */
+  id: string;
+  /** Display name. */
+  name: string;
+  /** Description for LLM/MCP context. */
+  description: string;
+  /** Paint color (hex). */
+  color: string;
+  /** Maximum entities allowed in this zone (MCP concept). */
+  capacity: number;
+}
+
+/** Grid of painted zone cells — each cell references a zone type ID or null. */
+export interface ZoneGrid {
+  /** Pixels per cell (default = gridSize, typically 32). */
+  cellSize: number;
+  /** Number of columns: ceil(dimensions.width / cellSize). */
+  cols: number;
+  /** Number of rows: ceil(dimensions.height / cellSize). */
+  rows: number;
+  /** Flat row-major array of zone type IDs (null = unpainted). */
+  cells: (string | null)[];
+}
+
 /** Full scene state (data layer). */
 export interface SceneState {
   dimensions: SceneDimensions;
@@ -269,6 +299,10 @@ export interface SceneState {
   entities: PlacedEntity[];
   positions: ScenePosition[];
   routes: SceneRoute[];
+  /** Available zone types for painting. */
+  zoneTypes: ZoneTypeDef[];
+  /** Painted zone grid (cell → zone type mapping). */
+  zoneGrid: ZoneGrid;
 }
 
 // ---------------------------------------------------------------------------
@@ -365,6 +399,8 @@ export interface EditorState {
   bindingDragActive: boolean;
   /** Entity semantic ID hovered during binding drag (null = none). */
   bindingDropHighlightId: string | null;
+  /** Active zone type brush for painting (null = no painting). */
+  activeZoneTypeId: string | null;
 }
 
 // ---------------------------------------------------------------------------

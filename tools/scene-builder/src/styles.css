@@ -2292,7 +2292,7 @@ button {
 
 .bg-popover {
   position: absolute;
-  left: 60px;
+  right: 52px;
   top: 80px;
   width: 220px;
   background: var(--color-surface);
@@ -2423,6 +2423,85 @@ button {
   background: var(--color-accent);
   color: var(--color-bg);
   border-color: var(--color-accent);
+}
+
+/* Zone palette */
+
+.bg-zone-palette {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.bg-zone-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px 2px 4px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  font: 10px var(--font-mono);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  background: none;
+  position: relative;
+  transition: border-color 0.12s, color 0.12s;
+}
+
+.bg-zone-chip:hover {
+  border-color: var(--color-text-dim);
+  color: var(--color-text);
+}
+
+.bg-zone-chip--active {
+  border-width: 2px;
+  padding: 1px 7px 1px 3px; /* compensate border growth */
+  color: var(--color-text);
+}
+
+.bg-zone-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.bg-zone-chip-remove {
+  display: none;
+  margin-left: 2px;
+  font-size: 11px;
+  color: var(--color-text-dim);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.bg-zone-chip:hover .bg-zone-chip-remove {
+  display: inline;
+}
+
+.bg-zone-chip-remove:hover {
+  color: var(--color-accent);
+}
+
+.bg-zone-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 1px dashed var(--color-border);
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+  color: var(--color-text-dim);
+  font-size: 13px;
+  flex-shrink: 0;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.bg-zone-add:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
 }
 
 /* ---------------------------------------------------------------------------

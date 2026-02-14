@@ -14,7 +14,7 @@
  */
 
 import { unzipSync, strFromU8 } from "fflate";
-import { setSceneState, resetSceneState } from "../state/scene-state.js";
+import { getSceneState, setSceneState, resetSceneState } from "../state/scene-state.js";
 import { setEntity, resetEntities } from "../state/entity-store.js";
 import { addAssets, addCategory, resetAssets } from "../state/asset-store.js";
 import { setChoreographyState, resetChoreographyState } from "../state/choreography-state.js";
@@ -43,6 +43,10 @@ interface SceneExportJson {
   entities: SceneState["entities"];
   positions: SceneState["positions"];
   routes: SceneState["routes"];
+  /** Optional — older exports may lack zone data. */
+  zoneTypes?: SceneState["zoneTypes"];
+  /** Optional — older exports may lack zone data. */
+  zoneGrid?: SceneState["zoneGrid"];
 }
 
 interface EntityExportJson {
@@ -283,6 +287,8 @@ export async function importScene(): Promise<void> {
     })),
     positions: sceneJson.positions ?? [],
     routes: sceneJson.routes ?? [],
+    zoneTypes: sceneJson.zoneTypes ?? getSceneState().zoneTypes,
+    zoneGrid: sceneJson.zoneGrid ?? getSceneState().zoneGrid,
   });
 
   // 4. Choreographies + wires + bindings (optional — old ZIPs may lack this file)

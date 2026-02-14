@@ -15,9 +15,13 @@ const MAX_STACK = 50;
 const undoStack: UndoableCommand[] = [];
 const redoStack: UndoableCommand[] = [];
 
-/** Execute a command and push it onto the undo stack. */
-export function executeCommand(cmd: UndoableCommand): void {
-  cmd.execute();
+/**
+ * Execute a command and push it onto the undo stack.
+ * Pass `skipExecute = true` when the changes are already applied
+ * and you only need to record the undo entry (e.g., after a paint stroke).
+ */
+export function executeCommand(cmd: UndoableCommand, skipExecute?: boolean): void {
+  if (!skipExecute) cmd.execute();
   undoStack.push(cmd);
   if (undoStack.length > MAX_STACK) {
     undoStack.shift();

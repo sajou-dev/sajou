@@ -193,8 +193,13 @@ export function updateCursor(): void {
   } else if (spaceDown) {
     canvasContainer.style.cursor = "grab";
   } else {
-    const { activeTool } = getEditorState();
-    canvasContainer.style.cursor = TOOL_CURSORS[activeTool] ?? "default";
+    const { activeTool, activeZoneTypeId } = getEditorState();
+    // Zone painting: crosshair when brush is selected
+    if (activeTool === "background" && activeZoneTypeId !== null) {
+      canvasContainer.style.cursor = "crosshair";
+    } else {
+      canvasContainer.style.cursor = TOOL_CURSORS[activeTool] ?? "default";
+    }
   }
 }
 
