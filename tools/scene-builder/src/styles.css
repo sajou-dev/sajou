@@ -6160,6 +6160,26 @@ button {
   opacity: 1;
 }
 
+/* ── Delete choreography button ── */
+
+.nc-detail-delete {
+  margin-top: 6px;
+  padding: 3px 8px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--color-text-dim);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  text-align: center;
+  transition: color 0.12s, border-color 0.12s;
+}
+.nc-detail-delete:hover {
+  color: #E85151;
+  border-color: #E85151;
+}
+
 /* ── Target entity badge ── */
 
 .nc-target-badge {

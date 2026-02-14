@@ -286,7 +286,21 @@ export function initInspectorPanel(contentEl: HTMLElement): void {
     if (def && def.visual.type === "spritesheet") {
       const stateSelect = document.createElement("select");
       stateSelect.className = "ip-select";
-      for (const name of Object.keys(def.visual.animations)) {
+      const animNames = Object.keys(def.visual.animations);
+      const isStale = !animNames.includes(placed.activeState);
+
+      // When activeState doesn't match any animation (renamed/removed),
+      // add a disabled placeholder so clicking a valid option triggers change.
+      if (isStale) {
+        const staleOpt = document.createElement("option");
+        staleOpt.value = placed.activeState;
+        staleOpt.textContent = `${placed.activeState} \u2718`;
+        staleOpt.selected = true;
+        staleOpt.disabled = true;
+        stateSelect.appendChild(staleOpt);
+      }
+
+      for (const name of animNames) {
         const opt = document.createElement("option");
         opt.value = name;
         opt.textContent = name;

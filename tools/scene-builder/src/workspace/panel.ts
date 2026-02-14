@@ -59,6 +59,11 @@ export function createPanel(config: PanelConfig): PanelInstance {
   const contentEl = document.createElement("div");
   contentEl.className = "panel-content";
 
+  // Prevent pointerdown inside panel content from bubbling to zone-level
+  // handlers (view-tabs sets activeView on zone pointerdown, which triggers
+  // editor notify → full re-render, destroying <select> dropdowns mid-open).
+  contentEl.addEventListener("pointerdown", (e) => e.stopPropagation());
+
   // Resize handle (bottom-right)
   const resizeHandle = document.createElement("div");
   resizeHandle.className = "panel-resize-handle";

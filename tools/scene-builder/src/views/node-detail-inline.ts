@@ -11,6 +11,7 @@ import {
   getWiringState,
   removeWire,
 } from "../state/wiring-state.js";
+import { removeChoreography } from "../state/choreography-state.js";
 import {
   getChoreoInputInfo,
   getSourcesForChoreo,
@@ -220,6 +221,16 @@ export function renderNodeHeader(choreo: ChoreographyDef): HTMLElement {
   intRow.appendChild(intCb);
   section.appendChild(intRow);
 
+  // ── Delete button ──
+  const deleteBtn = document.createElement("button");
+  deleteBtn.className = "nc-detail-delete";
+  deleteBtn.textContent = "Delete choreography";
+  deleteBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    removeChoreography(choreo.id);
+  });
+  section.appendChild(deleteBtn);
+
   header.appendChild(section);
 
   return header;
@@ -323,7 +334,7 @@ function renderWhenEditor(choreo: ChoreographyDef): HTMLElement {
     body.style.display = expanded ? "" : "none";
     // If expanding with no rows, add an empty one
     if (expanded && body.querySelectorAll(".nc-when-row").length === 0) {
-      body.insertBefore(createConditionRow(choreo, body, { path: "signal.", op: "contains", value: "" }), addBtn);
+      body.insertBefore(createConditionRow(choreo, body, { path: "", op: "contains", value: "" }), addBtn);
     }
   });
 
@@ -338,7 +349,7 @@ function renderWhenEditor(choreo: ChoreographyDef): HTMLElement {
   addBtn.textContent = "+ condition";
   addBtn.addEventListener("click", (e) => {
     e.stopPropagation();
-    body.insertBefore(createConditionRow(choreo, body, { path: "signal.", op: "contains", value: "" }), addBtn);
+    body.insertBefore(createConditionRow(choreo, body, { path: "", op: "contains", value: "" }), addBtn);
   });
   body.appendChild(addBtn);
 
@@ -380,7 +391,7 @@ function createConditionRow(
   pathInput.type = "text";
   pathInput.className = "nc-when-path";
   pathInput.value = initial.path;
-  pathInput.placeholder = "signal.content";
+  pathInput.placeholder = "content";
   pathInput.addEventListener("change", () => saveWhenFromDom(choreo, body));
 
   // Operator select

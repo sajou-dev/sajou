@@ -192,17 +192,23 @@ function onMouseUp(e: MouseEvent): void {
   const targetBadge = findTargetBadgeAt(e.clientX, e.clientY, targetZone);
   if (targetBadge) {
     const toId = targetBadge.dataset.wireId;
-    if (toId && !hasWire(fromZone, fromId, targetZone, toId)) {
-      // Create wire
-      addWire({
-        fromZone: fromZone as "signal" | "signal-type" | "choreographer",
-        fromId,
-        toZone: targetZone as "signal-type" | "choreographer" | "theme",
-        toId,
-      });
+    if (toId) {
+      // Create signal-type→choreographer (or other) wire if it doesn't exist
+      const wireExists = hasWire(fromZone, fromId, targetZone, toId);
+      if (!wireExists) {
+        addWire({
+          fromZone: fromZone as "signal" | "signal-type" | "choreographer",
+          fromId,
+          toZone: targetZone as "signal-type" | "choreographer" | "theme",
+          toId,
+        });
+      }
 
-      // If dragging signal-type → choreographer and a source is active,
-      // also create signal → signal-type wire (2-hop provenance)
+      // Auto-create signal→signal-type wire for 2-hop provenance.
+      // This runs INDEPENDENTLY of the above guard so that after import
+      // (where signal-type→choreo wires exist but signal→signal-type
+      // wires are ephemeral and excluded), re-dragging still connects
+      // the active source.
       const src = session?.sourceContext;
       if (fromZone === "signal-type" && targetZone === "choreographer"
           && src && !hasWire("signal", src, "signal-type", fromId)) {
@@ -214,8 +220,10 @@ function onMouseUp(e: MouseEvent): void {
         });
       }
 
-      // Auto-transition interfaceState
-      autoTransition(fromZone, targetZone);
+      // Auto-transition interfaceState (only on first wire creation)
+      if (!wireExists) {
+        autoTransition(fromZone, targetZone);
+      }
     }
     session = null;
     return;

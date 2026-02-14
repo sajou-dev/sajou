@@ -75,6 +75,7 @@ export function updateEditorState(partial: Partial<EditorState>): void {
 
 /** Set the active workspace view (Signal / Orchestrator / Visual). */
 export function setActiveView(view: ViewId): void {
+  if (state.currentView === view) return;
   state = { ...state, currentView: view };
   notify();
 }
