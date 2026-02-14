@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import type {
   SignalEvent,
   SignalEnvelope,
+  SignalType,
+  WellKnownSignalType,
   TaskDispatchPayload,
   ToolCallPayload,
   ToolResultPayload,
@@ -9,6 +11,8 @@ import type {
   AgentStateChangePayload,
   ErrorPayload,
   CompletionPayload,
+  TextDeltaPayload,
+  ThinkingPayload,
 } from "../src/signal-types.js";
 
 describe("Signal types", () => {
@@ -184,3 +188,131 @@ describe("Signal types", () => {
     }
   });
 });
+
+describe("New signal types (text_delta, thinking)", () => {
+  it("creates a valid text_delta signal", () => {
+    const signal: SignalEnvelope<"text_delta"> = {
+      id: "sig-100",
+      type: "text_delta",
+      timestamp: Date.now(),
+      source: "adapter:anthropic",
+      payload: {
+        agentId: "claude",
+        content: "Hello, world!",
+        contentType: "text",
+        index: 0,
+      },
+    };
+
+    expect(signal.type).toBe("text_delta");
+    expect(signal.payload.agentId).toBe("claude");
+    expect(signal.payload.content).toBe("Hello, world!");
+    expect(signal.payload.contentType).toBe("text");
+    expect(signal.payload.index).toBe(0);
+  });
+
+  it("creates a valid thinking signal", () => {
+    const signal: SignalEnvelope<"thinking"> = {
+      id: "sig-101",
+      type: "thinking",
+      timestamp: Date.now(),
+      source: "adapter:anthropic",
+      payload: {
+        agentId: "claude",
+        content: "Let me reason about this problem...",
+      },
+    };
+
+    expect(signal.type).toBe("thinking");
+    expect(signal.payload.agentId).toBe("claude");
+    expect(signal.payload.content).toBe("Let me reason about this problem...");
+  });
+
+  it("narrows text_delta in discriminated union", () => {
+    const signal: SignalEvent = {
+      id: "sig-102",
+      type: "text_delta",
+      timestamp: Date.now(),
+      source: "adapter:test",
+      payload: {
+        agentId: "agent-1",
+        content: "chunk",
+      },
+    };
+
+    switch (signal.type) {
+      case "text_delta":
+        expect(signal.payload.content).toBe("chunk");
+        break;
+      default:
+        expect.unreachable("unexpected signal type");
+    }
+  });
+});
+
+describe("Open protocol (custom signal types)", () => {
+  it("accepts a custom signal type as SignalType", () => {
+    // The (string & {}) trick allows any string while preserving autocomplete
+    const customType: SignalType = "my_custom_event";
+    expect(customType).toBe("my_custom_event");
+  });
+
+  it("creates an envelope with a custom type and generic payload", () => {
+    const signal: SignalEnvelope<"my_custom_event"> = {
+      id: "sig-200",
+      type: "my_custom_event",
+      timestamp: Date.now(),
+      source: "adapter:custom",
+      payload: {
+        foo: "bar",
+        count: 42,
+      },
+    };
+
+    expect(signal.type).toBe("my_custom_event");
+    expect(signal.payload["foo"]).toBe("bar");
+    expect(signal.payload["count"]).toBe(42);
+  });
+
+  it("allows unparameterized SignalEnvelope with string payload", () => {
+    const signal: SignalEnvelope = {
+      id: "sig-201",
+      type: "anything_goes",
+      timestamp: Date.now(),
+      source: "adapter:external",
+      payload: { data: [1, 2, 3] },
+    };
+
+    expect(signal.type).toBe("anything_goes");
+  });
+
+  it("preserves type safety for well-known types", () => {
+    // Well-known types still get proper payload typing
+    const signal: SignalEnvelope<"tool_call"> = {
+      id: "sig-202",
+      type: "tool_call",
+      timestamp: Date.now(),
+      source: "adapter:test",
+      payload: {
+        toolName: "read_file",
+        agentId: "agent-1",
+      },
+    };
+
+    // TypeScript enforces the payload shape — this is a compile-time check
+    expect(signal.payload.toolName).toBe("read_file");
+    expect(signal.payload.agentId).toBe("agent-1");
+  });
+});
+
+// Suppress unused import warnings — these are compile-time-only checks
+void (0 as unknown as TaskDispatchPayload);
+void (0 as unknown as ToolCallPayload);
+void (0 as unknown as ToolResultPayload);
+void (0 as unknown as TokenUsagePayload);
+void (0 as unknown as AgentStateChangePayload);
+void (0 as unknown as ErrorPayload);
+void (0 as unknown as CompletionPayload);
+void (0 as unknown as TextDeltaPayload);
+void (0 as unknown as ThinkingPayload);
+void (0 as unknown as WellKnownSignalType);

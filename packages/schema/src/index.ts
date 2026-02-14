@@ -9,6 +9,7 @@ export type {
   SignalEvent,
   SignalEnvelope,
   SignalType,
+  WellKnownSignalType,
   SignalPayloadMap,
   AgentState,
   ErrorSeverity,
@@ -19,6 +20,8 @@ export type {
   AgentStateChangePayload,
   ErrorPayload,
   CompletionPayload,
+  TextDeltaPayload,
+  ThinkingPayload,
 } from "./signal-types.js";
 
 export type {

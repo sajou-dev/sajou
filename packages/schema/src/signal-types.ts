@@ -3,24 +3,38 @@
  *
  * These types are aligned with signal.schema.json — the JSON Schema is the source of truth.
  * When updating, change the schema first, then update these types to match.
+ *
+ * The protocol is **open**: any string is a valid signal type. Well-known types
+ * have typed payloads; unknown types get `Readonly<Record<string, unknown>>`.
  */
 
 // ---------------------------------------------------------------------------
-// Signal types enum
+// Signal types
 // ---------------------------------------------------------------------------
 
 /**
- * The set of signal types supported in V1.
+ * Well-known signal types with typed payloads.
  * Uses snake_case per convention (signals are data, not code).
  */
-export type SignalType =
+export type WellKnownSignalType =
   | "task_dispatch"
   | "tool_call"
   | "tool_result"
   | "token_usage"
   | "agent_state_change"
   | "error"
-  | "completion";
+  | "completion"
+  | "text_delta"
+  | "thinking";
+
+/**
+ * Signal type discriminator — any string is valid.
+ *
+ * Well-known types get IDE autocomplete; custom types (e.g., `"my_event"`)
+ * are accepted without error. The `(string & {})` trick preserves
+ * autocomplete for the known literal values.
+ */
+export type SignalType = WellKnownSignalType | (string & {});
 
 /**
  * Possible states for an agent in the Sajou protocol.
@@ -47,7 +61,7 @@ export type AgentState =
 export type ErrorSeverity = "warning" | "error" | "critical";
 
 // ---------------------------------------------------------------------------
-// Payload types (one per signal type)
+// Payload types (one per well-known signal type)
 // ---------------------------------------------------------------------------
 
 /**
@@ -159,11 +173,37 @@ export interface CompletionPayload {
   readonly result?: string;
 }
 
+/**
+ * Payload for `text_delta` signals.
+ * A streaming text chunk from an AI model.
+ */
+export interface TextDeltaPayload {
+  /** The agent producing this text. */
+  readonly agentId: string;
+  /** The text chunk (delta, not cumulative). */
+  readonly content: string;
+  /** Hint about the content format. Defaults to 'text'. */
+  readonly contentType?: "text" | "code" | "markdown";
+  /** Chunk index within the current stream (0-based). */
+  readonly index?: number;
+}
+
+/**
+ * Payload for `thinking` signals.
+ * An AI model's internal reasoning/thinking step.
+ */
+export interface ThinkingPayload {
+  /** The agent thinking. */
+  readonly agentId: string;
+  /** The thinking/reasoning text chunk. */
+  readonly content: string;
+}
+
 // ---------------------------------------------------------------------------
-// Payload type map (maps signal type string to its payload interface)
+// Payload type map (maps well-known signal type string to its payload)
 // ---------------------------------------------------------------------------
 
-/** Maps each signal type to its corresponding payload interface. */
+/** Maps each well-known signal type to its corresponding payload interface. */
 export interface SignalPayloadMap {
   task_dispatch: TaskDispatchPayload;
   tool_call: ToolCallPayload;
@@ -172,6 +212,8 @@ export interface SignalPayloadMap {
   agent_state_change: AgentStateChangePayload;
   error: ErrorPayload;
   completion: CompletionPayload;
+  text_delta: TextDeltaPayload;
+  thinking: ThinkingPayload;
 }
 
 // ---------------------------------------------------------------------------
@@ -200,15 +242,18 @@ export interface SignalPayloadMap {
  * ```
  */
 export type SignalEvent = {
-  [K in SignalType]: SignalEnvelope<K>;
-}[SignalType];
+  [K in WellKnownSignalType]: SignalEnvelope<K>;
+}[WellKnownSignalType];
 
 /**
  * The signal envelope — standard wrapper around a typed payload.
  *
- * @typeParam T - The signal type discriminator
+ * For well-known types, the payload is strongly typed via `SignalPayloadMap`.
+ * For custom/unknown types, the payload is `Readonly<Record<string, unknown>>`.
+ *
+ * @typeParam T - The signal type discriminator (any string)
  */
-export interface SignalEnvelope<T extends SignalType = SignalType> {
+export interface SignalEnvelope<T extends string = string> {
   /** Unique signal ID (UUID or adapter-generated). */
   readonly id: string;
   /** Signal type discriminator. */
@@ -222,5 +267,7 @@ export interface SignalEnvelope<T extends SignalType = SignalType> {
   /** Adapter-specific debug info, ignored by the choreographer. */
   readonly metadata?: Record<string, unknown>;
   /** The typed payload — shape depends on `type`. */
-  readonly payload: SignalPayloadMap[T];
+  readonly payload: T extends keyof SignalPayloadMap
+    ? SignalPayloadMap[T]
+    : Readonly<Record<string, unknown>>;
 }

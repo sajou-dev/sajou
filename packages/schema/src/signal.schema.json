@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://sajou.dev/schema/signal.json",
   "title": "Sajou Signal",
-  "description": "A signal event in the Sajou protocol. Signals are the data layer: events emitted by AI agent orchestrators that feed the choreographer. Every signal has a standard envelope wrapping a typed payload.",
+  "description": "A signal event in the Sajou protocol. Signals are the data layer: events emitted by AI agent orchestrators that feed the choreographer. Every signal has a standard envelope wrapping a typed payload. The protocol is open: any string is a valid signal type. Well-known types (task_dispatch, tool_call, etc.) have validated payloads; unknown types accept any object payload.",
   "type": "object",
   "required": ["id", "type", "timestamp", "source", "payload"],
   "properties": {
@@ -11,8 +11,8 @@
       "description": "Unique identifier for this signal instance. UUID or adapter-generated."
     },
     "type": {
-      "$ref": "#/$defs/signalType",
-      "description": "Discriminator field. Determines the shape of the payload."
+      "type": "string",
+      "description": "Discriminator field. Determines the shape of the payload. Well-known types: task_dispatch, tool_call, tool_result, token_usage, agent_state_change, error, completion, text_delta, thinking. Any other string is accepted for custom/extension signals."
     },
     "timestamp": {
       "type": "number",
@@ -32,16 +32,9 @@
       "additionalProperties": true
     },
     "payload": {
-      "description": "The typed payload. Shape depends on the 'type' field.",
-      "oneOf": [
-        { "$ref": "#/$defs/taskDispatchPayload" },
-        { "$ref": "#/$defs/toolCallPayload" },
-        { "$ref": "#/$defs/toolResultPayload" },
-        { "$ref": "#/$defs/tokenUsagePayload" },
-        { "$ref": "#/$defs/agentStateChangePayload" },
-        { "$ref": "#/$defs/errorPayload" },
-        { "$ref": "#/$defs/completionPayload" }
-      ]
+      "type": "object",
+      "description": "The typed payload. Shape depends on the 'type' field. Well-known types have validated schemas; unknown types accept any object.",
+      "additionalProperties": true
     }
   },
   "additionalProperties": false,
@@ -73,22 +66,17 @@
     {
       "if": { "properties": { "type": { "const": "completion" } } },
       "then": { "properties": { "payload": { "$ref": "#/$defs/completionPayload" } } }
+    },
+    {
+      "if": { "properties": { "type": { "const": "text_delta" } } },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/textDeltaPayload" } } }
+    },
+    {
+      "if": { "properties": { "type": { "const": "thinking" } } },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/thinkingPayload" } } }
     }
   ],
   "$defs": {
-    "signalType": {
-      "type": "string",
-      "enum": [
-        "task_dispatch",
-        "tool_call",
-        "tool_result",
-        "token_usage",
-        "agent_state_change",
-        "error",
-        "completion"
-      ],
-      "description": "The set of signal types supported in V1."
-    },
     "taskDispatchPayload": {
       "type": "object",
       "description": "A task is assigned to an agent. This is the starting point of most visual choreographies — a peon walks to the forge, a node lights up, an arrow appears.",
@@ -272,6 +260,48 @@
         "result": {
           "type": "string",
           "description": "Optional. Summary of the result."
+        }
+      },
+      "additionalProperties": false
+    },
+    "textDeltaPayload": {
+      "type": "object",
+      "description": "A streaming text chunk from an AI model. Visually: text appears letter by letter, speech bubble fills, scroll region updates.",
+      "required": ["agentId", "content"],
+      "properties": {
+        "agentId": {
+          "type": "string",
+          "description": "The agent producing this text."
+        },
+        "content": {
+          "type": "string",
+          "description": "The text chunk (delta, not cumulative)."
+        },
+        "contentType": {
+          "type": "string",
+          "enum": ["text", "code", "markdown"],
+          "description": "Optional. Hint about the content format. Defaults to 'text'."
+        },
+        "index": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Optional. Chunk index within the current stream (0-based)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "thinkingPayload": {
+      "type": "object",
+      "description": "An AI model's internal reasoning/thinking step. Visually: thought bubbles, brain glow, internal monologue scroll.",
+      "required": ["agentId", "content"],
+      "properties": {
+        "agentId": {
+          "type": "string",
+          "description": "The agent thinking."
+        },
+        "content": {
+          "type": "string",
+          "description": "The thinking/reasoning text chunk."
         }
       },
       "additionalProperties": false
