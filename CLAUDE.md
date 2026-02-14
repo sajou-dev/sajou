@@ -252,3 +252,13 @@ When in doubt about any visual decision, defer to the brand guide.
 - **Don't add dependencies to `@sajou/core`** — zero deps means zero deps
 - **Don't commit without tests** — if you write runtime logic, test it
 - **Don't deviate from the brand guide** — colors, typography, logo usage, and icon choices are defined in `docs/brand/sajou-brand_dev-kit_001/SAJOU-BRAND.md`. Don't invent new colors, swap fonts, or recreate logo assets
+
+---
+
+## End-of-chapter protocol
+
+When you finish implementing a work chapter (a plan, a feature branch, a coherent set of tasks):
+
+1. **Update reference documentation** — reflect the changes in the relevant docs (`ARCHITECTURE.md`, `CLAUDE.md`, ADRs, etc.). The codebase docs must stay in sync with the code.
+
+2. **Log remarks, ideas, and open questions** — during implementation, ideas, edge cases, future improvements, and unresolved questions inevitably surface. Capture them in a dedicated section at the end of your work summary so we can integrate them into the next work plan. Nothing should be lost to context window eviction.

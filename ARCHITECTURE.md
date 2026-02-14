@@ -14,8 +14,11 @@ See [SAJOU-MANIFESTO.md](./SAJOU-MANIFESTO.md) for the full vision.
 
 TypeScript types + JSON Schema for the signal protocol.
 
-- 7 V1 signal types: `task_dispatch`, `tool_call`, `tool_result`, `token_usage`, `agent_state_change`, `error`, `completion`
-- `SignalEvent`: discriminated union on `type` field for type narrowing
+- **Open protocol**: any string is a valid signal type — no enum gate
+- 9 well-known types: `task_dispatch`, `tool_call`, `tool_result`, `token_usage`, `agent_state_change`, `error`, `completion`, `text_delta`, `thinking`
+- `WellKnownSignalType` (typed union) vs `SignalType` (any string with autocomplete)
+- `SignalEnvelope<T>`: well-known types get typed payloads; custom types get `Record<string, unknown>`
+- `SignalEvent`: discriminated union on `type` field for type narrowing (well-known types only)
 - Envelope + typed payload pattern (see [ADR-001](./docs/adr/001-signal-protocol.md))
 - All payload fields are `readonly` (immutable signals)
 
@@ -67,6 +70,8 @@ Visual scene editor — the main authoring tool for creating and testing choreog
 - Wiring system (patch bay), node canvas, step chain with popover editing
 - Zone painting for semantic regions on background
 - Export/import ZIP, run mode with live preview
+- Multi-source signal connections: WebSocket, SSE, OpenAI-compatible, Anthropic API
+- HTTP POST ingestion (`POST /api/signal`) + SSE broadcast (`GET /__signals__/stream`)
 - Dependencies: `@sajou/core`, `pixi.js`, `fflate`, `gifuct-js`
 
 ### player (active)
