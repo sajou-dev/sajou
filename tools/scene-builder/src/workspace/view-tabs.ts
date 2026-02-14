@@ -57,7 +57,7 @@ interface ZoneTabDef {
 
 const ZONE_TABS: readonly ZoneTabDef[] = [
   { view: "signal", label: "Signal", icon: ICON_SIGNAL, zoneSelector: "#zone-signal" },
-  { view: "orchestrator", label: "Orchestrator", icon: ICON_CHOREOGRAPHER, zoneSelector: "#zone-choreographer" },
+  { view: "orchestrator", label: "Choreographer", icon: ICON_CHOREOGRAPHER, zoneSelector: "#zone-choreographer" },
   { view: "visual", label: "Visual", icon: ICON_THEME, zoneSelector: "#zone-theme" },
 ];
 
