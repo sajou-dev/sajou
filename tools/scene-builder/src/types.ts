@@ -226,6 +226,8 @@ export interface RoutePoint {
    * Ignored for "sharp" corners. Default: 0.5
    */
   tension?: number;
+  /** Optional waypoint name for choreography reference (e.g., "gate", "bridge-mid"). */
+  name?: string;
 }
 
 /**

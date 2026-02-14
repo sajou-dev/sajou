@@ -14,7 +14,7 @@
 import type { Sprite } from "pixi.js";
 import { getSceneState } from "../state/scene-state.js";
 import { getEntitySpriteById } from "../canvas/scene-renderer.js";
-import type { PlacedEntity } from "../types.js";
+import type { PlacedEntity, SceneRoute } from "../types.js";
 
 // ---------------------------------------------------------------------------
 // Entity resolution
@@ -62,4 +62,17 @@ export function resolvePosition(name: string): { x: number; y: number } | null {
   const { positions } = getSceneState();
   const pos = positions.find((p) => p.name === name);
   return pos ? { x: pos.x, y: pos.y } : null;
+}
+
+// ---------------------------------------------------------------------------
+// Route resolution
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve a route name to its full SceneRoute object.
+ * Returns null if no route with that name exists.
+ */
+export function resolveRoute(name: string): SceneRoute | null {
+  const { routes } = getSceneState();
+  return routes.find((r) => r.name === name) ?? null;
 }

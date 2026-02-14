@@ -463,15 +463,21 @@ export function createRouteTool(): RouteToolResult {
 
     if (pts.length < 2) return; // Need at least 2 points
 
+    // Auto-name waypoints (all points get sequential names)
+    const namedPts = pts.map((p, i) => ({
+      ...p,
+      name: p.name ?? `wp${i + 1}`,
+    }));
+
     // Auto-link to nearby positions (within 20px)
-    const fromPosId = hitTestPosition(pts[0]!.x, pts[0]!.y) ?? undefined;
-    const toPosHit = hitTestPosition(pts[pts.length - 1]!.x, pts[pts.length - 1]!.y);
+    const fromPosId = hitTestPosition(namedPts[0]!.x, namedPts[0]!.y) ?? undefined;
+    const toPosHit = hitTestPosition(namedPts[namedPts.length - 1]!.x, namedPts[namedPts.length - 1]!.y);
     const toPosId = toPosHit && toPosHit !== fromPosId ? toPosHit : undefined;
 
     const newRoute: SceneRoute = {
       id: generateRouteId(),
       name: generateRouteName(),
-      points: pts,
+      points: namedPts,
       style: "solid",
       color: nextColor(),
       bidirectional: false,
@@ -503,7 +509,13 @@ export function createRouteTool(): RouteToolResult {
     y: number,
     cornerStyle: "sharp" | "smooth",
   ): void {
-    const newPt: RoutePoint = { x, y, cornerStyle };
+    // Auto-name: find next available wp index for this route
+    const { routes: curRoutes } = getSceneState();
+    const curRoute = curRoutes.find((r) => r.id === routeId);
+    let wpNum = (curRoute?.points.length ?? 0) + 1;
+    const usedNames = new Set(curRoute?.points.map((p) => p.name).filter(Boolean));
+    while (usedNames.has(`wp${wpNum}`)) wpNum++;
+    const newPt: RoutePoint = { x, y, cornerStyle, name: `wp${wpNum}` };
 
     const cmd: UndoableCommand = {
       execute() {

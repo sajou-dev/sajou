@@ -888,6 +888,53 @@ export function initInspectorPanel(contentEl: HTMLElement): void {
     // Points count (readonly)
     form.appendChild(createRow("Points", createReadonly(String(route.points.length))));
 
+    // Waypoint names (editable per-point)
+    if (route.points.length > 2) {
+      const wpSection = document.createElement("div");
+      wpSection.className = "ip-section";
+
+      const wpLabel = document.createElement("div");
+      wpLabel.className = "ip-section-label";
+      wpLabel.textContent = "Waypoints";
+      wpSection.appendChild(wpLabel);
+
+      // Only intermediate points (not first/last, which are endpoints)
+      for (let pi = 1; pi < route.points.length - 1; pi++) {
+        const rp = route.points[pi]!;
+        const wpRow = document.createElement("div");
+        wpRow.className = "ip-inline";
+
+        const idxLabel = document.createElement("span");
+        idxLabel.className = "ip-muted";
+        idxLabel.textContent = `#${pi}`;
+        idxLabel.style.minWidth = "24px";
+        wpRow.appendChild(idxLabel);
+
+        const nameInput = document.createElement("input");
+        nameInput.type = "text";
+        nameInput.className = "ip-input";
+        nameInput.value = rp.name ?? "";
+        nameInput.placeholder = "(unnamed)";
+        nameInput.style.flex = "1";
+        const pointIndex = pi;
+        nameInput.addEventListener("change", () => {
+          const newName = nameInput.value.trim() || undefined;
+          const updatedPoints = route.points.map((p, idx) =>
+            idx === pointIndex ? { ...p, name: newName } : p,
+          );
+          executeCommand(createRouteUpdateCommand(
+            route.id,
+            { points: updatedPoints },
+            newName ? `Name waypoint #${pointIndex} "${newName}"` : `Clear waypoint #${pointIndex} name`,
+          ));
+        });
+        wpRow.appendChild(nameInput);
+        wpSection.appendChild(wpRow);
+      }
+
+      form.appendChild(wpSection);
+    }
+
     // Style
     const styleSelect = document.createElement("select");
     styleSelect.className = "ip-select";

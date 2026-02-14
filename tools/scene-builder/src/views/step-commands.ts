@@ -54,13 +54,13 @@ export const SIGNAL_TYPE_LABELS: Record<string, string> = {
 export const ACTION_COLORS: Record<string, string> = {
   move: "#5B8DEF", spawn: "#4EC9B0", destroy: "#F44747",
   fly: "#E8A851", flash: "#C586C0", wait: "#6A9955",
-  playSound: "#D4A56A", setAnimation: "#56B6C2",
+  playSound: "#D4A56A", setAnimation: "#56B6C2", followRoute: "#D4A56A",
   parallel: "#888899", onArrive: "#56B6C2", onInterrupt: "#F44747",
 };
 
 export const ACTION_TYPES: string[] = [
   "move", "spawn", "destroy", "fly", "flash", "wait", "playSound",
-  "setAnimation", "parallel", "onArrive", "onInterrupt",
+  "setAnimation", "followRoute", "parallel", "onArrive", "onInterrupt",
 ];
 
 // ---------------------------------------------------------------------------
@@ -103,6 +103,7 @@ export function createDefaultStep(action: string): ChoreographyStepDef {
     case "wait": return { ...base, duration: 500, params: {} };
     case "playSound": return { ...base, params: { sound: "" } };
     case "setAnimation": return { ...base, entity: "", params: { state: "" } };
+    case "followRoute": return { ...base, entity: "", duration: 2000, easing: "easeInOut", params: { route: "", reverse: false, animationDuring: "walk", animationOnArrival: "idle" } };
     case "parallel": case "onArrive": case "onInterrupt":
       return { ...base, params: {}, children: [] };
     default: return base;

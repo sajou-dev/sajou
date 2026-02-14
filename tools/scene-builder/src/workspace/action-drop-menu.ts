@@ -184,6 +184,8 @@ function buildItems(options: ActionDropMenuOptions): RadialItem[] {
       return buildPositionItems(choreoId, stepId, targetSemanticId, "to");
     case "spawn":
       return buildPositionItems(choreoId, stepId, targetSemanticId, "at");
+    case "followRoute":
+      return buildRouteItems(choreoId, stepId, targetSemanticId);
     default:
       return [];
   }
@@ -266,4 +268,24 @@ function buildPositionItems(
   }
 
   return items;
+}
+
+/** Build items for followRoute: one per scene route. */
+function buildRouteItems(
+  choreoId: string,
+  stepId: string,
+  semanticId: string,
+): RadialItem[] {
+  const { routes } = getSceneState();
+
+  return routes.map((route) => ({
+    label: route.name || route.id,
+    icon: "\u21DD", // ⇝
+    onClick: () => {
+      updateStepCmd(choreoId, stepId, {
+        entity: semanticId,
+        params: { route: route.name || route.id },
+      });
+    },
+  }));
 }

@@ -96,6 +96,10 @@ function buildControl(
       return buildEntityRefControl(decl.key, currentValue, onChange, decl.allowSignalRef, decl.placeholder, decl.default);
     case "position-ref":
       return buildPositionRefControl(decl.key, currentValue, onChange, decl.allowSignalRef, decl.placeholder, decl.default);
+    case "route-ref":
+      return buildRouteRefControl(decl.key, currentValue, onChange, decl.placeholder, decl.default);
+    case "waypoint-ref":
+      return buildWaypointRefControl(decl.key, currentValue, onChange, decl.placeholder, decl.default);
     case "angle":
       return buildAngleControl(decl.key, currentValue, onChange, decl.default);
     case "json":
@@ -494,6 +498,92 @@ function buildPositionRefControl(
   input.addEventListener("input", () => {
     input.classList.toggle("isf-ref-input--signal", input.value.startsWith("signal."));
   });
+
+  wrap.appendChild(input);
+  wrap.appendChild(datalist);
+  return wrap;
+}
+
+// ---------------------------------------------------------------------------
+// Route reference
+// ---------------------------------------------------------------------------
+
+function buildRouteRefControl(
+  key: string, value: unknown, onChange: OnInputChange,
+  placeholder?: string, defaultVal?: string,
+): HTMLElement {
+  const wrap = document.createElement("div");
+  wrap.className = "isf-ref-wrap";
+
+  const strVal = typeof value === "string" ? value : (defaultVal ?? "");
+
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "isf-text isf-ref-input";
+  input.value = strVal;
+  if (placeholder) input.placeholder = placeholder;
+
+  const listId = `dl-${key}-${crypto.randomUUID().slice(0, 8)}`;
+  const datalist = document.createElement("datalist");
+  datalist.id = listId;
+  input.setAttribute("list", listId);
+
+  // Populate with scene routes
+  const scene = getSceneState();
+  for (const route of scene.routes) {
+    const opt = document.createElement("option");
+    opt.value = route.name;
+    opt.textContent = route.name;
+    datalist.appendChild(opt);
+  }
+
+  input.addEventListener("change", () => onChange(key, input.value));
+
+  wrap.appendChild(input);
+  wrap.appendChild(datalist);
+  return wrap;
+}
+
+// ---------------------------------------------------------------------------
+// Waypoint reference
+// ---------------------------------------------------------------------------
+
+function buildWaypointRefControl(
+  key: string, value: unknown, onChange: OnInputChange,
+  placeholder?: string, defaultVal?: string,
+): HTMLElement {
+  const wrap = document.createElement("div");
+  wrap.className = "isf-ref-wrap";
+
+  const strVal = typeof value === "string" ? value : (defaultVal ?? "");
+
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "isf-text isf-ref-input";
+  input.value = strVal;
+  if (placeholder) input.placeholder = placeholder;
+
+  const listId = `dl-${key}-${crypto.randomUUID().slice(0, 8)}`;
+  const datalist = document.createElement("datalist");
+  datalist.id = listId;
+  input.setAttribute("list", listId);
+
+  // Populate with named waypoints from all routes
+  const scene = getSceneState();
+  const seen = new Set<string>();
+  for (const route of scene.routes) {
+    for (const rp of route.points) {
+      if (rp.name && !seen.has(rp.name)) {
+        seen.add(rp.name);
+        const opt = document.createElement("option");
+        opt.value = rp.name;
+        opt.textContent = `${rp.name} (${route.name})`;
+        datalist.appendChild(opt);
+      }
+    }
+  }
+
+  input.addEventListener("change", () => onChange(key, input.value));
 
   wrap.appendChild(input);
   wrap.appendChild(datalist);

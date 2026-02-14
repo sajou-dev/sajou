@@ -70,6 +70,8 @@ const MOVE_SCHEMA: ActionInputSchema = {
       allowSignalRef: true,
       placeholder: "signal.to, forge, ...",
     },
+    { type: "string", key: "animationDuring", label: "Anim. during", placeholder: "walk, run, ..." },
+    { type: "string", key: "animationOnArrival", label: "Anim. arrival", placeholder: "idle, ..." },
   ],
 };
 
@@ -84,6 +86,8 @@ const FLY_SCHEMA: ActionInputSchema = {
       allowSignalRef: true,
       placeholder: "signal.to, forge, ...",
     },
+    { type: "string", key: "animationDuring", label: "Anim. during", placeholder: "walk, run, ..." },
+    { type: "string", key: "animationOnArrival", label: "Anim. arrival", placeholder: "idle, ..." },
   ],
 };
 
@@ -161,6 +165,19 @@ const SET_ANIMATION_SCHEMA: ActionInputSchema = {
   ],
 };
 
+const FOLLOW_ROUTE_SCHEMA: ActionInputSchema = {
+  action: "followRoute",
+  common: [ENTITY_INPUT, DELAY_INPUT, DURATION_INPUT, EASING_INPUT],
+  params: [
+    { type: "route-ref", key: "route", label: "Route", placeholder: "corridor-north, ..." },
+    { type: "waypoint-ref", key: "from", label: "From waypoint", placeholder: "(start)" },
+    { type: "waypoint-ref", key: "to", label: "To waypoint", placeholder: "(end)" },
+    { type: "bool", key: "reverse", label: "Reverse", default: false },
+    { type: "string", key: "animationDuring", label: "Anim. during", placeholder: "walk, run, ..." },
+    { type: "string", key: "animationOnArrival", label: "Anim. arrival", placeholder: "idle, ..." },
+  ],
+};
+
 // Structural actions — no params, they contain nested children
 const PARALLEL_SCHEMA: ActionInputSchema = {
   action: "parallel",
@@ -194,6 +211,7 @@ const ACTION_SCHEMAS: Map<string, ActionInputSchema> = new Map([
   ["wait", WAIT_SCHEMA],
   ["playSound", PLAY_SOUND_SCHEMA],
   ["setAnimation", SET_ANIMATION_SCHEMA],
+  ["followRoute", FOLLOW_ROUTE_SCHEMA],
   ["parallel", PARALLEL_SCHEMA],
   ["onArrive", ON_ARRIVE_SCHEMA],
   ["onInterrupt", ON_INTERRUPT_SCHEMA],

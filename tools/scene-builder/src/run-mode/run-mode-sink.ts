@@ -22,15 +22,17 @@ import type {
 } from "@sajou/core";
 
 import { getEntitySpriteById } from "../canvas/scene-renderer.js";
-import { resolveEntityId, resolvePosition } from "./run-mode-resolve.js";
+import { resolveEntityId, resolvePosition, resolveRoute } from "./run-mode-resolve.js";
 import { switchAnimation } from "./run-mode-animator.js";
+import { buildPathPoints } from "../tools/route-tool.js";
+import { flattenRoutePathWithMapping, computeSegmentLengths, interpolateAlongPath } from "../tools/route-math.js";
 import type { Sprite } from "pixi.js";
 
 // ---------------------------------------------------------------------------
 // Internal animation state
 // ---------------------------------------------------------------------------
 
-/** Tracked state for an animated action (move, fly, flash). */
+/** Tracked state for an animated action (move, fly, flash, followRoute). */
 interface ActiveAnimation {
   /** The PixiJS sprite being animated. */
   sprite: Sprite;
@@ -46,6 +48,16 @@ interface ActiveAnimation {
   savedTint: number;
   /** Action name (for update dispatch). */
   action: string;
+  /** Flattened polyline for followRoute. */
+  polyline?: ReadonlyArray<{ x: number; y: number }>;
+  /** Cumulative arc lengths for followRoute interpolation. */
+  cumulativeLengths?: readonly number[];
+  /** Original sign of scale.x for restoring after flip (followRoute). */
+  originalScaleXSign?: number;
+  /** Animation state to set on arrival (followRoute). */
+  animationOnArrival?: string;
+  /** Placed entity ID for animation switching (followRoute). */
+  placedId?: string;
 }
 
 /** Composite key for tracking animations: performanceId:entityRef. */
@@ -82,6 +94,10 @@ export function createRunModeSink(): CommandSink {
         const toName = cmd.params["to"] as string | undefined;
         const target = toName ? resolvePosition(toName) : null;
 
+        // Start "during" animation if specified
+        const animDuring = cmd.params["animationDuring"] as string | undefined;
+        if (animDuring && placedId) switchAnimation(placedId, animDuring);
+
         animations.set(key, {
           sprite,
           startX: sprite.x,
@@ -90,6 +106,8 @@ export function createRunModeSink(): CommandSink {
           targetY: target?.y ?? sprite.y,
           savedTint: 0xffffff,
           action: cmd.action,
+          animationOnArrival: cmd.params["animationOnArrival"] as string | undefined,
+          placedId: placedId ?? undefined,
         });
       } else if (cmd.action === "flash") {
         animations.set(key, {
@@ -100,6 +118,80 @@ export function createRunModeSink(): CommandSink {
           targetY: sprite.y,
           savedTint: sprite.tint as number,
           action: cmd.action,
+        });
+      } else if (cmd.action === "followRoute") {
+        const routeName = cmd.params["route"] as string | undefined;
+        const route = routeName ? resolveRoute(routeName) : null;
+        if (!route) {
+          console.warn(`[run-mode] followRoute: route "${routeName}" not found`);
+          return;
+        }
+
+        // Build display points (snapped to linked positions)
+        const displayPoints = buildPathPoints(route);
+        if (displayPoints.length < 2) return;
+
+        // Flatten to dense polyline with original-point index mapping
+        const { polyline: fullPolyline, pointIndices } = flattenRoutePathWithMapping(displayPoints, route.points);
+
+        // Slice polyline to from/to waypoint range if specified
+        const fromName = cmd.params["from"] as string | undefined;
+        const toName = cmd.params["to"] as string | undefined;
+
+        let sliceStart = 0;
+        let sliceEnd = fullPolyline.length;
+
+        if (fromName) {
+          const rpIdx = route.points.findIndex((rp) => rp.name === fromName);
+          if (rpIdx >= 0 && rpIdx < pointIndices.length) {
+            sliceStart = pointIndices[rpIdx]!;
+          } else {
+            console.warn(`[run-mode] followRoute: waypoint "${fromName}" not found on route "${routeName}"`);
+          }
+        }
+        if (toName) {
+          const rpIdx = route.points.findIndex((rp) => rp.name === toName);
+          if (rpIdx >= 0 && rpIdx < pointIndices.length) {
+            sliceEnd = pointIndices[rpIdx]! + 1; // inclusive
+          } else {
+            console.warn(`[run-mode] followRoute: waypoint "${toName}" not found on route "${routeName}"`);
+          }
+        }
+
+        let polyline = fullPolyline.slice(sliceStart, sliceEnd);
+        if (polyline.length < 2) {
+          console.warn(`[run-mode] followRoute: sliced path too short (from="${fromName}", to="${toName}")`);
+          return;
+        }
+
+        // Reverse if requested
+        const reverse = cmd.params["reverse"] as boolean | undefined;
+        if (reverse) polyline = [...polyline].reverse();
+
+        // Compute arc-length parameterization
+        const cumulativeLengths = computeSegmentLengths(polyline);
+
+        // Teleport sprite to start of path
+        sprite.x = polyline[0]!.x;
+        sprite.y = polyline[0]!.y;
+
+        // Start "during" animation
+        const animDuring = cmd.params["animationDuring"] as string | undefined;
+        if (animDuring && placedId) switchAnimation(placedId, animDuring);
+
+        animations.set(key, {
+          sprite,
+          startX: sprite.x,
+          startY: sprite.y,
+          targetX: polyline[polyline.length - 1]!.x,
+          targetY: polyline[polyline.length - 1]!.y,
+          savedTint: 0xffffff,
+          action: cmd.action,
+          polyline,
+          cumulativeLengths,
+          originalScaleXSign: sprite.scale.x >= 0 ? 1 : -1,
+          animationOnArrival: cmd.params["animationOnArrival"] as string | undefined,
+          placedId: placedId ?? undefined,
         });
       } else if (cmd.action === "wait") {
         // No visual setup needed — timing is handled by the scheduler.
@@ -123,6 +215,15 @@ export function createRunModeSink(): CommandSink {
         const linearY = startY + (targetY - startY) * t;
         const arcHeight = Math.abs(targetX - startX) * 0.3;
         sprite.y = linearY - Math.sin(t * Math.PI) * arcHeight;
+      } else if (anim.action === "followRoute") {
+        if (anim.polyline && anim.cumulativeLengths) {
+          const sample = interpolateAlongPath(anim.polyline, anim.cumulativeLengths, t);
+          sprite.x = sample.x;
+          sprite.y = sample.y;
+          // Flip sprite based on movement direction
+          const origSign = anim.originalScaleXSign ?? 1;
+          sprite.scale.x = Math.abs(sprite.scale.x) * sample.directionX * origSign;
+        }
       } else if (anim.action === "flash") {
         const colorStr = cmd.params["color"] as string | undefined;
         if (colorStr) {
@@ -148,6 +249,21 @@ export function createRunModeSink(): CommandSink {
         // Snap to final position
         sprite.x = anim.targetX;
         sprite.y = anim.targetY;
+        // Switch to arrival animation if specified
+        if (anim.animationOnArrival && anim.placedId) {
+          switchAnimation(anim.placedId, anim.animationOnArrival);
+        }
+      } else if (anim.action === "followRoute") {
+        // Snap to final path point
+        sprite.x = anim.targetX;
+        sprite.y = anim.targetY;
+        // Restore original flip direction
+        const origSign = anim.originalScaleXSign ?? 1;
+        sprite.scale.x = Math.abs(sprite.scale.x) * origSign;
+        // Switch to arrival animation
+        if (anim.animationOnArrival && anim.placedId) {
+          switchAnimation(anim.placedId, anim.animationOnArrival);
+        }
       } else if (anim.action === "flash") {
         // Restore original tint
         sprite.tint = anim.savedTint;

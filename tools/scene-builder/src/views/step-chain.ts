@@ -26,6 +26,7 @@ const ACTION_ICONS: Record<string, string> = {
   wait: "\u23F1",       // ⏱
   playSound: "\u266B",  // ♫
   setAnimation: "\u25B6", // ▶
+  followRoute: "\u21DD", // ⇝
   parallel: "\u2503",   // ┃ (split)
   onArrive: "\u2691",   // ⚑
   onInterrupt: "\u26A0", // ⚠
@@ -190,6 +191,7 @@ const PICKER_ITEMS: { action: string; icon: string; label: string }[] = [
   { action: "wait", icon: "\u23F1", label: "wait" },
   { action: "playSound", icon: "\u266B", label: "sound" },
   { action: "setAnimation", icon: "\u25B6", label: "animation" },
+  { action: "followRoute", icon: "\u21DD", label: "followRoute" },
   { action: "parallel", icon: "\u2503", label: "parallel" },
   { action: "onArrive", icon: "\u2691", label: "onArrive" },
   { action: "onInterrupt", icon: "\u26A0", label: "onInterrupt" },

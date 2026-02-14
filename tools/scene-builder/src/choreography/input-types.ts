@@ -36,6 +36,8 @@ export type InputType =
   | "easing"
   | "entity-ref"
   | "position-ref"
+  | "route-ref"
+  | "waypoint-ref"
   | "angle"
   | "json";
 
@@ -136,6 +138,20 @@ export interface PositionRefInputDecl extends InputDeclBase {
   default?: string;
 }
 
+/** Route reference: dropdown populated from scene routes. */
+export interface RouteRefInputDecl extends InputDeclBase {
+  type: "route-ref";
+  placeholder?: string;
+  default?: string;
+}
+
+/** Waypoint reference: dropdown populated from named route waypoints. */
+export interface WaypointRefInputDecl extends InputDeclBase {
+  type: "waypoint-ref";
+  placeholder?: string;
+  default?: string;
+}
+
 /** Angle input: degrees (0–360). */
 export interface AngleInputDecl extends InputDeclBase {
   type: "angle";
@@ -161,6 +177,8 @@ export type InputDeclaration =
   | EasingInputDecl
   | EntityRefInputDecl
   | PositionRefInputDecl
+  | RouteRefInputDecl
+  | WaypointRefInputDecl
   | AngleInputDecl
   | JsonInputDecl;
 

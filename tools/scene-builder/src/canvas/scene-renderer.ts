@@ -19,6 +19,7 @@ import { isRunModeActive } from "../run-mode/run-mode-state.js";
 import { getLayers } from "./canvas.js";
 import type { PlacedEntity, EntityEntry, SceneLayer } from "../types.js";
 import { buildPathPoints } from "../tools/route-tool.js";
+import { flattenRoutePath } from "../tools/route-math.js";
 
 // ---------------------------------------------------------------------------
 // Texture cache
@@ -345,6 +346,12 @@ function renderSelection(): void {
     sceneLayers.selection.addChild(selectionGraphics);
   }
 
+  // Hide selection during run mode
+  if (isRunModeActive()) {
+    selectionGraphics.clear();
+    return;
+  }
+
   selectionGraphics.clear();
 
   const { selectedIds } = getEditorState();
@@ -465,6 +472,13 @@ const positionContainers = new Map<string, Container>();
 function renderPositions(): void {
   const sceneLayers = getLayers();
   if (!sceneLayers) return;
+
+  // Hide all position markers during run mode — they're editor-only
+  if (isRunModeActive()) {
+    for (const [, container] of positionContainers) container.visible = false;
+    return;
+  }
+  for (const [, container] of positionContainers) container.visible = true;
 
   const { positions } = getSceneState();
   const { activeTool, selectedPositionIds } = getEditorState();
@@ -609,57 +623,7 @@ function drawArrowhead(
 // Dashed line helpers
 // ---------------------------------------------------------------------------
 
-/** Sample a quadratic Bézier curve into straight segments. */
-function sampleQuadratic(
-  x0: number, y0: number,
-  cx: number, cy: number,
-  x1: number, y1: number,
-  step: number,
-): Array<{ x: number; y: number }> {
-  const dist = Math.hypot(cx - x0, cy - y0) + Math.hypot(x1 - cx, y1 - cy);
-  const segments = Math.max(2, Math.ceil(dist / step));
-  const pts: Array<{ x: number; y: number }> = [];
-  for (let i = 1; i <= segments; i++) {
-    const t = i / segments;
-    const mt = 1 - t;
-    pts.push({
-      x: mt * mt * x0 + 2 * mt * t * cx + t * t * x1,
-      y: mt * mt * y0 + 2 * mt * t * cy + t * t * y1,
-    });
-  }
-  return pts;
-}
-
-/**
- * Flatten a route into a polyline of evenly-spaced sample points.
- * Handles both sharp (lineTo) and smooth (quadratic curve) segments.
- */
-function flattenRoutePath(
-  points: Array<{ x: number; y: number }>,
-  routePoints: Array<{ cornerStyle: "sharp" | "smooth" }>,
-): Array<{ x: number; y: number }> {
-  if (points.length < 2) return [...points];
-
-  const result: Array<{ x: number; y: number }> = [{ x: points[0]!.x, y: points[0]!.y }];
-
-  for (let i = 1; i < points.length; i++) {
-    const curr = points[i]!;
-    const rp = routePoints[i]!;
-
-    if (rp.cornerStyle === "smooth" && i < points.length - 1) {
-      const next = points[i + 1]!;
-      const midX = (curr.x + next.x) / 2;
-      const midY = (curr.y + next.y) / 2;
-      const prev = result[result.length - 1]!;
-      const sampled = sampleQuadratic(prev.x, prev.y, curr.x, curr.y, midX, midY, 4);
-      result.push(...sampled);
-    } else {
-      result.push({ x: curr.x, y: curr.y });
-    }
-  }
-
-  return result;
-}
+// sampleQuadratic and flattenRoutePath imported from route-math.ts
 
 /** Draw a dashed polyline into a Graphics object. */
 function drawDashedPolyline(
@@ -731,6 +695,13 @@ const routeContainers = new Map<string, Container>();
 function renderRoutes(): void {
   const sceneLayers = getLayers();
   if (!sceneLayers) return;
+
+  // Hide all route visuals during run mode — they're editor-only markers
+  if (isRunModeActive()) {
+    for (const [, container] of routeContainers) container.visible = false;
+    return;
+  }
+  for (const [, container] of routeContainers) container.visible = true;
 
   const { routes } = getSceneState();
   const { activeTool, selectedRouteIds } = getEditorState();
@@ -835,6 +806,37 @@ function renderRoutes(): void {
         handleGfx.fill({ color: isEndpoint ? color : 0xffffff, alpha: 1 });
         handleGfx.stroke({ color, width: 1.5, alpha: 1 });
         container.addChild(handleGfx);
+
+        // Waypoint name label (if named)
+        if (rp.name) {
+          const wpLabel = new Text({
+            text: rp.name,
+            style: new TextStyle({
+              fontFamily: "JetBrains Mono, monospace",
+              fontSize: 8,
+              fill: "#ffffff",
+            }),
+          });
+          wpLabel.anchor.set(0.5, 0);
+          wpLabel.x = rp.x;
+          wpLabel.y = rp.y + handleSize + 3;
+
+          // Label pill background
+          const wpPad = 2;
+          const wpPillW = wpLabel.width + wpPad * 2;
+          const wpPillH = wpLabel.height + wpPad;
+          const wpPill = new Graphics();
+          wpPill.roundRect(
+            rp.x - wpPillW / 2,
+            wpLabel.y - wpPad / 2,
+            wpPillW,
+            wpPillH,
+            2,
+          );
+          wpPill.fill({ color: 0x0e0e16, alpha: 0.85 });
+          container.addChild(wpPill);
+          container.addChild(wpLabel);
+        }
       }
     }
 
@@ -892,6 +894,12 @@ function renderRouteCreationPreview(): void {
     routePreviewGraphics = new Graphics();
     routePreviewGraphics.label = "route-creation-preview";
     sceneLayers.routes.addChild(routePreviewGraphics);
+  }
+
+  // No preview during run mode
+  if (isRunModeActive()) {
+    routePreviewGraphics.clear();
+    return;
   }
 
   routePreviewGraphics.clear();
@@ -965,6 +973,12 @@ function renderActorBadges(): void {
     sceneLayers.selection.addChild(actorBadgeGraphics);
   }
 
+  // Hide actor badges during run mode
+  if (isRunModeActive()) {
+    actorBadgeGraphics.clear();
+    return;
+  }
+
   actorBadgeGraphics.clear();
 
   const { entities } = getSceneState();
@@ -1019,6 +1033,9 @@ function renderTopologyOverlay(): void {
   }
 
   topologyGraphics.clear();
+
+  // Hide topology during run mode
+  if (isRunModeActive()) return;
 
   const { selectedIds, topologyAssociationPreview } = getEditorState();
   const { entities, positions, routes } = getSceneState();

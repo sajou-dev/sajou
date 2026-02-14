@@ -25,7 +25,7 @@ import { showActionDropMenu } from "./action-drop-menu.js";
 
 /** Actions that support pill drag-to-entity configuration. */
 export const DRAGGABLE_ACTIONS = new Set([
-  "move", "fly", "spawn", "destroy", "flash", "setAnimation",
+  "move", "fly", "spawn", "destroy", "flash", "setAnimation", "followRoute",
 ]);
 
 /** Movement threshold (px) to distinguish click from drag. */
