@@ -98,8 +98,8 @@ function onMouseDown(e: MouseEvent): void {
   let targetZone: WireZone;
 
   if (zone === "signal") {
-    // Source badge (on bar-H) → drag to a signal-type badge (intra bar-H)
-    targetZone = "signal-type";
+    // Source badges no longer initiate drags — color-coding suffices
+    return;
   } else if (zone === "signal-type") {
     // Signal type badge (on bar-H) → drag down to a choreographer node input
     targetZone = "choreographer";

@@ -1,13 +1,12 @@
 /**
- * Signal view — source blocks + raw log.
+ * Signal view — source chips + raw log.
  *
  * Layout:
- *   - Top: source blocks (horizontal) — each manages its own connection
+ *   - Top: compact chip bar — one pill per source, "+" to add
+ *   - Middle: simulator bar
  *   - Bottom: raw log displaying all incoming signals and debug messages
  *
- * Each source block manages its own independent connection via
- * connectSource/disconnectSource (per-source architecture).
- * Prompt/test input is embedded per-source-block (when in OpenAI mode).
+ * Each source chip opens a popover for configuration (signal-source-popover).
  * The raw log aggregates signals from all connected sources.
  *
  * Wiring between source badges and signal-type badges (on the connector
@@ -25,7 +24,10 @@ import {
   subscribeSignalSources,
   addSource,
 } from "../state/signal-source-state.js";
-import { createSourceBlock } from "./signal-source-block.js";
+import {
+  openSourcePopover,
+  getOpenSourceId,
+} from "./signal-source-popover.js";
 import { initRawLog, addLogEntry, addDebugEntry } from "./signal-raw-log.js";
 import { createSimulatorBar } from "./simulator-bar.js";
 
@@ -34,7 +36,7 @@ import { createSimulatorBar } from "./simulator-bar.js";
 // ---------------------------------------------------------------------------
 
 let zoneEl: HTMLElement | null = null;
-let sourcesContainer: HTMLElement | null = null;
+let chipBar: HTMLElement | null = null;
 
 // ---------------------------------------------------------------------------
 // Init
@@ -50,24 +52,30 @@ export function initSignalView(): void {
   zoneEl = document.getElementById("zone-signal");
   if (!zoneEl) return;
 
-  // ── Sources container (horizontal blocks) ──
-  const sourcesArea = document.createElement("div");
-  sourcesArea.className = "sv-sources-area";
+  // ── Chip bar (compact row of source chips) ──
+  chipBar = document.createElement("div");
+  chipBar.className = "sv-chip-bar";
 
-  sourcesContainer = document.createElement("div");
-  sourcesContainer.className = "sv-sources-container";
-  sourcesArea.appendChild(sourcesContainer);
-
-  // Add source button
+  // Add-source "+" button (always last)
   const addBtn = document.createElement("button");
-  addBtn.className = "sv-add-source-btn";
-  addBtn.textContent = "+ Add Source";
-  addBtn.addEventListener("click", () => addSource());
-  sourcesArea.appendChild(addBtn);
+  addBtn.className = "sv-add-chip";
+  addBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
+  addBtn.title = "Add source";
+  addBtn.addEventListener("click", () => {
+    const id = addSource();
+    // Open popover for the newly created source after render
+    requestAnimationFrame(() => {
+      const newChip = chipBar?.querySelector<HTMLElement>(
+        `.sv-source-chip[data-source-id="${id}"]`,
+      );
+      if (newChip) openSourcePopover(id, newChip);
+    });
+  });
+  chipBar.appendChild(addBtn);
 
-  zoneEl.appendChild(sourcesArea);
+  zoneEl.appendChild(chipBar);
 
-  // ── Simulator bar (between sources and log) ──
+  // ── Simulator bar (between chips and log) ──
   const simulatorBar = createSimulatorBar();
   zoneEl.appendChild(simulatorBar);
 
@@ -84,9 +92,9 @@ export function initSignalView(): void {
   lowerArea.appendChild(logContainer);
   zoneEl.appendChild(lowerArea);
 
-  // ── Render source blocks ──
-  renderSourceBlocks();
-  subscribeSignalSources(renderSourceBlocks);
+  // ── Render source chips ──
+  renderSourceChips();
+  subscribeSignalSources(renderSourceChips);
 
   // ── Wire incoming signals from ALL sources → raw log ──
   onSignal((signal: ReceivedSignal, sourceId: string) => {
@@ -99,16 +107,44 @@ export function initSignalView(): void {
 }
 
 // ---------------------------------------------------------------------------
-// Source blocks rendering
+// Source chips rendering
 // ---------------------------------------------------------------------------
 
-function renderSourceBlocks(): void {
-  if (!sourcesContainer) return;
-  sourcesContainer.innerHTML = "";
+function renderSourceChips(): void {
+  if (!chipBar) return;
+
+  // Remove existing chips (keep the "+" button)
+  chipBar.querySelectorAll(".sv-source-chip").forEach((el) => el.remove());
 
   const { sources } = getSignalSourcesState();
+  const addBtn = chipBar.querySelector(".sv-add-chip");
+  const openId = getOpenSourceId();
+
   for (const source of sources) {
-    const block = createSourceBlock(source);
-    sourcesContainer.appendChild(block);
+    const chip = document.createElement("button");
+    chip.className = "sv-source-chip";
+    if (source.id === openId) chip.classList.add("sv-source-chip--active");
+    chip.dataset.sourceId = source.id;
+
+    // Dot (identity color)
+    const dot = document.createElement("span");
+    dot.className = "sv-chip-dot";
+    dot.style.background = source.color;
+    chip.appendChild(dot);
+
+    // Name
+    const name = document.createElement("span");
+    name.textContent = source.name;
+    chip.appendChild(name);
+
+    // Protocol badge
+    const proto = document.createElement("span");
+    proto.className = `sv-chip-proto source-block-proto--${source.protocol}`;
+    proto.textContent = { websocket: "WS", sse: "SSE", openai: "AI" }[source.protocol] ?? source.protocol;
+    chip.appendChild(proto);
+
+    chip.addEventListener("click", () => openSourcePopover(source.id, chip));
+
+    chipBar.insertBefore(chip, addBtn);
   }
 }

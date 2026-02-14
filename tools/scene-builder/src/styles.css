@@ -353,12 +353,12 @@ button {
   position: relative;
 }
 
-/* Signal zone — top of left column, source blocks + raw log */
+/* Signal zone — top of left column, source chips + raw log */
 .zone-signal {
-  flex: 1 1 40%;
+  flex: 1 1 25%;
   display: flex;
   flex-direction: column;
-  min-height: 120px;
+  min-height: 80px;
   border-bottom: none;
   position: relative;
   overflow: hidden;
@@ -367,11 +367,11 @@ button {
 
 /* Old zone labels — replaced by .zone-tab buttons */
 
-/* Choreographer zone — bottom of left column, takes remaining space */
+/* Choreographer zone — bottom of left column, takes majority of space */
 .zone-choreographer {
   display: flex;
-  flex: 1;
-  min-height: 80px;
+  flex: 2 1 55%;
+  min-height: 120px;
   position: relative;
   background: var(--color-surface);
   overflow: hidden;
@@ -3546,68 +3546,79 @@ button {
   overflow: hidden;
 }
 
-/* ── Sources area (horizontal blocks) ── */
+/* ── Source chip bar (compact row) ── */
 
-.sv-sources-area {
+.sv-chip-bar {
   display: flex;
-  align-items: stretch;
-  gap: 8px;
-  padding: 20px 12px 8px; /* top padding for zone label */
-  background: var(--color-surface);
+  align-items: center;
+  gap: 6px;
+  padding: 20px 12px 6px; /* top padding for zone label */
   overflow-x: auto;
-  overflow-y: hidden;
   flex-shrink: 0;
+  background: var(--color-surface);
   position: relative;
   z-index: 2; /* above sv-wires SVG overlay */
 }
 
-.sv-sources-container {
+.sv-source-chip {
   display: flex;
-  gap: 8px;
-  align-items: stretch;
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow-x: auto;
-}
-
-.sv-add-source-btn {
-  background: none;
-  border: 1px dashed var(--color-border);
-  color: var(--color-text-muted);
-  font: 12px var(--font-body);
-  padding: 8px 16px;
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  white-space: nowrap;
-  min-width: 100px;
-  flex-shrink: 0;
-  align-self: flex-start;
-  transition: color 0.15s, border-color 0.15s;
-}
-
-.sv-add-source-btn:hover {
-  color: var(--color-accent);
-  border-color: var(--color-accent-dim);
-}
-
-.sv-collapse-btn {
-  background: none;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px 3px 7px;
+  background: var(--color-elevated);
   border: 1px solid var(--color-border);
-  color: var(--color-text-muted);
-  font: 11px var(--font-mono);
-  padding: 4px 12px;
-  border-radius: var(--radius-sm);
+  border-radius: 12px;
   cursor: pointer;
   white-space: nowrap;
+  font: 11px var(--font-mono);
+  color: var(--color-text-muted);
+  transition: border-color 0.15s, color 0.15s;
   flex-shrink: 0;
-  margin-left: auto;
-  align-self: center;
-  transition: color 0.15s, border-color 0.15s;
 }
 
-.sv-collapse-btn:hover {
-  color: var(--color-accent);
+.sv-source-chip:hover {
+  border-color: var(--color-text-dim);
+  color: var(--color-text);
+}
+
+.sv-source-chip--active {
   border-color: var(--color-accent-dim);
+  color: var(--color-accent);
+}
+
+.sv-chip-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.sv-chip-proto {
+  font: bold 8px var(--font-mono);
+  padding: 0 4px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.sv-add-chip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 1px dashed var(--color-border);
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+  color: var(--color-text-dim);
+  flex-shrink: 0;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.sv-add-chip:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
 }
 
 /* ── Simulator bar (between sources and raw log) ── */
@@ -3841,81 +3852,7 @@ button {
   background: #D55050;
 }
 
-/* ── Source block ── */
-
-.source-block {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 8px 10px;
-  background: var(--color-elevated);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  min-width: 200px;
-  max-width: 260px;
-  flex-shrink: 0;
-}
-
-.source-block-header {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.source-block-name {
-  flex: 1;
-  background: none;
-  border: none;
-  color: var(--color-text);
-  font: bold 12px var(--font-mono);
-  padding: 2px 4px;
-  border-radius: var(--radius-sm);
-  min-width: 0;
-}
-
-.source-block-name:focus {
-  outline: none;
-  background: var(--color-surface);
-  box-shadow: inset 0 0 0 1px var(--color-accent-dim);
-}
-
-.source-block-remove {
-  background: none;
-  border: none;
-  color: var(--color-text-dim);
-  font-size: 16px;
-  cursor: pointer;
-  padding: 0 4px;
-  line-height: 1;
-  transition: color 0.15s;
-}
-
-.source-block-remove:hover {
-  color: var(--color-error);
-}
-
-.source-block-status {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font: 11px var(--font-mono);
-}
-
-.source-block-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--color-text-dim);
-  flex-shrink: 0;
-}
-
-.source-block-proto {
-  font: bold 10px var(--font-mono);
-  padding: 1px 5px;
-  border-radius: var(--radius-sm);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
+/* ── Source popover reusable styles (protocol badges, action buttons, model, error) ── */
 
 .source-block-proto--websocket {
   background: #5B8DEF22;
@@ -3930,37 +3867,6 @@ button {
 .source-block-proto--openai {
   background: #C586C022;
   color: #C586C0;
-}
-
-.source-block-rate {
-  color: var(--color-text-muted);
-  font: 10px var(--font-mono);
-  margin-left: auto;
-}
-
-.source-block-row {
-  display: flex;
-}
-
-.source-block-url {
-  flex: 1;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  color: var(--color-text);
-  font: 11px var(--font-mono);
-  padding: 4px 6px;
-  border-radius: var(--radius-sm);
-  min-width: 0;
-}
-
-.source-block-url:focus {
-  outline: none;
-  border-color: var(--color-accent-dim);
-}
-
-.source-block-url:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 .source-block-action {
@@ -3993,19 +3899,9 @@ button {
   background: #C4404015;
 }
 
-.source-block-prompt {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  align-items: center;
-  padding-top: 4px;
-  border-top: 1px solid var(--color-border);
-}
-
 .source-block-model {
   font: 600 9px var(--font-mono);
   color: var(--color-accent);
-  background: var(--color-accent-dim);
   background: rgba(232, 168, 81, 0.12);
   padding: 1px 6px;
   border-radius: 8px;
@@ -4022,10 +3918,6 @@ button {
   background: #C4404010;
   border-radius: var(--radius-sm);
   word-break: break-all;
-}
-
-.source-block-error[hidden] {
-  display: none;
 }
 
 /* ── Connector bar (compact badges) ── */

@@ -121,8 +121,9 @@ function renderWires(): void {
 
   const { wires } = getWiringState();
 
-  // Render established wires
+  // Render established wires (skip signal→signal-type: color-coding suffices)
   for (const wire of wires) {
+    if (wire.fromZone === "signal" && wire.toZone === "signal-type") continue;
     const path = createWirePath(wire, wsRect);
     if (path) {
       svgEl.appendChild(path);
