@@ -17,6 +17,11 @@
 import type { SignalType } from "../types.js";
 import { updateSource } from "../state/signal-source-state.js";
 import { getSignalTimelineState } from "../state/signal-timeline-state.js";
+import {
+  parseMessage,
+  parseOpenAIChunk,
+  parseAnthropicEvent,
+} from "../simulator/signal-parser.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -52,21 +57,7 @@ export type SignalListener = (signal: ReceivedSignal, sourceId: string) => void;
 /** Listener for debug/lifecycle messages shown in the log. Third arg is the connection sourceId. */
 export type DebugListener = (message: string, level: "info" | "warn" | "error", sourceId: string) => void;
 
-// ---------------------------------------------------------------------------
-// Known signal types for validation
-// ---------------------------------------------------------------------------
-
-const KNOWN_TYPES = new Set<string>([
-  "task_dispatch",
-  "tool_call",
-  "tool_result",
-  "token_usage",
-  "agent_state_change",
-  "error",
-  "completion",
-  "text_delta",
-  "thinking",
-]);
+// Known signal types are managed in ../simulator/signal-parser.ts
 
 // ---------------------------------------------------------------------------
 // Per-source connection handles
@@ -680,79 +671,15 @@ async function readOpenAIStream(
 
         try {
           const chunk = JSON.parse(payload) as Record<string, unknown>;
-          const choices = chunk["choices"] as Array<Record<string, unknown>> | undefined;
+          const result = parseOpenAIChunk(chunk, model, correlationId, tokenCount);
 
-          if (choices && choices.length > 0) {
-            const choice = choices[0];
-            const delta = choice["delta"] as Record<string, unknown> | undefined;
-            const finishReason = choice["finish_reason"] as string | null;
-            const content = delta?.["content"] as string | undefined;
-            // GLM / DeepSeek send thinking via reasoning_content
-            const reasoning = delta?.["reasoning_content"] as string | undefined;
-
-            if (reasoning) {
-              dispatchSignal({
-                id: crypto.randomUUID(),
-                type: "thinking",
-                timestamp: Date.now(),
-                source: model,
-                correlationId,
-                payload: {
-                  agentId: String(chunk["model"] ?? model),
-                  content: reasoning,
-                },
-                raw: payload,
-              }, conn.sourceId);
-            }
-
-            if (content) {
-              tokenCount++;
-              dispatchSignal({
-                id: crypto.randomUUID(),
-                type: "text_delta",
-                timestamp: Date.now(),
-                source: model,
-                correlationId,
-                payload: {
-                  agentId: String(chunk["model"] ?? model),
-                  content,
-                  index: tokenCount - 1,
-                },
-                raw: payload,
-              }, conn.sourceId);
-            }
-
-            if (finishReason === "stop") {
-              dispatchSignal({
-                id: crypto.randomUUID(),
-                type: "completion",
-                timestamp: Date.now(),
-                source: model,
-                correlationId,
-                payload: {
-                  success: true,
-                  finishReason,
-                  totalTokens: tokenCount,
-                },
-                raw: payload,
-              }, conn.sourceId);
-              debug(`[${conn.sourceId}] Generation finished (${finishReason}) — ${tokenCount} tokens.`, "info", conn.sourceId);
-            }
+          for (const signal of result.signals) {
+            dispatchSignal({ ...signal, type: signal.type as SignalType, raw: payload }, conn.sourceId);
           }
+          tokenCount = result.tokenCount;
 
-          const error = chunk["error"] as Record<string, unknown> | undefined;
-          if (error) {
-            const errMsg = String(error["message"] ?? "Unknown error");
-            dispatchSignal({
-              id: crypto.randomUUID(),
-              type: "error",
-              timestamp: Date.now(),
-              source: model,
-              correlationId,
-              payload: { message: errMsg, severity: "error" },
-              raw: payload,
-            }, conn.sourceId);
-            debug(`[${conn.sourceId}] API error: ${errMsg}`, "error", conn.sourceId);
+          if (result.done) {
+            debug(`[${conn.sourceId}] Generation finished — ${tokenCount} tokens.`, "info", conn.sourceId);
           }
         } catch {
           debug(`[${conn.sourceId}] [openai] Unparsed: ${payload.slice(0, 100)}`, "warn", conn.sourceId);
@@ -965,139 +892,29 @@ async function readAnthropicStream(
 
         try {
           const event = JSON.parse(payload) as Record<string, unknown>;
+          const result = parseAnthropicEvent(currentEventType, event, model, correlationId);
 
-          switch (currentEventType) {
-            case "message_start": {
-              // Agent starts responding
-              dispatchSignal({
-                id: crypto.randomUUID(),
-                type: "agent_state_change",
-                timestamp: Date.now(),
-                source: model,
-                correlationId,
-                payload: { agentId: model, from: "idle", to: "acting" },
-                raw: payload,
-              }, conn.sourceId);
-              break;
-            }
-
-            case "content_block_start": {
-              const contentBlock = event["content_block"] as Record<string, unknown> | undefined;
-              if (contentBlock?.["type"] === "tool_use") {
-                dispatchSignal({
-                  id: crypto.randomUUID(),
-                  type: "tool_call",
-                  timestamp: Date.now(),
-                  source: model,
-                  correlationId,
-                  payload: {
-                    toolName: String(contentBlock["name"] ?? "unknown"),
-                    agentId: model,
-                    callId: String(contentBlock["id"] ?? ""),
-                  },
-                  raw: payload,
-                }, conn.sourceId);
-              }
-              break;
-            }
-
-            case "content_block_delta": {
-              const delta = event["delta"] as Record<string, unknown> | undefined;
-              if (!delta) break;
-
-              if (delta["type"] === "text_delta") {
-                const text = String(delta["text"] ?? "");
-                if (text) {
-                  dispatchSignal({
-                    id: crypto.randomUUID(),
-                    type: "text_delta",
-                    timestamp: Date.now(),
-                    source: model,
-                    correlationId,
-                    payload: {
-                      agentId: model,
-                      content: text,
-                      index: textChunkIndex++,
-                    },
-                    raw: payload,
-                  }, conn.sourceId);
-                }
-              } else if (delta["type"] === "thinking_delta") {
-                const thinking = String(delta["thinking"] ?? "");
-                if (thinking) {
-                  dispatchSignal({
-                    id: crypto.randomUUID(),
-                    type: "thinking",
-                    timestamp: Date.now(),
-                    source: model,
-                    correlationId,
-                    payload: {
-                      agentId: model,
-                      content: thinking,
-                    },
-                    raw: payload,
-                  }, conn.sourceId);
-                }
-              }
-              break;
-            }
-
-            case "message_delta": {
-              const usage = event["usage"] as Record<string, unknown> | undefined;
-              if (usage) {
-                dispatchSignal({
-                  id: crypto.randomUUID(),
-                  type: "token_usage",
-                  timestamp: Date.now(),
-                  source: model,
-                  correlationId,
-                  payload: {
-                    agentId: model,
-                    promptTokens: Number(usage["input_tokens"] ?? 0),
-                    completionTokens: Number(usage["output_tokens"] ?? 0),
-                    model,
-                  },
-                  raw: payload,
-                }, conn.sourceId);
-              }
-              break;
-            }
-
-            case "message_stop": {
-              dispatchSignal({
-                id: crypto.randomUUID(),
-                type: "completion",
-                timestamp: Date.now(),
-                source: model,
-                correlationId,
-                payload: {
-                  success: true,
-                  totalTokens: textChunkIndex,
-                },
-                raw: payload,
-              }, conn.sourceId);
+          if (result && "signal" in result) {
+            dispatchSignal(
+              { ...result.signal, type: result.signal.type as SignalType, raw: payload },
+              conn.sourceId,
+            );
+            // Track text chunk count for debug log
+            if (result.signal.type === "text_delta") textChunkIndex++;
+            // Log lifecycle events
+            if (result.signal.type === "completion") {
               debug(
                 `[${conn.sourceId}] Anthropic stream complete — ${textChunkIndex} text chunks.`,
                 "info",
                 conn.sourceId,
               );
-              break;
             }
-
-            case "error": {
-              const errData = event["error"] as Record<string, unknown> | undefined;
-              const errMsg = String(errData?.["message"] ?? "Unknown Anthropic error");
-              dispatchSignal({
-                id: crypto.randomUUID(),
-                type: "error",
-                timestamp: Date.now(),
-                source: model,
-                correlationId,
-                payload: { message: errMsg, severity: "error" },
-                raw: payload,
-              }, conn.sourceId);
-              debug(`[${conn.sourceId}] Anthropic API error: ${errMsg}`, "error", conn.sourceId);
-              break;
+            if (result.signal.type === "error") {
+              debug(
+                `[${conn.sourceId}] Anthropic API error: ${String(result.signal.payload["message"])}`,
+                "error",
+                conn.sourceId,
+              );
             }
           }
         } catch {
@@ -1123,50 +940,23 @@ async function readAnthropicStream(
 
 /** Parse an incoming message and dispatch to signal listeners. */
 function handleMessage(raw: string, sourceId: string): void {
-  try {
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
-    const type = parsed["type"] as string | undefined;
-
-    if (type && KNOWN_TYPES.has(type)) {
-      dispatchSignal({
-        id: String(parsed["id"] ?? crypto.randomUUID()),
-        type: type as SignalType,
-        timestamp: Number(parsed["timestamp"] ?? Date.now()),
-        source: String(parsed["source"] ?? "unknown"),
-        correlationId: parsed["correlationId"] as string | undefined,
-        payload: (parsed["payload"] as Record<string, unknown>) ?? {},
-        raw,
-      }, sourceId);
-      return;
-    }
-
-    if (parsed["meta"]) {
-      debug(`[meta] ${parsed["meta"]}: ${JSON.stringify(parsed)}`, "info", sourceId);
-      return;
-    }
-
-    // Generic event (OpenClaw, custom backends, etc.)
-    // Preserve the full JSON as payload for the choreographer to filter.
-    dispatchSignal({
-      id: String(parsed["id"] ?? crypto.randomUUID()),
-      type: "event" as SignalType,
-      timestamp: Number(parsed["timestamp"] ?? parsed["ts"] ?? Date.now()),
-      source: String(parsed["source"] ?? parsed["event"] ?? "unknown"),
-      correlationId: (parsed["correlationId"] as string | undefined)
-        ?? (parsed["runId"] as string | undefined),
-      payload: parsed,
-      raw,
-    }, sourceId);
-  } catch {
+  const result = parseMessage(raw);
+  if (!result.ok) {
     dispatchSignal({
       id: crypto.randomUUID(),
       type: "error",
       timestamp: Date.now(),
       source: "raw",
-      payload: { message: raw },
+      payload: { message: result.error },
       raw,
     }, sourceId);
+    return;
   }
+  if ("meta" in result) {
+    debug(`[meta] ${result.key}: ${JSON.stringify(result.data)}`, "info", sourceId);
+    return;
+  }
+  dispatchSignal({ ...result.signal, type: result.signal.type as SignalType, raw }, sourceId);
 }
 
 // ---------------------------------------------------------------------------
