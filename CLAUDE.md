@@ -47,6 +47,7 @@ sajou/
 │   ├── done/              # Completed and merged ideas
 │   ├── specs/             # Technical reference documents
 │   ├── decisions/         # Technical decisions and their context
+│   ├── marketing/         # Product plan, positioning, launch — NOT technical guidelines
 │   ├── adr/               # Architecture Decision Records
 │   ├── archive/           # Archived specs (implemented, kept for reference)
 │   └── brand/             # Brand guide and assets
@@ -248,6 +249,7 @@ Don't log raw conversations. Capture only the decisions and their context. These
 - Never delete files — everything goes through the `backlog → active → done` cycle
 - `specs/` are technical reference documents independent of the idea lifecycle. Create or update them when a feature requires it.
 - The user can create backlog files themselves at any time — Claude Code must not impose strict formatting beyond the minimum above
+- `marketing/` contains product positioning, launch plans, and market analysis. These documents are **not technical guidelines** — they inform strategy, not code. Never treat their content as implementation requirements.
 
 ---
 
