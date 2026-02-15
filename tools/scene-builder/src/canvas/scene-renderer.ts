@@ -31,6 +31,18 @@ import { drawGuideLines } from "../tools/guide-lines.js";
 import type { PlacedEntity, EntityEntry, SceneLayer } from "../types.js";
 
 // ---------------------------------------------------------------------------
+// Depth helpers
+// ---------------------------------------------------------------------------
+
+/** Y-offset step per depth unit. Encodes (layerOrder, zIndex) into Y position. */
+const DEPTH_Y_STEP = 0.001;
+
+/** Convert layer order + zIndex to a Y offset for depth sorting. */
+function depthToY(layerOrder: number, zIndex: number): number {
+  return (layerOrder * 10000 + zIndex) * DEPTH_Y_STEP;
+}
+
+// ---------------------------------------------------------------------------
 // Entity mesh record
 // ---------------------------------------------------------------------------
 
@@ -136,8 +148,8 @@ function createEntityMesh(
     transparent: true,
     alphaTest: 0.01,
     side: THREE.DoubleSide,
-    depthTest: false,
-    depthWrite: false,
+    depthTest: true,
+    depthWrite: true,
   });
 
   const mesh = new THREE.Mesh(geom, material);
@@ -170,8 +182,9 @@ function applyEntityTransform(
 ): void {
   const { group, material } = record;
 
-  // Position: scene (x, y) → world (x, 0, z)
-  group.position.set(placed.x, 0, placed.y);
+  // Position: scene (x, y) → world (x, depthY, z)
+  const layerOrder = layer?.order ?? 0;
+  group.position.set(placed.x, depthToY(layerOrder, placed.zIndex), placed.y);
 
   // Scale (includes flip)
   const scaleX = placed.flipH ? -placed.scale : placed.scale;
@@ -186,10 +199,6 @@ function applyEntityTransform(
 
   // Visibility
   group.visible = placed.visible;
-
-  // Depth ordering via renderOrder: layerOrder * 10000 + per-instance zIndex
-  const layerOrder = layer?.order ?? 0;
-  record.mesh.renderOrder = layerOrder * 10000 + placed.zIndex;
 }
 
 /** Remove an entity mesh from the scene. */

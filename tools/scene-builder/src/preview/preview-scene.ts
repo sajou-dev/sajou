@@ -92,6 +92,18 @@ function buildLayerMap(): Map<string, SceneLayer> {
 }
 
 // ---------------------------------------------------------------------------
+// Depth helpers
+// ---------------------------------------------------------------------------
+
+/** Y-offset step per depth unit. Encodes (layerOrder, zIndex) into Y position. */
+const DEPTH_Y_STEP = 0.001;
+
+/** Convert layer order + zIndex to a Y offset for depth sorting. */
+function depthToY(layerOrder: number, zIndex: number): number {
+  return (layerOrder * 10000 + zIndex) * DEPTH_Y_STEP;
+}
+
+// ---------------------------------------------------------------------------
 // Entity rendering
 // ---------------------------------------------------------------------------
 
@@ -121,14 +133,15 @@ function createPreviewMesh(
     transparent: true,
     alphaTest: 0.01,
     side: THREE.DoubleSide,
-    depthTest: false,
-    depthWrite: false,
+    depthTest: true,
+    depthWrite: true,
   });
 
   const mesh = new THREE.Mesh(geom, material);
 
-  // Position
-  mesh.position.set(placed.x, 0, placed.y);
+  // Position: scene (x, y) → world (x, depthY, z)
+  const layerOrder = layer?.order ?? 0;
+  mesh.position.set(placed.x, depthToY(layerOrder, placed.zIndex), placed.y);
 
   // Scale (includes flip)
   const scaleX = placed.flipH ? -placed.scale : placed.scale;
@@ -140,10 +153,6 @@ function createPreviewMesh(
 
   // Opacity
   material.opacity = placed.opacity;
-
-  // Depth ordering
-  const layerOrder = layer?.order ?? 0;
-  mesh.renderOrder = layerOrder * 10000 + placed.zIndex;
 
   return mesh;
 }
@@ -167,16 +176,14 @@ function renderFallback(
     transparent: true,
     opacity: 0.6,
     side: THREE.DoubleSide,
-    depthTest: false,
-    depthWrite: false,
+    depthTest: true,
+    depthWrite: true,
   });
 
   const mesh = new THREE.Mesh(geom, material);
-  mesh.position.set(placed.x, 0, placed.y);
-  mesh.rotation.y = -(placed.rotation * Math.PI) / 180;
-
   const layerOrder = layer?.order ?? 0;
-  mesh.renderOrder = layerOrder * 10000 + placed.zIndex;
+  mesh.position.set(placed.x, depthToY(layerOrder, placed.zIndex), placed.y);
+  mesh.rotation.y = -(placed.rotation * Math.PI) / 180;
 
   scene.add(mesh);
 }
@@ -547,7 +554,7 @@ export async function openPreview(): Promise<void> {
     color: parseInt(background.color.replace("#", ""), 16) || 0x222222,
   });
   const ground = new THREE.Mesh(groundGeom, groundMat);
-  ground.renderOrder = -1;
+  ground.position.y = -0.1;
   threeScene.add(ground);
 
   // --- Canvas2D overlay ---

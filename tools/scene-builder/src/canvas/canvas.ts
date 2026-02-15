@@ -197,7 +197,7 @@ function updateGroundPlane(): void {
   });
 
   groundPlane = new THREE.Mesh(geom, groundMaterial);
-  groundPlane.renderOrder = -1;
+  groundPlane.position.y = -0.1;
   scene.add(groundPlane);
 }
 
