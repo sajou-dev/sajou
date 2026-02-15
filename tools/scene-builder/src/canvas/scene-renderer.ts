@@ -16,7 +16,8 @@ import { subscribeEditor } from "../state/editor-state.js";
 import { getEntityStore, subscribeEntities } from "../state/entity-store.js";
 import { getAssetStore, subscribeAssets } from "../state/asset-store.js";
 import { isRunModeActive } from "../run-mode/run-mode-state.js";
-import { getThreeScene, setOverlayDrawCallback, redrawOverlay } from "./canvas.js";
+import { getThreeScene, setOverlayDrawCallback, redrawOverlay, getController, onControllerChange } from "./canvas.js";
+import { computeBillboardAngle, type CameraController } from "./camera-controller.js";
 import {
   renderZoneGrid,
   renderSelection,
@@ -180,7 +181,7 @@ function applyEntityTransform(
   _def: EntityEntry,
   layer: SceneLayer | undefined,
 ): void {
-  const { group, material } = record;
+  const { group, mesh, material } = record;
 
   // Position: scene (x, y) → world (x, depthY, z)
   const layerOrder = layer?.order ?? 0;
@@ -193,6 +194,15 @@ function applyEntityTransform(
 
   // Rotation: 2D rotation → Y-axis rotation
   group.rotation.y = -(placed.rotation * Math.PI) / 180;
+
+  // Billboarding: rotate mesh to face camera in iso mode
+  const ctrl = getController();
+  if (ctrl && ctrl.mode === "isometric") {
+    const angle = computeBillboardAngle(ctrl.camera);
+    mesh.rotation.set(Math.PI / 2, angle, 0);
+  } else {
+    mesh.rotation.set(0, 0, 0);
+  }
 
   // Opacity
   material.opacity = placed.opacity;
@@ -332,29 +342,53 @@ async function renderEntities(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Billboarding
+// ---------------------------------------------------------------------------
+
+/** Apply billboard rotation to all existing entity meshes for a given controller. */
+function applyBillboard(ctrl: CameraController): void {
+  if (ctrl.mode === "isometric") {
+    const angle = computeBillboardAngle(ctrl.camera);
+    for (const [, record] of entityRecords) {
+      record.mesh.rotation.set(Math.PI / 2, angle, 0);
+    }
+  } else {
+    for (const [, record] of entityRecords) {
+      record.mesh.rotation.set(0, 0, 0);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Overlay drawing orchestration
 // ---------------------------------------------------------------------------
 
 /** Draw all scene overlays on the Canvas2D context. */
 function drawSceneOverlays(
   ctx: CanvasRenderingContext2D,
-  currentZoom: number,
-  px: number,
-  py: number,
+  _currentZoom: number,
+  _px: number,
+  _py: number,
 ): void {
-  // Scene-coordinate overlays
-  ctx.save();
-  ctx.setTransform(currentZoom, 0, 0, currentZoom, px, py);
+  const ctrl = getController();
+  if (!ctrl) return;
 
-  renderZoneGrid(ctx, currentZoom);
-  renderPositions(ctx, currentZoom);
-  renderRoutes(ctx, currentZoom);
-  renderRouteCreationPreview(ctx, currentZoom);
-  renderTopologyOverlay(ctx, currentZoom);
-  renderSelection(ctx, currentZoom);
-  renderBindingHighlight(ctx, currentZoom);
-  renderActorBadges(ctx, currentZoom);
-  drawGuideLines(ctx, currentZoom);
+  const t = ctrl.getOverlayTransform();
+  const effectiveZoom = ctrl.getEffectiveZoom();
+
+  // Scene-coordinate overlays (use full affine transform for iso support)
+  ctx.save();
+  ctx.setTransform(t.a, t.b, t.c, t.d, t.e, t.f);
+
+  renderZoneGrid(ctx, effectiveZoom);
+  renderPositions(ctx, effectiveZoom);
+  renderRoutes(ctx, effectiveZoom);
+  renderRouteCreationPreview(ctx, effectiveZoom);
+  renderTopologyOverlay(ctx, effectiveZoom);
+  renderSelection(ctx, effectiveZoom);
+  renderBindingHighlight(ctx, effectiveZoom);
+  renderActorBadges(ctx, effectiveZoom);
+  drawGuideLines(ctx, effectiveZoom);
 
   ctx.restore();
 }
@@ -384,6 +418,12 @@ function scheduleRender(): void {
 export function initSceneRenderer(): void {
   // Register overlay draw callback with canvas
   setOverlayDrawCallback(drawSceneOverlays);
+
+  // Billboard all meshes when camera controller changes (top-down ↔ iso)
+  onControllerChange((ctrl) => {
+    applyBillboard(ctrl);
+    scheduleRender();
+  });
 
   subscribeScene(scheduleRender);
   subscribeEditor(scheduleRender);
