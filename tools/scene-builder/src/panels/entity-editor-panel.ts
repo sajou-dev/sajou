@@ -308,17 +308,17 @@ export function initEntityEditorPanel(contentEl: HTMLElement): void {
       setEntity(entity.id, { ...entity, defaults: { ...entity.defaults, opacity: v } }), 0.1));
     form.appendChild(createField("Defaults", defaultsRow));
 
-    // Billboard toggle (isometric view)
-    const bbLabel = document.createElement("label");
-    bbLabel.className = "ee-checkbox-label";
-    const bbCheck = document.createElement("input");
-    bbCheck.type = "checkbox";
-    bbCheck.checked = entity.defaults.billboard === true;
-    bbCheck.addEventListener("change", () =>
-      setEntity(entity.id, { ...entity, defaults: { ...entity.defaults, billboard: bbCheck.checked } }));
-    bbLabel.appendChild(bbCheck);
-    bbLabel.appendChild(document.createTextNode(" Stand upright in iso view"));
-    form.appendChild(createField("Billboard", bbLabel));
+    // Flat toggle (isometric view)
+    const flatLabel = document.createElement("label");
+    flatLabel.className = "ee-checkbox-label";
+    const flatCheck = document.createElement("input");
+    flatCheck.type = "checkbox";
+    flatCheck.checked = entity.defaults.flat === true;
+    flatCheck.addEventListener("change", () =>
+      setEntity(entity.id, { ...entity, defaults: { ...entity.defaults, flat: flatCheck.checked } }));
+    flatLabel.appendChild(flatCheck);
+    flatLabel.appendChild(document.createTextNode(" Flat on ground in iso view"));
+    form.appendChild(createField("Iso", flatLabel));
 
     // Visual type selector
     const typeRow = document.createElement("div");

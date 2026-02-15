@@ -541,11 +541,11 @@ export interface EntityDefaults {
   /** Initial opacity (0-1). */
   opacity?: number;
   /**
-   * Whether this entity stands upright in isometric view (billboard).
-   * true = entity faces the camera (characters, NPCs).
-   * false/undefined = entity stays flat on the ground (floors, walls, furniture).
+   * Whether this entity stays flat on the ground in isometric view.
+   * true = entity lies flat (floors, walls, furniture).
+   * false/undefined = entity stands upright facing the camera (characters, NPCs).
    */
-  billboard?: boolean;
+  flat?: boolean;
 }
 
 /**

@@ -201,7 +201,7 @@ function applyEntityTransform(
   // After standing up, the anchor Z-offset maps to -Y, so the mesh
   // sinks below ground. Compensate with mesh.position.y = h * (1 - ay).
   const ctrl = getController();
-  const shouldBillboard = ctrl?.mode === "isometric" && _def.defaults.billboard === true;
+  const shouldBillboard = ctrl?.mode === "isometric" && !_def.defaults.flat;
   if (shouldBillboard) {
     const angle = computeBillboardAngle(ctrl.camera);
     mesh.rotation.set(Math.PI / 2, angle, 0, "YXZ");
@@ -377,7 +377,7 @@ function applyBillboard(ctrl: CameraController): void {
       const placed = placedMap.get(record.placedId);
       const def = placed ? getEntityDef(placed.entityId) : null;
 
-      if (def?.defaults.billboard) {
+      if (!def?.defaults.flat) {
         record.mesh.rotation.set(Math.PI / 2, angle, 0, "YXZ");
         const h = def.displayHeight;
         const ay = def.defaults.anchor?.[1] ?? 0.5;

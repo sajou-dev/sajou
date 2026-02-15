@@ -205,7 +205,7 @@ export function renderSelection(ctx: CanvasRenderingContext2D, zoom: number): vo
     const ax = def?.defaults.anchor?.[0] ?? 0.5;
     const ay = def?.defaults.anchor?.[1] ?? 0.5;
 
-    if (isIsoMode() && def?.defaults.billboard) {
+    if (isIsoMode() && !def?.defaults.flat) {
       // Billboard entity in iso: project the entity's world-space vertical
       // extent to screen coordinates so the selection box wraps around the
       // standing sprite, not flat on the ground.
@@ -290,7 +290,7 @@ export function renderBindingHighlight(ctx: CanvasRenderingContext2D, zoom: numb
     const ax = def?.defaults.anchor?.[0] ?? 0.5;
     const isHovered = placed.id === bindingDropHighlightId;
 
-    if (iso && def?.defaults.billboard) {
+    if (iso && !def?.defaults.flat) {
       const bottomPt = worldToScreen(placed.x, 0, placed.y);
       const topPt = worldToScreen(placed.x, h, placed.y);
       const pxPerUnit = Math.abs(bottomPt.y - topPt.y) / h;
@@ -666,7 +666,7 @@ export function renderActorBadges(ctx: CanvasRenderingContext2D, _zoom: number):
     const ax = def?.defaults.anchor?.[0] ?? 0.5;
     const bs = 4;
 
-    if (iso && def?.defaults.billboard) {
+    if (iso && !def?.defaults.flat) {
       const topPt = worldToScreen(placed.x, h, placed.y);
       const pxPerUnit = Math.abs(worldToScreen(placed.x, 0, placed.y).y - topPt.y) / h;
       const screenW = w * pxPerUnit;
