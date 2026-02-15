@@ -16,6 +16,7 @@ import { getEntityStore } from "../state/entity-store.js";
 import { isRunModeActive } from "../run-mode/run-mode-state.js";
 import { buildPathPoints } from "../tools/route-tool.js";
 import { flattenRoutePath } from "../tools/route-math.js";
+import { sceneToScreen } from "./canvas.js";
 import type { EntityEntry } from "../types.js";
 
 // ---------------------------------------------------------------------------
@@ -57,6 +58,95 @@ function darkenColor(hex: string, factor: number): string {
 function getEntityDef(entityId: string): EntityEntry | null {
   const store = getEntityStore();
   return store.entities[entityId] ?? null;
+}
+
+/** Check if we're in isometric view mode. */
+function isIsoMode(): boolean {
+  return getEditorState().viewMode === "isometric";
+}
+
+/**
+ * Draw a label at a scene position, handling iso text projection.
+ *
+ * In top-down mode, text is drawn directly in scene coordinates (the affine
+ * transform is identity-scale, so text is not deformed).
+ * In iso mode, the affine transform would shear text, so we reset the
+ * transform and project the anchor to screen pixels.
+ *
+ * @param sceneX - Text anchor X in scene coordinates
+ * @param sceneY - Text anchor Y in scene coordinates
+ */
+function drawLabel(
+  ctx: CanvasRenderingContext2D,
+  sceneX: number,
+  sceneY: number,
+  text: string,
+  opts: {
+    font: string;
+    fillStyle: string;
+    textAlign: CanvasTextAlign;
+    textBaseline: CanvasTextBaseline;
+    pillBg?: string;
+    pillPad?: number;
+    pillRadius?: number;
+  },
+): void {
+  if (!isIsoMode()) {
+    // Top-down: draw directly in scene coords (transform already set)
+    if (opts.pillBg !== undefined && opts.pillPad !== undefined) {
+      ctx.font = opts.font;
+      const metrics = ctx.measureText(text);
+      const pad = opts.pillPad;
+      const pillW = metrics.width + pad * 2;
+      const fontSize = parseFloat(opts.font);
+      const pillH = fontSize + pad;
+      const pillX = opts.textAlign === "center" ? sceneX - pillW / 2 : sceneX;
+      const pillY = sceneY - pillH;
+
+      ctx.fillStyle = opts.pillBg;
+      roundRect(ctx, pillX, pillY, pillW, pillH, opts.pillRadius ?? 3);
+      ctx.fill();
+    }
+
+    ctx.font = opts.font;
+    ctx.textAlign = opts.textAlign;
+    ctx.textBaseline = opts.textBaseline;
+    ctx.fillStyle = opts.fillStyle;
+    ctx.fillText(text, sceneX, sceneY);
+    return;
+  }
+
+  // Iso: project to screen coords, reset transform, draw clean text
+  const screen = sceneToScreen(sceneX, sceneY);
+
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+  // Use a fixed screen-pixel font size for readability in iso
+  const isoFontSize = 10;
+  const fontStr = opts.font.replace(/^(bold\s+)?[\d.]+/, `$1${isoFontSize}`);
+
+  if (opts.pillBg !== undefined) {
+    ctx.font = fontStr;
+    const metrics = ctx.measureText(text);
+    const pad = 3;
+    const pillW = metrics.width + pad * 2;
+    const pillH = isoFontSize + pad;
+    const pillX = opts.textAlign === "center" ? screen.x - pillW / 2 : screen.x;
+    const pillY = screen.y - pillH;
+
+    ctx.fillStyle = opts.pillBg;
+    roundRect(ctx, pillX, pillY, pillW, pillH, 3);
+    ctx.fill();
+  }
+
+  ctx.font = fontStr;
+  ctx.textAlign = opts.textAlign;
+  ctx.textBaseline = opts.textBaseline;
+  ctx.fillStyle = opts.fillStyle;
+  ctx.fillText(text, screen.x, screen.y);
+
+  ctx.restore();
 }
 
 // ---------------------------------------------------------------------------
@@ -216,35 +306,29 @@ export function renderPositions(ctx: CanvasRenderingContext2D, zoom: number): vo
     const badge = TYPE_HINT_BADGES[pos.typeHint];
     if (badge) {
       ctx.save();
-      ctx.font = `bold ${7 / zoom}px "JetBrains Mono", monospace`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillStyle = "#000000";
-      ctx.fillText(badge, pos.x, pos.y);
+      drawLabel(ctx, pos.x, pos.y, badge, {
+        font: `bold ${7 / zoom}px "JetBrains Mono", monospace`,
+        fillStyle: "#000000",
+        textAlign: "center",
+        textBaseline: "middle",
+      });
       ctx.restore();
     }
 
     // Name label above
     ctx.save();
     const fontSize = 10 / zoom;
-    ctx.font = `${fontSize}px "JetBrains Mono", monospace`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "bottom";
-
     const labelY = pos.y - size - 4 / zoom;
-    const metrics = ctx.measureText(pos.name);
-    const pad = 3 / zoom;
-    const pillW = metrics.width + pad * 2;
-    const pillH = fontSize + pad;
 
-    // Label pill background
-    ctx.fillStyle = numAlpha(isSelected ? 0x58a6ff : 0x0e0e16, 0.85);
-    roundRect(ctx, pos.x - pillW / 2, labelY - pillH, pillW, pillH, 3 / zoom);
-    ctx.fill();
-
-    // Label text
-    ctx.fillStyle = "#ffffff";
-    ctx.fillText(pos.name, pos.x, labelY);
+    drawLabel(ctx, pos.x, labelY, pos.name, {
+      font: `${fontSize}px "JetBrains Mono", monospace`,
+      fillStyle: "#ffffff",
+      textAlign: "center",
+      textBaseline: "bottom",
+      pillBg: numAlpha(isSelected ? 0x58a6ff : 0x0e0e16, 0.85),
+      pillPad: 3 / zoom,
+      pillRadius: 3 / zoom,
+    });
     ctx.restore();
   }
 
@@ -393,22 +477,17 @@ export function renderRoutes(ctx: CanvasRenderingContext2D, zoom: number): void 
         if (rp.name) {
           ctx.save();
           const fs = 8 / zoom;
-          ctx.font = `${fs}px "JetBrains Mono", monospace`;
-          ctx.textAlign = "center";
-          ctx.textBaseline = "top";
-
           const wpLabelY = rp.y + handleSize + 3 / zoom;
-          const wpMetrics = ctx.measureText(rp.name);
-          const wpPad = 2 / zoom;
-          const wpPillW = wpMetrics.width + wpPad * 2;
-          const wpPillH = fs + wpPad;
 
-          ctx.fillStyle = numAlpha(0x0e0e16, 0.85);
-          roundRect(ctx, rp.x - wpPillW / 2, wpLabelY - wpPad / 2, wpPillW, wpPillH, 2 / zoom);
-          ctx.fill();
-
-          ctx.fillStyle = "#ffffff";
-          ctx.fillText(rp.name, rp.x, wpLabelY);
+          drawLabel(ctx, rp.x, wpLabelY, rp.name, {
+            font: `${fs}px "JetBrains Mono", monospace`,
+            fillStyle: "#ffffff",
+            textAlign: "center",
+            textBaseline: "top",
+            pillBg: numAlpha(0x0e0e16, 0.85),
+            pillPad: 2 / zoom,
+            pillRadius: 2 / zoom,
+          });
           ctx.restore();
         }
       }
@@ -420,22 +499,17 @@ export function renderRoutes(ctx: CanvasRenderingContext2D, zoom: number): void 
       const midIdx = Math.floor(points.length / 2);
       const midPt = points[midIdx]!;
       const fs = 9 / zoom;
-      ctx.font = `${fs}px "JetBrains Mono", monospace`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "bottom";
-
       const nameLabelY = midPt.y - 8 / zoom;
-      const nameMetrics = ctx.measureText(route.name);
-      const pad = 3 / zoom;
-      const pillW = nameMetrics.width + pad * 2;
-      const pillH = fs + pad;
 
-      ctx.fillStyle = numAlpha(0x0e0e16, 0.85);
-      roundRect(ctx, midPt.x - pillW / 2, nameLabelY - pillH, pillW, pillH, 3 / zoom);
-      ctx.fill();
-
-      ctx.fillStyle = "#ffffff";
-      ctx.fillText(route.name, midPt.x, nameLabelY);
+      drawLabel(ctx, midPt.x, nameLabelY, route.name, {
+        font: `${fs}px "JetBrains Mono", monospace`,
+        fillStyle: "#ffffff",
+        textAlign: "center",
+        textBaseline: "bottom",
+        pillBg: numAlpha(0x0e0e16, 0.85),
+        pillPad: 3 / zoom,
+        pillRadius: 3 / zoom,
+      });
       ctx.restore();
     }
   }
