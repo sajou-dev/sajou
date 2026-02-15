@@ -26,6 +26,19 @@ export interface PanelInstance {
 }
 
 // ---------------------------------------------------------------------------
+// Z-index stacking (bring-to-front)
+// ---------------------------------------------------------------------------
+
+/** Global z-index counter — incremented each time a panel is focused. */
+let topZIndex = 100;
+
+/** Bring a panel element to the front of the stack. */
+function bringToFront(el: HTMLElement): void {
+  topZIndex++;
+  el.style.zIndex = String(topZIndex);
+}
+
+// ---------------------------------------------------------------------------
 // Factory
 // ---------------------------------------------------------------------------
 
@@ -71,6 +84,9 @@ export function createPanel(config: PanelConfig): PanelInstance {
   el.appendChild(header);
   el.appendChild(contentEl);
   el.appendChild(resizeHandle);
+
+  // Bring panel to front on any interaction
+  el.addEventListener("mousedown", () => bringToFront(el));
 
   // Apply initial layout from state, clamping to parent bounds
   function applyLayout(): void {
