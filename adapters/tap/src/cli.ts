@@ -37,8 +37,8 @@ async function main(): Promise<void> {
     console.error("[sajou-tap] Claude Code hooks installed. Listening...");
     console.error("[sajou-tap] Press Ctrl+C to stop and remove hooks.");
 
-    // Keep process alive
-    await new Promise<void>(() => {});
+    // Keep process alive — setInterval holds the event loop open
+    setInterval(() => {}, 60_000);
   } else {
     if (!config.command || config.command.length === 0) {
       console.error("[sajou-tap] Error: no command specified. Usage: sajou-tap -- <command>");

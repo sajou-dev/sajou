@@ -19,13 +19,16 @@
   "files": ["dist"],
   "scripts": {
     "build": "tsc --build",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "emit": "tsx src/emit-cli.ts",
+    "start": "tsx src/cli.ts"
   },
   "dependencies": {
     "@sajou/schema": "workspace:*",
     "ws": "^8.18.0"
   },
   "devDependencies": {
-    "@types/ws": "^8.5.14"
+    "@types/ws": "^8.5.14",
+    "tsx": "^4.19.0"
   }
 }

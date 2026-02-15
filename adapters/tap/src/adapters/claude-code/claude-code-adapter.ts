@@ -8,7 +8,7 @@
  */
 
 import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
 import type { TapAdapter } from "../types.js";
 import type { TapTransport } from "../../client/transport.js";
 import {
@@ -44,7 +44,7 @@ export class ClaudeCodeAdapter implements TapAdapter {
   private cleanupInstalled = false;
 
   constructor(options?: ClaudeCodeAdapterOptions) {
-    this.claudeDir = options?.claudeDir ?? join(process.cwd(), ".claude");
+    this.claudeDir = options?.claudeDir ?? findClaudeDir();
     this.settingsPath = join(this.claudeDir, "settings.local.json");
     this.emitCommand = options?.emitCommand;
   }
@@ -169,4 +169,31 @@ function removeTapHooks(hooks: HookConfig): HookConfig {
 /** Checks whether a hook entry was installed by sajou-tap. */
 function isTapHook(hook: HookEntry): boolean {
   return hook.statusMessage === TAP_HOOK_TAG;
+}
+
+/**
+ * Finds the nearest `.claude` directory by walking up from cwd.
+ * Falls back to `cwd/.claude` if none is found.
+ */
+function findClaudeDir(): string {
+  let dir = process.cwd();
+  const root = dirname(dir) === dir ? dir : "/";
+
+  while (dir !== root) {
+    const candidate = join(dir, ".claude");
+    try {
+      const { statSync } = require("node:fs") as {
+        statSync: (path: string) => { isDirectory: () => boolean };
+      };
+      if (statSync(candidate).isDirectory()) {
+        return candidate;
+      }
+    } catch {
+      // Not found, keep walking up
+    }
+    dir = dirname(dir);
+  }
+
+  // Fallback: cwd
+  return join(process.cwd(), ".claude");
 }
