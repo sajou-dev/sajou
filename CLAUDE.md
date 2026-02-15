@@ -160,9 +160,15 @@ main                         ← stable, tagged releases only (semver v0.x.x)
 | **Infra** | `infra/` | `vite.config`, `tsconfig`, CI/CD, pnpm workspace, deployment, dev server plugins |
 | **Fix** | `fix/` | Bug fixes in any tier — name should indicate the affected area |
 
+### Standalone docs go directly to `main`
+
+Docs that don't accompany a code change — backlog ideas, decisions, specs updates — are committed directly to `main`. They are project memory, not features; blocking them on a branch makes them invisible and causes conflicts.
+
+Only docs that are part of a code change (e.g. an ADR tied to a new feature, types documentation for a schema change) follow the feature branch.
+
 ### Active branch enforcement (Claude Code MUST do this)
 
-1. **Before starting any change**: check the current branch (`git branch --show-current`). If on `main`, create or switch to the appropriate tier branch. **Never commit to `main`.**
+1. **Before starting any change**: check the current branch (`git branch --show-current`). If on `main`, create or switch to the appropriate tier branch — **unless the change is a standalone doc** (see above). **Never commit code to `main`.**
 
 2. **During a session**: if the user's work drifts to a different tier (e.g. working on `interface/scene-builder-ui` but starting to modify `packages/core/`), **immediately flag it**: "This change looks like `core/` scope — want me to switch branches or split the work?"
 
@@ -189,7 +195,7 @@ Scopes: `core`, `schema`, `theme-api`, `theme-citadel`, `theme-office`, `emitter
 ### Rules
 - Every commit must compile (`pnpm typecheck` passes)
 - Every commit should have passing tests (`pnpm test` passes)
-- **Never commit directly to `main`** — always branch and merge
+- **Never commit code to `main`** — always branch and merge. Standalone docs (backlog, decisions, specs) are the exception.
 - Small, focused commits. One concern per commit.
 - If a change touches multiple packages, split into separate commits per package.
 
