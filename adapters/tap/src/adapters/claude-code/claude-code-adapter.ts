@@ -125,6 +125,75 @@ export class ClaudeCodeAdapter implements TapAdapter {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Standalone hook management — usable without adapter lifecycle
+// ---------------------------------------------------------------------------
+
+/**
+ * Install sajou-tap hooks into `.claude/settings.local.json`.
+ *
+ * Merges hooks with existing config (preserves non-tap hooks).
+ * Safe to call multiple times — existing tap hooks are deduplicated.
+ */
+export async function installTapHooks(options?: {
+  claudeDir?: string;
+  emitCommand?: string;
+}): Promise<void> {
+  const claudeDir = options?.claudeDir ?? findClaudeDir();
+  const settingsPath = join(claudeDir, "settings.local.json");
+
+  let settings: ClaudeSettings;
+  try {
+    const raw = await readFile(settingsPath, "utf8");
+    settings = JSON.parse(raw) as ClaudeSettings;
+  } catch {
+    settings = {};
+  }
+
+  const tapHooks = generateHookConfig(options?.emitCommand);
+  settings.hooks = mergeHooks(settings.hooks, tapHooks);
+
+  await mkdir(claudeDir, { recursive: true });
+  await writeFile(settingsPath, JSON.stringify(settings, null, 2) + "\n");
+}
+
+/**
+ * Remove all sajou-tap hooks from `.claude/settings.local.json`.
+ *
+ * Only removes hooks tagged with `statusMessage: "sajou-tap"`.
+ * Other hooks are preserved.
+ */
+export async function uninstallTapHooks(options?: {
+  claudeDir?: string;
+}): Promise<void> {
+  const claudeDir = options?.claudeDir ?? findClaudeDir();
+  const settingsPath = join(claudeDir, "settings.local.json");
+
+  let settings: ClaudeSettings;
+  try {
+    const raw = await readFile(settingsPath, "utf8");
+    settings = JSON.parse(raw) as ClaudeSettings;
+  } catch {
+    return; // No settings file — nothing to clean
+  }
+
+  if (settings.hooks) {
+    settings.hooks = removeTapHooks(settings.hooks);
+    if (Object.keys(settings.hooks).length === 0) {
+      delete settings.hooks;
+    }
+  }
+
+  await writeFile(settingsPath, JSON.stringify(settings, null, 2) + "\n");
+}
+
+/** Exports `findClaudeDir` for use by the Vite plugin. */
+export { findClaudeDir };
+
+// ---------------------------------------------------------------------------
+// Internal helpers
+// ---------------------------------------------------------------------------
+
 /**
  * Merges tap hooks into existing hooks without duplicating.
  * Existing non-tap hooks are preserved.
