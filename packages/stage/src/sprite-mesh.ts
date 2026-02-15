@@ -81,10 +81,10 @@ export function setUVFrame(
   const v0 = 1 - (frameY + frameH) / texH; // Three.js UV: 0 at bottom
   const v1 = 1 - frameY / texH;
 
-  // PlaneGeometry UVs (4 vertices): BL, BR, TL, TR
-  uv.setXY(0, u0, v0); // bottom-left
-  uv.setXY(1, u1, v0); // bottom-right
-  uv.setXY(2, u0, v1); // top-left
-  uv.setXY(3, u1, v1); // top-right
+  // PlaneGeometry UVs (4 vertices): TL, TR, BL, BR
+  uv.setXY(0, u0, v1); // top-left
+  uv.setXY(1, u1, v1); // top-right
+  uv.setXY(2, u0, v0); // bottom-left
+  uv.setXY(3, u1, v0); // bottom-right
   uv.needsUpdate = true;
 }
