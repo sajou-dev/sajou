@@ -20,7 +20,7 @@ export { createTransport } from "./client/create-transport.js";
 
 // Adapters
 export type { TapAdapter } from "./adapters/types.js";
-export { ClaudeCodeAdapter } from "./adapters/claude-code/claude-code-adapter.js";
+export { ClaudeCodeAdapter, installTapHooks, uninstallTapHooks, findClaudeDir } from "./adapters/claude-code/claude-code-adapter.js";
 export type { ClaudeCodeAdapterOptions } from "./adapters/claude-code/claude-code-adapter.js";
 export { JsonlAdapter } from "./adapters/jsonl/jsonl-adapter.js";
 export type { JsonlAdapterOptions } from "./adapters/jsonl/jsonl-adapter.js";

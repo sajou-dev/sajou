@@ -24,7 +24,7 @@ describe("generateHookConfig", () => {
       expect(groups).toHaveLength(1);
       const hooks = groups[0]!.hooks;
       expect(hooks).toHaveLength(1);
-      expect(hooks[0]!.command).toBe("sajou-emit --stdin");
+      expect(hooks[0]!.command).toBe("npx sajou-emit --stdin");
     }
   });
 

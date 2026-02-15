@@ -38,7 +38,7 @@ export type HookConfig = Record<string, Array<{ hooks: HookEntry[] }>>;
  * @returns A hooks config object ready to merge into settings.local.json
  */
 export function generateHookConfig(
-  emitCommand = "sajou-emit --stdin",
+  emitCommand = "npx sajou-emit --stdin",
 ): HookConfig {
   const config: HookConfig = {};
 
