@@ -195,19 +195,23 @@ function applyEntityTransform(
   // Rotation: 2D rotation → Y-axis rotation
   group.rotation.y = -(placed.rotation * Math.PI) / 180;
 
-  // Billboarding: rotate mesh to face camera in iso mode.
-  // The geometry was baked flat (rotateX -PI/2) with anchor offset in Z.
-  // Un-rotating maps the Z offset to -Y, so the mesh sinks below ground.
-  // Compensate by lifting mesh.position.y = h * (1 - ay).
+  // Cylindrical billboard: stand the entity upright and face the camera.
+  //
+  // The geometry was baked flat (rotateX -PI/2) → lies in XZ.
+  // To stand it up: Rx(PI/2), then rotate around Y to face camera: Ry(angle).
+  // Euler order 'YXZ' gives: Ry * Rx * Rz = Ry(angle) * Rx(PI/2).
+  //
+  // After standing up, the anchor Z-offset maps to -Y, so the mesh
+  // sinks below ground. Compensate with mesh.position.y = h * (1 - ay).
   const ctrl = getController();
   if (ctrl && ctrl.mode === "isometric") {
     const angle = computeBillboardAngle(ctrl.camera);
-    mesh.rotation.set(Math.PI / 2, angle, 0);
+    mesh.rotation.set(Math.PI / 2, angle, 0, "YXZ");
     const h = _def.displayHeight;
     const ay = _def.defaults.anchor?.[1] ?? 0.5;
     mesh.position.y = h * (1 - ay);
   } else {
-    mesh.rotation.set(0, 0, 0);
+    mesh.rotation.set(0, 0, 0, "YXZ");
     mesh.position.y = 0;
   }
 
@@ -360,7 +364,7 @@ function applyBillboard(ctrl: CameraController): void {
   if (ctrl.mode === "isometric") {
     const angle = computeBillboardAngle(ctrl.camera);
     for (const [, record] of entityRecords) {
-      record.mesh.rotation.set(Math.PI / 2, angle, 0);
+      record.mesh.rotation.set(Math.PI / 2, angle, 0, "YXZ");
       const placed = placedMap.get(record.placedId);
       if (placed) {
         const def = getEntityDef(placed.entityId);
@@ -371,7 +375,7 @@ function applyBillboard(ctrl: CameraController): void {
     }
   } else {
     for (const [, record] of entityRecords) {
-      record.mesh.rotation.set(0, 0, 0);
+      record.mesh.rotation.set(0, 0, 0, "YXZ");
       record.mesh.position.y = 0;
     }
   }
