@@ -8,7 +8,7 @@
  */
 
 import type { ToolId, PanelId } from "../types.js";
-import { getEditorState, setActiveTool, togglePanel, subscribeEditor, toggleGrid } from "../state/editor-state.js";
+import { getEditorState, setActiveTool, togglePanel, subscribeEditor, toggleGrid, toggleViewMode } from "../state/editor-state.js";
 import { zoomIn, zoomOut, setZoomLevel, fitToView } from "../canvas/canvas.js";
 import { toggleHelpBar, isHelpBarVisible } from "./help-bar.js";
 
@@ -219,9 +219,17 @@ function initZoomBar(): void {
   const zoomOutBtn = document.getElementById("zoom-out");
   const zoomInBtn = document.getElementById("zoom-in");
   const presetsEl = document.getElementById("zoom-presets");
+  const viewModeBtn = document.getElementById("view-mode-toggle");
 
   zoomOutBtn?.addEventListener("click", () => zoomOut());
   zoomInBtn?.addEventListener("click", () => zoomIn());
+  viewModeBtn?.addEventListener("click", () => toggleViewMode());
+
+  // Sync view mode button active state
+  subscribeEditor(() => {
+    const { viewMode } = getEditorState();
+    viewModeBtn?.classList.toggle("view-mode-btn--active", viewMode === "isometric");
+  });
 
   // Preset buttons (hover show/hide is handled by pure CSS)
   presetsEl?.addEventListener("click", (e) => {
@@ -277,6 +285,9 @@ function initShortcuts(): void {
       case "a": case "A": togglePanel("asset-manager"); break;
       case "e": case "E": togglePanel("entity-editor"); break;
       case "l": case "L": togglePanel("layers"); break;
+
+      // View mode
+      case "i": case "I": toggleViewMode(); break;
 
       // Grid
       case "g": case "G": toggleGrid(); break;
