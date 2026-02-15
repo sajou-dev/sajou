@@ -40,6 +40,9 @@ export interface EntityMeshRecord {
   readonly mesh: THREE.Mesh;
   readonly material: THREE.MeshBasicMaterial;
   readonly placedId: string;
+  /** Dimensions at creation time — used to detect when geometry must be rebuilt. */
+  readonly createdWidth: number;
+  readonly createdHeight: number;
 }
 
 /** Map of PlacedEntity.id → Three.js mesh record. */
@@ -150,6 +153,8 @@ function createEntityMesh(
     mesh,
     material,
     placedId: placed.id,
+    createdWidth: w,
+    createdHeight: h,
   };
 
   entityRecords.set(placed.id, record);
@@ -257,6 +262,13 @@ async function renderEntities(): Promise<void> {
     const tex = await loadEntityTexture(assetPath);
 
     let record = entityRecords.get(placed.id);
+
+    // Recreate mesh if entity definition dimensions changed
+    if (record && (record.createdWidth !== def.displayWidth || record.createdHeight !== def.displayHeight)) {
+      removeEntityMesh(placed.id);
+      record = undefined;
+    }
+
     if (!record) {
       record = createEntityMesh(placed, def);
     }
