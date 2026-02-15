@@ -170,8 +170,8 @@ function updateCamera(): void {
   if (!camera) return;
   camera.left = -panX / zoom;
   camera.right = (canvasWidth - panX) / zoom;
-  camera.top = -panY / zoom;
-  camera.bottom = (canvasHeight - panY) / zoom;
+  camera.top = panY / zoom;
+  camera.bottom = (panY - canvasHeight) / zoom;
   camera.updateProjectionMatrix();
 }
 

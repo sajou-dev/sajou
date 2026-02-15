@@ -53,10 +53,10 @@ export function createTopDownCamera(
   height: number,
 ): THREE.OrthographicCamera {
   const camera = new THREE.OrthographicCamera(
-    0,       // left
-    width,   // right
-    0,       // top (flipped: 0 at top)
-    height,  // bottom
+    0,        // left
+    width,    // right
+    0,        // top
+    -height,  // bottom (negative: camera +Y = world -Z)
     0.1,
     1000,
   );
