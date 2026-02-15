@@ -22,15 +22,30 @@ import {
 } from "../state/scene-state.js";
 import { getEntityStore, selectEntity } from "../state/entity-store.js";
 import { executeCommand } from "../state/undo.js";
-import { hitTestPosition } from "./hit-test.js";
+import { hitTestPosition, hitTestScreenSpace } from "./hit-test.js";
 import type { EntityTopology, SceneLayer, UndoableCommand } from "../types.js";
 
 // ---------------------------------------------------------------------------
 // Hit-testing
 // ---------------------------------------------------------------------------
 
-/** AABB hit-test against placed entities. Returns the topmost hit ID or null. */
-function hitTest(sx: number, sy: number): string | null {
+/**
+ * AABB hit-test against placed entities. Returns the topmost hit ID or null.
+ *
+ * In isometric mode, delegates to screen-space hit-testing (via MouseEvent)
+ * so that billboard entities can be clicked on their standing sprite.
+ * Falls back to scene-coordinate AABB if no screen hit is found.
+ */
+function hitTest(sx: number, sy: number, mouseEvent?: MouseEvent): string | null {
+  // In iso mode, try screen-space hit-test first (handles billboards)
+  if (mouseEvent) {
+    const screenHit = hitTestScreenSpace(mouseEvent.clientX, mouseEvent.clientY);
+    if (screenHit) return screenHit;
+    // If iso returned no hit, we still check scene-space below
+    // (only relevant for top-down mode or iso edge cases)
+    if (getEditorState().viewMode === "isometric") return null;
+  }
+
   const { entities, layers } = getSceneState();
   const entityStore = getEntityStore();
 
@@ -104,7 +119,7 @@ export function createSelectTool(): CanvasToolHandler {
         }
       }
 
-      const hitId = hitTest(scenePos.x, scenePos.y);
+      const hitId = hitTest(scenePos.x, scenePos.y, e);
       const { selectedIds } = getEditorState();
 
       if (hitId) {
@@ -317,7 +332,7 @@ export function initSelectToolKeyboard(): void {
     if (activeTool !== "select") return;
 
     const scenePos = screenToScene(e);
-    const hitId = hitTest(scenePos.x, scenePos.y);
+    const hitId = hitTest(scenePos.x, scenePos.y, e);
     if (!hitId) return;
 
     // Find the PlacedEntity to get its entityId
