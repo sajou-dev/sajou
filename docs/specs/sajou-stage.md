@@ -2,6 +2,11 @@
 
 > Ce document est un brouillon de réflexion. Rien n'est figé.
 > Il pose les bases d'une évolution majeure de l'architecture Sajou.
+>
+> **Mise à jour 2026-02-15 :** Le moteur de rendu retenu est **Three.js** (et non Godot 4).
+> Les sections Godot (GDScript, JavaScriptBridge, WASM export) sont caduques.
+> Le concept Stage, le format de scène, les interactions et le pipeline restent valides.
+> Voir `docs/decisions/choix-threejs-stage.md`.
 
 ---
 
