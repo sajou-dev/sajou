@@ -2,25 +2,23 @@
  * Scene preview module.
  *
  * Opens a fullscreen overlay that renders the current editor scene using
- * PixiJS — directly from the scene/entity/asset stores. No external
- * runtime packages (@sajou/core, @sajou/theme-citadel) are needed.
+ * Three.js + Canvas2D — directly from the scene/entity/asset stores.
+ * No external runtime packages (@sajou/core, @sajou/theme-citadel) needed.
  *
- * The rendering mirrors scene-renderer.ts: same blob-URL texture loading,
- * same transform logic, same spritesheet frame slicing.
+ * Three.js renders entities (horizontal PlaneGeometry on XZ plane) with
+ * a top-down OrthographicCamera. Overlays (positions, routes) are drawn
+ * on a transparent Canvas2D layer on top.
  */
 
+import * as THREE from "three";
 import {
-  Application,
-  Container,
-  Graphics,
-  Sprite,
-  AnimatedSprite,
-  Text,
-  TextStyle,
-  Texture,
-  ImageSource,
-  Rectangle,
-} from "pixi.js";
+  createTopDownCamera,
+  loadTexture as stageLoadTexture,
+  getCachedTexture,
+  getCachedTextureSize,
+  setUVFrame,
+  clearTextureCache,
+} from "@sajou/stage";
 
 import { getSceneState } from "../state/scene-state.js";
 import { getEntityStore } from "../state/entity-store.js";
@@ -29,7 +27,6 @@ import { buildPathPoints } from "../tools/route-tool.js";
 import type {
   PlacedEntity,
   EntityEntry,
-  SceneRoute,
   SceneLayer,
 } from "../types.js";
 
@@ -38,20 +35,32 @@ import type {
 // ---------------------------------------------------------------------------
 
 let activePreview: {
-  app: Application;
+  renderer: THREE.WebGLRenderer;
+  scene: THREE.Scene;
+  camera: THREE.OrthographicCamera;
   overlay: HTMLElement;
+  overlayCanvas: HTMLCanvasElement;
   keyHandler: (e: KeyboardEvent) => void;
+  animFrameId: number;
+  animatedEntities: AnimatedPreviewEntity[];
 } | null = null;
 
-// ---------------------------------------------------------------------------
-// Texture loading (same approach as scene-renderer.ts)
-// ---------------------------------------------------------------------------
+/** Tracked animation for a preview entity. */
+interface AnimatedPreviewEntity {
+  mesh: THREE.Mesh;
+  assetPath: string;
+  frameWidth: number;
+  frameHeight: number;
+  frames: readonly number[];
+  fps: number;
+  loop: boolean;
+  currentFrame: number;
+  accumulator: number;
+}
 
-/**
- * Local texture cache scoped to the preview session.
- * Cleared when the preview is closed.
- */
-const previewTexCache = new Map<string, Texture>();
+// ---------------------------------------------------------------------------
+// Texture loading
+// ---------------------------------------------------------------------------
 
 /** Find the object URL for an asset path from the asset store. */
 function findAssetUrl(assetPath: string): string | null {
@@ -59,46 +68,22 @@ function findAssetUrl(assetPath: string): string | null {
   return asset?.objectUrl ?? null;
 }
 
-/** Load an HTMLImageElement from a URL (blob or http). */
-function loadImage(url: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error(`Failed to load: ${url}`));
-    img.crossOrigin = "anonymous";
-    img.src = url;
-  });
-}
-
-/**
- * Load and cache a texture from an asset path.
- *
- * Bypasses PixiJS Assets.load() because blob URLs have no extension
- * hint. Instead loads via HTMLImageElement → ImageSource → Texture.
- */
-async function loadTexture(assetPath: string): Promise<Texture | null> {
-  const cached = previewTexCache.get(assetPath);
+/** Load and cache a texture from an asset path via the stage loader. */
+async function loadEntityTexture(assetPath: string): Promise<THREE.Texture | null> {
+  const cached = getCachedTexture(assetPath);
   if (cached) return cached;
 
   const url = findAssetUrl(assetPath);
   if (!url) return null;
 
-  try {
-    const img = await loadImage(url);
-    const source = new ImageSource({ resource: img, scaleMode: "nearest" });
-    const tex = new Texture({ source });
-    previewTexCache.set(assetPath, tex);
-    return tex;
-  } catch {
-    return null;
-  }
+  return stageLoadTexture(assetPath, url);
 }
 
 // ---------------------------------------------------------------------------
 // Layer helpers
 // ---------------------------------------------------------------------------
 
-/** Build a lookup map of layer ID → SceneLayer for fast access. */
+/** Build a lookup map of layer ID → SceneLayer. */
 function buildLayerMap(): Map<string, SceneLayer> {
   const { layers } = getSceneState();
   const map = new Map<string, SceneLayer>();
@@ -107,44 +92,65 @@ function buildLayerMap(): Map<string, SceneLayer> {
 }
 
 // ---------------------------------------------------------------------------
-// Rendering helpers
+// Entity rendering
 // ---------------------------------------------------------------------------
 
-/**
- * Apply transform to a display object (Sprite or AnimatedSprite).
- * Mirrors scene-renderer.ts applyPlacedTransform.
- */
-function applyPlacedTransform(
-  sprite: Sprite | AnimatedSprite,
+/** Create a Three.js mesh for a placed entity. */
+function createPreviewMesh(
   placed: PlacedEntity,
   def: EntityEntry,
   layer: SceneLayer | undefined,
-): void {
-  const anchorX = def.defaults.anchor?.[0] ?? 0.5;
-  const anchorY = def.defaults.anchor?.[1] ?? 0.5;
-  sprite.anchor.set(anchorX, anchorY);
+  tex: THREE.Texture | null,
+): THREE.Mesh {
+  const w = def.displayWidth;
+  const h = def.displayHeight;
+  const ax = def.defaults.anchor?.[0] ?? 0.5;
+  const ay = def.defaults.anchor?.[1] ?? 0.5;
 
-  sprite.x = placed.x;
-  sprite.y = placed.y;
-  sprite.width = def.displayWidth * placed.scale;
-  sprite.height = def.displayHeight * placed.scale;
-  sprite.rotation = (placed.rotation * Math.PI) / 180;
-  sprite.alpha = placed.opacity;
+  const geom = new THREE.PlaneGeometry(w, h);
+  geom.rotateX(-Math.PI / 2);
 
-  // Layer-based z-ordering: layerOrder * 10000 + per-instance zIndex
+  // Anchor offset
+  const offsetX = (0.5 - ax) * w;
+  const offsetZ = (0.5 - ay) * h;
+  geom.translate(offsetX, 0, offsetZ);
+
+  const material = new THREE.MeshBasicMaterial({
+    color: tex ? 0xffffff : (def.fallbackColor || "#666666"),
+    map: tex ?? undefined,
+    transparent: true,
+    alphaTest: 0.01,
+    side: THREE.DoubleSide,
+    depthTest: false,
+    depthWrite: false,
+  });
+
+  const mesh = new THREE.Mesh(geom, material);
+
+  // Position
+  mesh.position.set(placed.x, 0, placed.y);
+
+  // Scale (includes flip)
+  const scaleX = placed.flipH ? -placed.scale : placed.scale;
+  const scaleY = placed.flipV ? -placed.scale : placed.scale;
+  mesh.scale.set(scaleX, 1, scaleY);
+
+  // Rotation
+  mesh.rotation.y = -(placed.rotation * Math.PI) / 180;
+
+  // Opacity
+  material.opacity = placed.opacity;
+
+  // Depth ordering
   const layerOrder = layer?.order ?? 0;
-  sprite.zIndex = layerOrder * 10000 + placed.zIndex;
+  mesh.renderOrder = layerOrder * 10000 + placed.zIndex;
 
-  // Flip via scale
-  const baseScaleX = sprite.width / sprite.texture.width;
-  const baseScaleY = sprite.height / sprite.texture.height;
-  sprite.scale.x = placed.flipH ? -Math.abs(baseScaleX) : Math.abs(baseScaleX);
-  sprite.scale.y = placed.flipV ? -Math.abs(baseScaleY) : Math.abs(baseScaleY);
+  return mesh;
 }
 
-/** Render a fallback colored rectangle for an entity without texture. */
+/** Render a fallback colored rectangle. */
 function renderFallback(
-  container: Container,
+  scene: THREE.Scene,
   placed: PlacedEntity,
   def: EntityEntry | null,
   layer: SceneLayer | undefined,
@@ -153,100 +159,120 @@ function renderFallback(
   const h = (def?.displayHeight ?? 32) * placed.scale;
   const color = def?.fallbackColor ?? "#666666";
 
-  const gfx = new Graphics();
-  gfx.rect(-w / 2, -h / 2, w, h);
-  gfx.fill({ color, alpha: 0.6 });
-  gfx.stroke({ color, width: 1, alpha: 1 });
+  const geom = new THREE.PlaneGeometry(w, h);
+  geom.rotateX(-Math.PI / 2);
 
-  gfx.x = placed.x;
-  gfx.y = placed.y;
-  gfx.rotation = (placed.rotation * Math.PI) / 180;
-  gfx.alpha = placed.opacity;
-
-  // Layer-based z-ordering: layerOrder * 10000 + per-instance zIndex
-  const layerOrder = layer?.order ?? 0;
-  gfx.zIndex = layerOrder * 10000 + placed.zIndex;
-
-  container.addChild(gfx);
-}
-
-// ---------------------------------------------------------------------------
-// Position markers
-// ---------------------------------------------------------------------------
-
-/** Render diamond markers for scene positions. */
-function renderPositions(container: Container): void {
-  const { positions } = getSceneState();
-
-  const labelStyle = new TextStyle({
-    fontFamily: "JetBrains Mono, monospace",
-    fontSize: 10,
-    fill: "#ffffff",
+  const material = new THREE.MeshBasicMaterial({
+    color,
+    transparent: true,
+    opacity: 0.6,
+    side: THREE.DoubleSide,
+    depthTest: false,
+    depthWrite: false,
   });
 
-  for (const pos of positions) {
-    const group = new Container();
+  const mesh = new THREE.Mesh(geom, material);
+  mesh.position.set(placed.x, 0, placed.y);
+  mesh.rotation.y = -(placed.rotation * Math.PI) / 180;
 
-    // Diamond marker
-    const size = 6;
-    const diamond = new Graphics();
-    diamond.moveTo(0, -size);
-    diamond.lineTo(size, 0);
-    diamond.lineTo(0, size);
-    diamond.lineTo(-size, 0);
-    diamond.closePath();
-    diamond.fill({ color: pos.color, alpha: 1 });
-    diamond.stroke({ color: darkenColor(pos.color, 0.3), width: 1, alpha: 1 });
-    group.addChild(diamond);
+  const layerOrder = layer?.order ?? 0;
+  mesh.renderOrder = layerOrder * 10000 + placed.zIndex;
 
-    // Name label above
-    const label = new Text({ text: pos.name, style: labelStyle });
-    label.anchor.set(0.5, 1);
-    label.y = -(size + 4);
-
-    // Label pill background
-    const pad = 3;
-    const pillW = label.width + pad * 2;
-    const pillH = label.height + pad;
-    const pill = new Graphics();
-    pill.roundRect(-pillW / 2, label.y - label.height / 2 - pad / 2, pillW, pillH, 3);
-    pill.fill({ color: 0x0e0e16, alpha: 0.85 });
-    group.addChild(pill);
-    group.addChild(label);
-
-    group.x = pos.x;
-    group.y = pos.y;
-    group.zIndex = 9000;
-    container.addChild(group);
-  }
+  scene.add(mesh);
 }
 
+// ---------------------------------------------------------------------------
+// Canvas2D overlay drawing
+// ---------------------------------------------------------------------------
+
 /** Darken a hex color by a factor (0-1). */
-function darkenColor(hex: string, factor: number): number {
+function darkenColor(hex: string, factor: number): string {
   const clean = hex.replace("#", "");
   const r = Math.max(0, Math.round(parseInt(clean.slice(0, 2), 16) * (1 - factor)));
   const g = Math.max(0, Math.round(parseInt(clean.slice(2, 4), 16) * (1 - factor)));
   const b = Math.max(0, Math.round(parseInt(clean.slice(4, 6), 16) * (1 - factor)));
-  return (r << 16) | (g << 8) | b;
+  return `rgb(${r},${g},${b})`;
 }
 
-// ---------------------------------------------------------------------------
-// Route rendering
-// ---------------------------------------------------------------------------
-
-/** Parse a hex color string to a numeric value. */
-function parseColor(hex: string): number {
-  return parseInt(hex.replace("#", ""), 16);
+/** Convert numeric color + alpha to "rgba(r,g,b,a)". */
+function numAlpha(n: number, alpha: number): string {
+  const r = (n >> 16) & 0xff;
+  const g = (n >> 8) & 0xff;
+  const b = n & 0xff;
+  return `rgba(${r},${g},${b},${alpha})`;
 }
 
-/** Draw an arrowhead at a given point. */
+/** Draw a rounded rectangle path. */
+function roundRect(
+  ctx: CanvasRenderingContext2D,
+  x: number, y: number,
+  w: number, h: number,
+  r: number,
+): void {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.arcTo(x + w, y, x + w, y + r, r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+  ctx.lineTo(x + r, y + h);
+  ctx.arcTo(x, y + h, x, y + h - r, r);
+  ctx.lineTo(x, y + r);
+  ctx.arcTo(x, y, x + r, y, r);
+  ctx.closePath();
+}
+
+/** Render position markers on Canvas2D. */
+function drawPositions(ctx: CanvasRenderingContext2D): void {
+  const { positions } = getSceneState();
+
+  for (const pos of positions) {
+    const size = 6;
+
+    // Diamond marker
+    ctx.beginPath();
+    ctx.moveTo(pos.x, pos.y - size);
+    ctx.lineTo(pos.x + size, pos.y);
+    ctx.lineTo(pos.x, pos.y + size);
+    ctx.lineTo(pos.x - size, pos.y);
+    ctx.closePath();
+
+    ctx.fillStyle = pos.color;
+    ctx.fill();
+    ctx.strokeStyle = darkenColor(pos.color, 0.3);
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Name label
+    ctx.save();
+    const fontSize = 10;
+    ctx.font = `${fontSize}px "JetBrains Mono", monospace`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "bottom";
+
+    const labelY = pos.y - size - 4;
+    const metrics = ctx.measureText(pos.name);
+    const pad = 3;
+    const pillW = metrics.width + pad * 2;
+    const pillH = fontSize + pad;
+
+    ctx.fillStyle = numAlpha(0x0e0e16, 0.85);
+    roundRect(ctx, pos.x - pillW / 2, labelY - pillH, pillW, pillH, 3);
+    ctx.fill();
+
+    ctx.fillStyle = "#ffffff";
+    ctx.fillText(pos.name, pos.x, labelY);
+    ctx.restore();
+  }
+}
+
+/** Draw an arrowhead. */
 function drawArrowhead(
-  gfx: Graphics,
+  ctx: CanvasRenderingContext2D,
   tipX: number, tipY: number,
   fromX: number, fromY: number,
   size: number,
-  color: number,
-  alpha: number,
+  color: string,
 ): void {
   const dx = tipX - fromX;
   const dy = tipY - fromY;
@@ -261,199 +287,88 @@ function drawArrowhead(
   const baseX = tipX - ux * size;
   const baseY = tipY - uy * size;
 
-  gfx.moveTo(tipX, tipY);
-  gfx.lineTo(baseX + px * size * 0.5, baseY + py * size * 0.5);
-  gfx.lineTo(baseX - px * size * 0.5, baseY - py * size * 0.5);
-  gfx.closePath();
-  gfx.fill({ color, alpha });
+  ctx.beginPath();
+  ctx.moveTo(tipX, tipY);
+  ctx.lineTo(baseX + px * size * 0.5, baseY + py * size * 0.5);
+  ctx.lineTo(baseX - px * size * 0.5, baseY - py * size * 0.5);
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.globalAlpha = 0.8;
+  ctx.fill();
+  ctx.globalAlpha = 1;
 }
 
-/** Render routes (paths with arrowheads). */
-function renderRoutes(container: Container): void {
+/** Render routes on Canvas2D. */
+function drawRoutes(ctx: CanvasRenderingContext2D): void {
   const { routes } = getSceneState();
 
   for (const route of routes) {
     const points = buildPathPoints(route);
     if (points.length < 2) continue;
 
-    const color = parseColor(route.color);
-    const group = new Container();
-    group.zIndex = 8000;
+    const color = route.color;
 
     // Path line
-    const pathGfx = new Graphics();
+    ctx.beginPath();
+    ctx.moveTo(points[0]!.x, points[0]!.y);
 
-    if (route.style === "dashed") {
-      drawDashedPath(pathGfx, points, route, color);
-    } else {
-      drawSolidPath(pathGfx, points, route, color);
+    for (let i = 1; i < points.length; i++) {
+      const curr = points[i]!;
+      const rp = route.points[i]!;
+
+      if (rp.cornerStyle === "smooth" && i < points.length - 1) {
+        const next = points[i + 1]!;
+        const midX = (curr.x + next.x) / 2;
+        const midY = (curr.y + next.y) / 2;
+        ctx.quadraticCurveTo(curr.x, curr.y, midX, midY);
+      } else {
+        ctx.lineTo(curr.x, curr.y);
+      }
     }
-    group.addChild(pathGfx);
+
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.5;
+    ctx.globalAlpha = 0.8;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
 
     // Arrowhead at end
     const lastPt = points[points.length - 1]!;
     const prevPt = points[points.length - 2]!;
-    const arrowGfx = new Graphics();
-    drawArrowhead(arrowGfx, lastPt.x, lastPt.y, prevPt.x, prevPt.y, 8, color, 0.8);
+    drawArrowhead(ctx, lastPt.x, lastPt.y, prevPt.x, prevPt.y, 8, color);
 
+    // Bidirectional: arrow at start
     if (route.bidirectional) {
       const firstPt = points[0]!;
       const secondPt = points[1]!;
-      drawArrowhead(arrowGfx, firstPt.x, firstPt.y, secondPt.x, secondPt.y, 8, color, 0.8);
+      drawArrowhead(ctx, firstPt.x, firstPt.y, secondPt.x, secondPt.y, 8, color);
     }
-    group.addChild(arrowGfx);
-
-    container.addChild(group);
   }
 }
 
-/** Draw a solid route path. */
-function drawSolidPath(
-  gfx: Graphics,
-  points: Array<{ x: number; y: number }>,
-  route: SceneRoute,
-  color: number,
+/** Draw all overlays on the Canvas2D. */
+function drawOverlays(
+  ctx: CanvasRenderingContext2D,
+  canvas: HTMLCanvasElement,
+  sceneWidth: number,
+  sceneHeight: number,
 ): void {
-  gfx.moveTo(points[0]!.x, points[0]!.y);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  for (let i = 1; i < points.length; i++) {
-    const curr = points[i]!;
-    const rp = route.points[i]!;
+  // Scale overlay to match scene → canvas mapping
+  const scaleX = canvas.width / sceneWidth;
+  const scaleY = canvas.height / sceneHeight;
+  const scale = Math.min(scaleX, scaleY);
+  const offsetX = (canvas.width - sceneWidth * scale) / 2;
+  const offsetY = (canvas.height - sceneHeight * scale) / 2;
 
-    if (rp.cornerStyle === "smooth" && i < points.length - 1) {
-      const next = points[i + 1]!;
-      const midX = (curr.x + next.x) / 2;
-      const midY = (curr.y + next.y) / 2;
-      gfx.quadraticCurveTo(curr.x, curr.y, midX, midY);
-    } else {
-      gfx.lineTo(curr.x, curr.y);
-    }
-  }
+  ctx.save();
+  ctx.setTransform(scale, 0, 0, scale, offsetX, offsetY);
 
-  gfx.stroke({ color, width: 1.5, alpha: 0.8 });
-}
+  drawPositions(ctx);
+  drawRoutes(ctx);
 
-/** Draw a dashed route path (flattened to polyline). */
-function drawDashedPath(
-  gfx: Graphics,
-  points: Array<{ x: number; y: number }>,
-  route: SceneRoute,
-  color: number,
-): void {
-  // Flatten smooth curves into a polyline
-  const flat = flattenRoutePath(points, route.points);
-  drawDashedPolyline(gfx, flat, 8, 5, color, 1.5, 0.8);
-}
-
-/** Sample a quadratic Bézier curve into segments. */
-function sampleQuadratic(
-  x0: number, y0: number,
-  cx: number, cy: number,
-  x1: number, y1: number,
-  step: number,
-): Array<{ x: number; y: number }> {
-  const dist = Math.hypot(cx - x0, cy - y0) + Math.hypot(x1 - cx, y1 - cy);
-  const segments = Math.max(2, Math.ceil(dist / step));
-  const pts: Array<{ x: number; y: number }> = [];
-  for (let i = 1; i <= segments; i++) {
-    const t = i / segments;
-    const mt = 1 - t;
-    pts.push({
-      x: mt * mt * x0 + 2 * mt * t * cx + t * t * x1,
-      y: mt * mt * y0 + 2 * mt * t * cy + t * t * y1,
-    });
-  }
-  return pts;
-}
-
-/** Flatten a route into a polyline of evenly-spaced sample points. */
-function flattenRoutePath(
-  points: Array<{ x: number; y: number }>,
-  routePoints: Array<{ cornerStyle: "sharp" | "smooth" }>,
-): Array<{ x: number; y: number }> {
-  if (points.length < 2) return [...points];
-
-  const result: Array<{ x: number; y: number }> = [{ x: points[0]!.x, y: points[0]!.y }];
-
-  for (let i = 1; i < points.length; i++) {
-    const curr = points[i]!;
-    const rp = routePoints[i]!;
-
-    if (rp.cornerStyle === "smooth" && i < points.length - 1) {
-      const next = points[i + 1]!;
-      const midX = (curr.x + next.x) / 2;
-      const midY = (curr.y + next.y) / 2;
-      const prev = result[result.length - 1]!;
-      const sampled = sampleQuadratic(prev.x, prev.y, curr.x, curr.y, midX, midY, 4);
-      result.push(...sampled);
-    } else {
-      result.push({ x: curr.x, y: curr.y });
-    }
-  }
-
-  return result;
-}
-
-/** Draw a dashed polyline. */
-function drawDashedPolyline(
-  gfx: Graphics,
-  pts: Array<{ x: number; y: number }>,
-  dashLen: number,
-  gapLen: number,
-  color: number,
-  width: number,
-  alpha: number,
-): void {
-  if (pts.length < 2) return;
-
-  let drawing = true;
-  let remain = dashLen;
-  let cx = pts[0]!.x;
-  let cy = pts[0]!.y;
-
-  gfx.moveTo(cx, cy);
-
-  for (let i = 1; i < pts.length; i++) {
-    const tx = pts[i]!.x;
-    const ty = pts[i]!.y;
-    let dx = tx - cx;
-    let dy = ty - cy;
-    let segLen = Math.hypot(dx, dy);
-
-    while (segLen > 0) {
-      const step = Math.min(remain, segLen);
-      const ratio = segLen > 0 ? step / segLen : 0;
-
-      const nx = cx + dx * ratio;
-      const ny = cy + dy * ratio;
-
-      if (drawing) {
-        gfx.lineTo(nx, ny);
-      } else {
-        gfx.moveTo(nx, ny);
-      }
-
-      remain -= step;
-      segLen -= step;
-      cx = nx;
-      cy = ny;
-      dx = tx - cx;
-      dy = ty - cy;
-
-      if (remain <= 0) {
-        drawing = !drawing;
-        remain = drawing ? dashLen : gapLen;
-        if (drawing) {
-          gfx.stroke({ color, width, alpha });
-          gfx.moveTo(cx, cy);
-        }
-      }
-    }
-  }
-
-  if (drawing) {
-    gfx.stroke({ color, width, alpha });
-  }
+  ctx.restore();
 }
 
 // ---------------------------------------------------------------------------
@@ -508,6 +423,55 @@ function setStatus(text: string): void {
 }
 
 // ---------------------------------------------------------------------------
+// Animation loop
+// ---------------------------------------------------------------------------
+
+/** Main render + animation loop for the preview. */
+function previewLoop(now: number, lastTime: { v: number }): void {
+  if (!activePreview) return;
+
+  const dt = now - lastTime.v;
+  lastTime.v = now;
+
+  // Advance spritesheet animations
+  for (const anim of activePreview.animatedEntities) {
+    const msPerFrame = 1000 / anim.fps;
+    anim.accumulator += dt;
+
+    while (anim.accumulator >= msPerFrame) {
+      anim.accumulator -= msPerFrame;
+      anim.currentFrame++;
+
+      if (anim.currentFrame >= anim.frames.length) {
+        if (anim.loop) {
+          anim.currentFrame = 0;
+        } else {
+          anim.currentFrame = anim.frames.length - 1;
+          break;
+        }
+      }
+    }
+
+    // Apply current frame UV
+    const texSize = getCachedTextureSize(anim.assetPath);
+    if (texSize) {
+      const frameIndex = anim.frames[anim.currentFrame]!;
+      const cols = Math.floor(texSize.width / anim.frameWidth);
+      if (cols > 0) {
+        const fx = (frameIndex % cols) * anim.frameWidth;
+        const fy = Math.floor(frameIndex / cols) * anim.frameHeight;
+        setUVFrame(anim.mesh, fx, fy, anim.frameWidth, anim.frameHeight, texSize.width, texSize.height);
+      }
+    }
+  }
+
+  // Render Three.js
+  activePreview.renderer.render(activePreview.scene, activePreview.camera);
+
+  activePreview.animFrameId = requestAnimationFrame((t) => previewLoop(t, lastTime));
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
@@ -519,7 +483,7 @@ export function isPreviewOpen(): boolean {
 /**
  * Open the scene preview.
  *
- * Creates a fullscreen overlay with a PixiJS canvas that renders the
+ * Creates a fullscreen overlay with a Three.js canvas that renders the
  * current editor scene directly from the scene/entity/asset stores.
  */
 export async function openPreview(): Promise<void> {
@@ -544,31 +508,68 @@ export async function openPreview(): Promise<void> {
   logToPreview("Building preview scene…");
   setStatus("Loading…");
 
-  // Parse background color
-  const bgHex = sceneState.background.color.replace("#", "");
-  const bgColor = parseInt(bgHex, 16) || 0x222222;
-
-  // Create PixiJS application
+  const { dimensions, background } = sceneState;
   const canvasContainer = document.getElementById("preview-canvas-container")!;
-  const app = new Application();
 
-  await app.init({
-    width: sceneState.dimensions.width,
-    height: sceneState.dimensions.height,
-    background: bgColor,
-    antialias: true,
+  // --- Three.js setup ---
+  const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: false });
+  renderer.setSize(dimensions.width, dimensions.height);
+  renderer.setPixelRatio(window.devicePixelRatio);
+  renderer.setClearColor(parseInt(background.color.replace("#", ""), 16) || 0x222222);
+
+  const webGLCanvas = renderer.domElement;
+  webGLCanvas.style.position = "absolute";
+  webGLCanvas.style.top = "0";
+  webGLCanvas.style.left = "0";
+  webGLCanvas.style.width = "100%";
+  webGLCanvas.style.height = "100%";
+  webGLCanvas.style.objectFit = "contain";
+  canvasContainer.appendChild(webGLCanvas);
+
+  const threeScene = new THREE.Scene();
+  const camera = createTopDownCamera(dimensions.width, dimensions.height);
+
+  // Set camera to show the full scene
+  camera.left = 0;
+  camera.right = dimensions.width;
+  camera.top = 0;
+  camera.bottom = dimensions.height;
+  camera.updateProjectionMatrix();
+
+  // Ambient light
+  threeScene.add(new THREE.AmbientLight(0xffffff, 1.0));
+
+  // Ground plane
+  const groundGeom = new THREE.PlaneGeometry(dimensions.width, dimensions.height);
+  groundGeom.rotateX(-Math.PI / 2);
+  groundGeom.translate(dimensions.width / 2, 0, dimensions.height / 2);
+  const groundMat = new THREE.MeshBasicMaterial({
+    color: parseInt(background.color.replace("#", ""), 16) || 0x222222,
   });
+  const ground = new THREE.Mesh(groundGeom, groundMat);
+  ground.renderOrder = -1;
+  threeScene.add(ground);
 
-  canvasContainer.appendChild(app.canvas);
+  // --- Canvas2D overlay ---
+  const overlayCanvas = document.createElement("canvas");
+  overlayCanvas.width = dimensions.width;
+  overlayCanvas.height = dimensions.height;
+  overlayCanvas.style.position = "absolute";
+  overlayCanvas.style.top = "0";
+  overlayCanvas.style.left = "0";
+  overlayCanvas.style.width = "100%";
+  overlayCanvas.style.height = "100%";
+  overlayCanvas.style.objectFit = "contain";
+  overlayCanvas.style.pointerEvents = "none";
+  canvasContainer.appendChild(overlayCanvas);
 
-  // Scene container with sortable children
-  const sceneContainer = new Container();
-  sceneContainer.sortableChildren = true;
-  app.stage.addChild(sceneContainer);
+  const overlayCtx = overlayCanvas.getContext("2d")!;
 
-  // Render placed entities
+  // --- Render entities ---
   const layerMap = buildLayerMap();
   let entityCount = 0;
+  const animatedEntities: AnimatedPreviewEntity[] = [];
+
   for (const placed of sceneState.entities) {
     if (!placed.visible) continue;
 
@@ -576,151 +577,124 @@ export async function openPreview(): Promise<void> {
     const layer = layerMap.get(placed.layerId);
 
     if (!def) {
-      renderFallback(sceneContainer, placed, null, layer);
+      renderFallback(threeScene, placed, null, layer);
       entityCount++;
       continue;
     }
 
-    const tex = await loadTexture(def.visual.source);
+    const tex = await loadEntityTexture(def.visual.source);
 
     if (!tex) {
-      renderFallback(sceneContainer, placed, def, layer);
+      renderFallback(threeScene, placed, def, layer);
       entityCount++;
       continue;
     }
 
-    // Spritesheet → AnimatedSprite with idle animation
-    if (def.visual.type === "spritesheet") {
-      const animSprite = buildAnimatedSprite(tex, placed, def);
-      if (animSprite) {
-        applyPlacedTransform(animSprite, placed, def, layer);
-        sceneContainer.addChild(animSprite);
-        entityCount++;
-        continue;
-      }
-    }
+    const mesh = createPreviewMesh(placed, def, layer, tex);
+    threeScene.add(mesh);
 
-    // Static sprite (or spritesheet fallback)
-    const sprite = new Sprite(tex);
-
-    // Apply sourceRect cropping for static sprites
-    if (def.visual.type === "sprite" && def.visual.sourceRect) {
-      const sr = def.visual.sourceRect;
-      sprite.texture = new Texture({
-        source: tex.source,
-        frame: new Rectangle(sr.x, sr.y, sr.w, sr.h),
-      });
-    }
-
-    // For spritesheets without animation, show first frame
+    // Spritesheet animation setup
     if (def.visual.type === "spritesheet") {
       const visual = def.visual;
-      const cols = visual.frameWidth > 0 ? Math.floor(tex.width / visual.frameWidth) : 0;
-      if (cols > 0 && visual.frameHeight > 0) {
-        sprite.texture = new Texture({
-          source: tex.source,
-          frame: new Rectangle(0, 0, visual.frameWidth, visual.frameHeight),
-        });
+      const texSize = getCachedTextureSize(visual.source);
+      const cols = visual.frameWidth > 0 && texSize ? Math.floor(texSize.width / visual.frameWidth) : 0;
+
+      // Find animation
+      const animName = placed.activeState;
+      const anim =
+        visual.animations[animName] ??
+        visual.animations["idle"] ??
+        Object.values(visual.animations)[0];
+
+      if (anim && anim.frames.length > 0 && cols > 0 && texSize) {
+        // Set first frame UV
+        const firstFrame = anim.frames[0]!;
+        const fx = (firstFrame % cols) * visual.frameWidth;
+        const fy = Math.floor(firstFrame / cols) * visual.frameHeight;
+
+        if (fx + visual.frameWidth <= texSize.width && fy + visual.frameHeight <= texSize.height) {
+          setUVFrame(mesh, fx, fy, visual.frameWidth, visual.frameHeight, texSize.width, texSize.height);
+        }
+
+        // Track for animation if multiple frames
+        if (anim.frames.length > 1) {
+          animatedEntities.push({
+            mesh,
+            assetPath: visual.source,
+            frameWidth: visual.frameWidth,
+            frameHeight: visual.frameHeight,
+            frames: anim.frames,
+            fps: anim.fps,
+            loop: anim.loop !== false,
+            currentFrame: 0,
+            accumulator: 0,
+          });
+        }
       }
     }
 
-    applyPlacedTransform(sprite, placed, def, layer);
-    sceneContainer.addChild(sprite);
+    // Static sprite sourceRect cropping
+    if (def.visual.type === "sprite" && def.visual.sourceRect) {
+      const sr = def.visual.sourceRect;
+      const texSize = getCachedTextureSize(def.visual.source);
+      if (texSize) {
+        setUVFrame(mesh, sr.x, sr.y, sr.w, sr.h, texSize.width, texSize.height);
+      }
+    }
+
     entityCount++;
   }
 
   logToPreview(`Rendered ${String(entityCount)} entities.`);
 
-  // Render positions
-  renderPositions(sceneContainer);
+  // Draw Canvas2D overlays (positions, routes)
+  drawOverlays(overlayCtx, overlayCanvas, dimensions.width, dimensions.height);
   logToPreview(`Rendered ${String(sceneState.positions.length)} positions.`);
-
-  // Render routes
-  renderRoutes(sceneContainer);
   logToPreview(`Rendered ${String(sceneState.routes.length)} routes.`);
 
-  // Sort children by zIndex
-  sceneContainer.sortChildren();
+  // Initial render
+  renderer.render(threeScene, camera);
+
+  // Start animation loop
+  const lastTime = { v: performance.now() };
+  const animFrameId = requestAnimationFrame((t) => previewLoop(t, lastTime));
 
   // Store active state
-  activePreview = { app, overlay, keyHandler: onKeyDown };
+  activePreview = {
+    renderer,
+    scene: threeScene,
+    camera,
+    overlay,
+    overlayCanvas,
+    keyHandler: onKeyDown,
+    animFrameId,
+    animatedEntities,
+  };
 
   setStatus("Ready");
   logToPreview("Preview ready.");
-}
-
-/**
- * Build an AnimatedSprite for a spritesheet entity.
- *
- * Finds the active animation (or idle fallback), slices frames from
- * the texture, and starts playback.
- */
-function buildAnimatedSprite(
-  tex: Texture,
-  placed: PlacedEntity,
-  def: EntityEntry,
-): AnimatedSprite | null {
-  if (def.visual.type !== "spritesheet") return null;
-
-  const visual = def.visual;
-  const cols = visual.frameWidth > 0 ? Math.floor(tex.width / visual.frameWidth) : 0;
-  if (cols === 0) return null;
-
-  // Find animation — prefer active state, fall back to idle, then first available
-  const animName = placed.activeState;
-  const anim =
-    visual.animations[animName] ??
-    visual.animations["idle"] ??
-    Object.values(visual.animations)[0];
-
-  if (!anim || anim.frames.length === 0) return null;
-
-  // Slice frame textures
-  const frameTextures: Texture[] = [];
-  for (const frameIndex of anim.frames) {
-    const fx = (frameIndex % cols) * visual.frameWidth;
-    const fy = Math.floor(frameIndex / cols) * visual.frameHeight;
-
-    // Bounds check
-    if (fx + visual.frameWidth > tex.width || fy + visual.frameHeight > tex.height) {
-      continue;
-    }
-
-    frameTextures.push(
-      new Texture({
-        source: tex.source,
-        frame: new Rectangle(fx, fy, visual.frameWidth, visual.frameHeight),
-      }),
-    );
-  }
-
-  if (frameTextures.length === 0) return null;
-
-  const animated = new AnimatedSprite(frameTextures);
-  animated.animationSpeed = anim.fps / 60; // PixiJS uses speed relative to 60fps
-  animated.loop = anim.loop !== false;
-  animated.play();
-
-  return animated;
 }
 
 /** Close the preview and clean up resources. */
 export function closePreview(): void {
   if (!activePreview) return;
 
-  const { app, overlay, keyHandler } = activePreview;
+  const { renderer, overlay, keyHandler, animFrameId } = activePreview;
+
+  // Stop animation loop
+  cancelAnimationFrame(animFrameId);
 
   // Remove escape key handler
   document.removeEventListener("keydown", keyHandler);
 
-  // Destroy PixiJS app
-  app.destroy(true);
+  // Dispose Three.js
+  renderer.dispose();
 
   // Remove overlay
   overlay.remove();
 
   // Clear preview texture cache
-  previewTexCache.clear();
+  clearTextureCache();
 
   activePreview = null;
 }

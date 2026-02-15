@@ -14,7 +14,6 @@
     "@sajou/stage": "workspace:*",
     "fflate": "^0.8.2",
     "gifuct-js": "^2.1.2",
-    "pixi.js": "^8.16.0",
     "three": "^0.175.0"
   },
   "devDependencies": {
