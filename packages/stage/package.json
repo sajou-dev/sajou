@@ -1,0 +1,26 @@
+{
+  "name": "@sajou/stage",
+  "version": "0.1.0",
+  "description": "Three.js isometric board renderer for sajou — implements CommandSink",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@sajou/core": "workspace:*",
+    "three": "^0.175.0"
+  },
+  "devDependencies": {
+    "@types/three": "^0.175.0",
+    "typescript": "^5.9.3"
+  }
+}
