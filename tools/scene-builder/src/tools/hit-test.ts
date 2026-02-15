@@ -175,8 +175,11 @@ export function hitTestScreenSpace(clientX: number, clientY: number): string | n
 
     if (!def.defaults.flat) {
       // Billboard: test screen-projected vertical bounds
-      const bottomPt = worldToScreen(placed.x, 0, placed.y);
-      const topPt = worldToScreen(placed.x, h, placed.y);
+      // Use shifted Z so feet match their top-down position.
+      const ay = def.defaults.anchor?.[1] ?? 0.5;
+      const feetZ = placed.y + (1 - ay) * h;
+      const bottomPt = worldToScreen(placed.x, 0, feetZ);
+      const topPt = worldToScreen(placed.x, h, feetZ);
       const pxPerUnit = Math.abs(bottomPt.y - topPt.y) / h;
       const screenW = w * pxPerUnit;
       const screenH = Math.abs(bottomPt.y - topPt.y);

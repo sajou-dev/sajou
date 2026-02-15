@@ -209,6 +209,12 @@ function applyEntityTransform(
     const ay = _def.defaults.anchor?.[1] ?? 0.5;
     mesh.position.y = h * (1 - ay);
 
+    // Shift Z so feet align with their top-down position.
+    // In top-down, the anchor offset bakes into the geometry, placing the feet
+    // at placed.y + (1-ay)*h*scale. In billboard mode the feet are at
+    // group.position.z, so we shift Z to match.
+    group.position.z = placed.y + (1 - ay) * h * placed.scale;
+
     // In iso, the billboard height is along Y, width is split across X/Z.
     // Use uniform scale so width and height scale equally.
     // flipH negates X+Z together; flipV negates Y.
@@ -382,6 +388,10 @@ function applyBillboard(ctrl: CameraController): void {
         const h = def.displayHeight;
         const ay = def.defaults.anchor?.[1] ?? 0.5;
         record.mesh.position.y = h * (1 - ay);
+        // Shift Z so feet match top-down position
+        if (placed) {
+          record.group.position.z = placed.y + (1 - ay) * h * placed.scale;
+        }
       } else {
         record.mesh.rotation.set(0, 0, 0, "YXZ");
         record.mesh.position.y = 0;
@@ -389,8 +399,13 @@ function applyBillboard(ctrl: CameraController): void {
     }
   } else {
     for (const [, record] of entityRecords) {
+      const placed = placedMap.get(record.placedId);
       record.mesh.rotation.set(0, 0, 0, "YXZ");
       record.mesh.position.y = 0;
+      // Reset Z to placed.y (no feet offset in top-down)
+      if (placed) {
+        record.group.position.z = placed.y;
+      }
     }
   }
 }

@@ -209,8 +209,10 @@ export function renderSelection(ctx: CanvasRenderingContext2D, zoom: number): vo
       // Billboard entity in iso: project the entity's world-space vertical
       // extent to screen coordinates so the selection box wraps around the
       // standing sprite, not flat on the ground.
-      const bottomPt = worldToScreen(placed.x, 0, placed.y);
-      const topPt = worldToScreen(placed.x, h, placed.y);
+      // Use shifted Z so feet align with their top-down position.
+      const feetZ = placed.y + (1 - ay) * h;
+      const bottomPt = worldToScreen(placed.x, 0, feetZ);
+      const topPt = worldToScreen(placed.x, h, feetZ);
 
       // Pixels per world unit (ortho: same horizontally and vertically)
       const pxPerUnit = Math.abs(bottomPt.y - topPt.y) / h;
@@ -291,8 +293,10 @@ export function renderBindingHighlight(ctx: CanvasRenderingContext2D, zoom: numb
     const isHovered = placed.id === bindingDropHighlightId;
 
     if (iso && !def?.defaults.flat) {
-      const bottomPt = worldToScreen(placed.x, 0, placed.y);
-      const topPt = worldToScreen(placed.x, h, placed.y);
+      const ay = def?.defaults.anchor?.[1] ?? 0.5;
+      const feetZ = placed.y + (1 - ay) * h;
+      const bottomPt = worldToScreen(placed.x, 0, feetZ);
+      const topPt = worldToScreen(placed.x, h, feetZ);
       const pxPerUnit = Math.abs(bottomPt.y - topPt.y) / h;
       const screenW = w * pxPerUnit;
       const screenH = Math.abs(bottomPt.y - topPt.y);
@@ -667,8 +671,10 @@ export function renderActorBadges(ctx: CanvasRenderingContext2D, _zoom: number):
     const bs = 4;
 
     if (iso && !def?.defaults.flat) {
-      const topPt = worldToScreen(placed.x, h, placed.y);
-      const pxPerUnit = Math.abs(worldToScreen(placed.x, 0, placed.y).y - topPt.y) / h;
+      const ay = def?.defaults.anchor?.[1] ?? 0.5;
+      const feetZ = placed.y + (1 - ay) * h;
+      const topPt = worldToScreen(placed.x, h, feetZ);
+      const pxPerUnit = Math.abs(worldToScreen(placed.x, 0, feetZ).y - topPt.y) / h;
       const screenW = w * pxPerUnit;
       const bx = topPt.x + screenW * (1 - ax) - 2;
       const by = topPt.y + 2;
