@@ -325,6 +325,9 @@ export type ZoneId = "signal" | "choreographer" | "theme";
  */
 export type InterfaceState = 0 | 1 | 2 | 3;
 
+/** Camera view mode for the scene canvas. */
+export type ViewMode = "top-down" | "isometric";
+
 /** Available canvas tools. */
 export type ToolId = "select" | "hand" | "background" | "place" | "position" | "route";
 
@@ -401,6 +404,8 @@ export interface EditorState {
   bindingDropHighlightId: string | null;
   /** Active zone type brush for painting (null = no painting). */
   activeZoneTypeId: string | null;
+  /** Camera view mode (top-down or isometric). */
+  viewMode: ViewMode;
 }
 
 // ---------------------------------------------------------------------------

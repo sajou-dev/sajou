@@ -5,7 +5,7 @@
  * Not saved to the scene file.
  */
 
-import type { EditorState, InterfaceState, NodeCanvasViewport, PanelId, PanelLayout, ToolId, ViewId } from "../types.js";
+import type { EditorState, InterfaceState, NodeCanvasViewport, PanelId, PanelLayout, ToolId, ViewId, ViewMode } from "../types.js";
 
 // ---------------------------------------------------------------------------
 // Default state
@@ -44,6 +44,7 @@ function createDefault(): EditorState {
     bindingDragActive: false,
     bindingDropHighlightId: null,
     activeZoneTypeId: null,
+    viewMode: "top-down",
   };
 }
 
@@ -181,6 +182,18 @@ export function setNodeCanvasViewport(viewport: NodeCanvasViewport): void {
 export function setActiveZoneType(id: string | null): void {
   state = { ...state, activeZoneTypeId: id };
   notify();
+}
+
+/** Set the camera view mode. */
+export function setViewMode(mode: ViewMode): void {
+  if (state.viewMode === mode) return;
+  state = { ...state, viewMode: mode };
+  notify();
+}
+
+/** Toggle between top-down and isometric view. */
+export function toggleViewMode(): void {
+  setViewMode(state.viewMode === "top-down" ? "isometric" : "top-down");
 }
 
 /** Subscribe to editor state changes. Returns unsubscribe function. */
