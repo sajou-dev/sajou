@@ -133,19 +133,38 @@ Multiple agents may work in parallel. Each agent owns a specific package. **Neve
 
 ## Git Workflow
 
-### Branch Strategy
+### Branch Strategy — 3-tier model
+
+Branches follow sajou's 3-layer architecture. **Never work directly on `main`.**
+
 ```
-main                    ← stable, all tests pass
-├── feat/schema-v1      ← schema agent works here
-├── feat/core-runtime   ← core agent works here
-├── feat/theme-citadel  ← theme agent works here
+main                         ← stable, tagged releases only (semver v0.x.x)
+├── core/<description>       ← engine, runtime, orchestration, schema
+├── interface/<description>  ← UI, scene-builder, player, user-facing
+├── infra/<description>      ← config, deploy, build, network, tooling
+└── fix/<description>        ← bug fixes (any tier)
 ```
 
-### Branch Naming
-- `feat/<package>-<description>` — new feature: `feat/core-choreographer-runtime`
-- `fix/<package>-<description>` — bug fix: `fix/schema-signal-validation`
-- `refactor/<package>-<description>` — refactor: `refactor/core-primitive-types`
-- `explore/<topic>` — exploration/prototyping: `explore/entity-format-3d`
+**Tier mapping:**
+
+| Tier | Branch prefix | Scope examples |
+|------|--------------|----------------|
+| **Core** | `core/` | `@sajou/schema`, `@sajou/core`, `@sajou/theme-api`, `@sajou/emitter`, choreographer runtime, signal protocol |
+| **Interface** | `interface/` | `scene-builder`, `player`, themes (`theme-citadel`, `theme-office`), UI components, visual tooling |
+| **Infra** | `infra/` | `vite.config`, `tsconfig`, CI/CD, pnpm workspace, deployment, dev server plugins |
+| **Fix** | `fix/` | Bug fixes in any tier — name should indicate the affected area |
+
+### Active branch enforcement (Claude Code MUST do this)
+
+1. **Before starting any change**: check the current branch (`git branch --show-current`). If on `main`, create or switch to the appropriate tier branch. **Never commit to `main`.**
+
+2. **During a session**: if the user's work drifts to a different tier (e.g. working on `interface/scene-builder-ui` but starting to modify `packages/core/`), **immediately flag it**: "This change looks like `core/` scope — want me to switch branches or split the work?"
+
+3. **At commit time**: verify that staged changes match the branch tier. If a single file contains cross-tier changes, use `git add -p` to stage only the relevant hunks. If the mix is too entangled, ask the user how to split.
+
+4. **Merge to `main`**: only when a branch is complete and all tests pass. Always use `git merge --no-ff` to preserve branch history.
+
+5. **Tagging**: `main` is tagged with semver `v0.x.x` on user request when a stable state is reached. Use `git tag -a v0.x.x -m "description"`.
 
 ### Commit Convention
 ```
@@ -164,7 +183,7 @@ Scopes: `core`, `schema`, `theme-api`, `theme-citadel`, `theme-office`, `emitter
 ### Rules
 - Every commit must compile (`pnpm typecheck` passes)
 - Every commit should have passing tests (`pnpm test` passes)
-- Never commit directly to `main` — always branch and merge
+- **Never commit directly to `main`** — always branch and merge
 - Small, focused commits. One concern per commit.
 - If a change touches multiple packages, split into separate commits per package.
 
