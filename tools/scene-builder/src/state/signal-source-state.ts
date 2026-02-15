@@ -63,7 +63,7 @@ export function createSource(name?: string): SignalSource {
 
 function createDefault(): SignalSourcesState {
   return {
-    sources: [createSource("default")],
+    sources: [createSource("New source")],
     selectedSourceId: null,
     expanded: true,
   };
@@ -103,8 +103,12 @@ export function addSource(name?: string): string {
   return source.id;
 }
 
+/** Well-known ID for the built-in local SSE source. Cannot be removed. */
+export const LOCAL_SOURCE_ID = "local";
+
 /** Remove a source by ID. Also cleans up any signal→signal-type wires referencing it. */
 export function removeSource(id: string): void {
+  if (id === LOCAL_SOURCE_ID) return;
   // Clean up orphaned wires: remove all signal→signal-type wires from this source
   const { wires } = getWiringState();
   for (const wire of wires) {

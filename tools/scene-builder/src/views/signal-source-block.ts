@@ -59,15 +59,17 @@ export function createSourceBlock(source: SignalSource): HTMLElement {
   });
   header.appendChild(nameInput);
 
-  const removeBtn = document.createElement("button");
-  removeBtn.className = "source-block-remove";
-  removeBtn.textContent = "\u00D7";
-  removeBtn.title = "Remove source";
-  removeBtn.addEventListener("click", () => {
-    disconnectSource(source.id);
-    removeSource(source.id);
-  });
-  header.appendChild(removeBtn);
+  if (source.id !== "local") {
+    const removeBtn = document.createElement("button");
+    removeBtn.className = "source-block-remove";
+    removeBtn.textContent = "\u00D7";
+    removeBtn.title = "Remove source";
+    removeBtn.addEventListener("click", () => {
+      disconnectSource(source.id);
+      removeSource(source.id);
+    });
+    header.appendChild(removeBtn);
+  }
 
   block.appendChild(header);
 
