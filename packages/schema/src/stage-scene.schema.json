@@ -1,0 +1,315 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sajou.dev/schema/stage-scene.json",
+  "title": "Sajou Stage Scene",
+  "description": "Declarative description of a Stage scene: board layout, zones, slots, entities, lighting, and particles. Parsed by both the Godot Stage runtime and the TypeScript host.",
+  "type": "object",
+  "required": ["board"],
+  "properties": {
+    "board": { "$ref": "#/$defs/board" },
+    "lighting": { "$ref": "#/$defs/lightingConfig" },
+    "particles": {
+      "type": "object",
+      "description": "Particle system definitions keyed by name.",
+      "additionalProperties": { "$ref": "#/$defs/particleSystem" }
+    },
+    "entities": {
+      "type": "array",
+      "description": "Entity placements on the board.",
+      "items": { "$ref": "#/$defs/entity" }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "boardPosition": {
+      "type": "object",
+      "description": "2D position on the board.",
+      "required": ["x", "y"],
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" }
+      },
+      "additionalProperties": false
+    },
+    "boardBounds": {
+      "type": "object",
+      "description": "Rectangular bounds on the board.",
+      "required": ["x", "y", "w", "h"],
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "w": { "type": "number", "minimum": 0 },
+        "h": { "type": "number", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "board": {
+      "type": "object",
+      "description": "The board — spatial container for zones and entities.",
+      "required": ["projection", "zones"],
+      "properties": {
+        "projection": {
+          "type": "string",
+          "enum": ["isometric", "top-down"],
+          "description": "Projection type for the board."
+        },
+        "angle": {
+          "type": "number",
+          "description": "Camera angle in degrees (isometric default: 45)."
+        },
+        "zones": {
+          "type": "array",
+          "description": "Named zones on the board.",
+          "items": { "$ref": "#/$defs/zone" },
+          "minItems": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "zone": {
+      "type": "object",
+      "description": "A named region on the board with spatial bounds and ambiance.",
+      "required": ["id", "bounds"],
+      "properties": {
+        "id": { "type": "string", "description": "Unique zone identifier." },
+        "label": { "type": "string", "description": "Display label." },
+        "elevation": {
+          "type": "number",
+          "description": "Elevation level (0 = ground). Higher values render above.",
+          "default": 0
+        },
+        "bounds": { "$ref": "#/$defs/boardBounds" },
+        "ambiance": { "$ref": "#/$defs/zoneAmbiance" },
+        "slots": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/slot" }
+        },
+        "connections": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/zoneConnection" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "slot": {
+      "type": "object",
+      "description": "A position within a zone where an entity can be placed.",
+      "required": ["id", "position"],
+      "properties": {
+        "id": { "type": "string", "description": "Unique slot identifier." },
+        "position": { "$ref": "#/$defs/boardPosition" },
+        "role": {
+          "type": "string",
+          "description": "Semantic role (e.g., 'workstation', 'standing', 'guard_post')."
+        }
+      },
+      "additionalProperties": false
+    },
+    "zoneAmbiance": {
+      "type": "object",
+      "description": "Ambient effects for a zone.",
+      "properties": {
+        "lighting": {
+          "type": "string",
+          "description": "Lighting mood (references a lighting preset or descriptor)."
+        },
+        "particles": {
+          "type": "string",
+          "description": "Particle system key (references a key in the top-level particles)."
+        },
+        "soundLoop": {
+          "type": "string",
+          "description": "Looping ambient sound identifier."
+        }
+      },
+      "additionalProperties": false
+    },
+    "zoneConnection": {
+      "type": "object",
+      "description": "Connection between two zones.",
+      "required": ["to", "type"],
+      "properties": {
+        "to": { "type": "string", "description": "Target zone ID." },
+        "type": {
+          "type": "string",
+          "enum": ["stairs", "bridge", "portal", "path"],
+          "description": "Connection type."
+        },
+        "path": { "type": "string", "description": "Path identifier for navigation." }
+      },
+      "additionalProperties": false
+    },
+    "lightingConfig": {
+      "type": "object",
+      "description": "Complete lighting configuration for a scene.",
+      "properties": {
+        "global": { "$ref": "#/$defs/lightGlobal" },
+        "sources": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/lightSource" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "lightGlobal": {
+      "type": "object",
+      "description": "Global directional light (sun, moon).",
+      "required": ["type", "angle", "elevation", "color", "intensity"],
+      "properties": {
+        "type": { "type": "string", "const": "directional" },
+        "angle": { "type": "number", "description": "Compass angle in degrees." },
+        "elevation": { "type": "number", "description": "Elevation angle above horizon." },
+        "color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "CSS hex color." },
+        "intensity": { "type": "number", "minimum": 0, "description": "Intensity multiplier." }
+      },
+      "additionalProperties": false
+    },
+    "lightSource": {
+      "type": "object",
+      "description": "A positioned light source (torch, fire, lamp).",
+      "required": ["id", "type", "position", "color", "intensity", "radius"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string", "enum": ["point", "spot"] },
+        "position": { "$ref": "#/$defs/boardPosition" },
+        "color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+        "intensity": { "type": "number", "minimum": 0 },
+        "radius": { "type": "number", "minimum": 0 },
+        "flicker": { "$ref": "#/$defs/lightFlicker" }
+      },
+      "additionalProperties": false
+    },
+    "lightFlicker": {
+      "type": "object",
+      "description": "Flicker parameters for dynamic lights.",
+      "required": ["speed", "amount"],
+      "properties": {
+        "speed": { "type": "number", "minimum": 0, "description": "Oscillations per second." },
+        "amount": { "type": "number", "minimum": 0, "maximum": 1, "description": "Fraction of intensity." }
+      },
+      "additionalProperties": false
+    },
+    "particleSystem": {
+      "type": "object",
+      "description": "A particle system definition.",
+      "required": ["emitter", "sprite", "count", "lifetime"],
+      "properties": {
+        "emitter": { "type": "string", "description": "Attachment — 'zone:<id>' or 'entity:<id>'." },
+        "sprite": { "type": "string", "description": "Particle sprite path." },
+        "type": { "type": "string", "enum": ["radial", "directional"], "default": "radial" },
+        "count": { "type": "integer", "minimum": 1, "description": "Max simultaneous particles." },
+        "lifetime": {
+          "type": "array", "items": { "type": "number", "minimum": 0 },
+          "minItems": 2, "maxItems": 2,
+          "description": "Particle lifetime range [min, max] in seconds."
+        },
+        "velocity": {
+          "type": "object",
+          "properties": {
+            "x": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 },
+            "y": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 }
+          },
+          "additionalProperties": false
+        },
+        "direction": { "$ref": "#/$defs/boardPosition" },
+        "speed": {
+          "type": "array", "items": { "type": "number", "minimum": 0 },
+          "minItems": 2, "maxItems": 2
+        },
+        "colorOverLife": {
+          "type": "array", "items": { "type": "string" },
+          "description": "Color gradient over lifetime (CSS hex or rgba)."
+        },
+        "size": {
+          "type": "array", "items": { "type": "number", "minimum": 0 },
+          "minItems": 2, "maxItems": 2
+        },
+        "glow": { "type": "boolean", "description": "Additive blending." }
+      },
+      "additionalProperties": false
+    },
+    "entity": {
+      "type": "object",
+      "description": "An entity placed on the Stage board.",
+      "required": ["id", "visual"],
+      "properties": {
+        "id": { "type": "string" },
+        "displayName": { "type": "string" },
+        "rig": {
+          "type": "string",
+          "enum": ["humanoid", "quadruped", "flying", "mechanical", "static"]
+        },
+        "visual": { "$ref": "#/$defs/entityVisual" },
+        "interactions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/entityInteraction" }
+        },
+        "slot": { "type": "string", "description": "Slot this entity occupies." },
+        "state": { "type": "string", "description": "Current state." }
+      },
+      "additionalProperties": false
+    },
+    "entityVisual": {
+      "type": "object",
+      "description": "Visual properties for a Stage entity.",
+      "required": ["spritesheet", "frameSize", "animations"],
+      "properties": {
+        "spritesheet": { "type": "string" },
+        "normalMap": { "type": "string" },
+        "frameSize": {
+          "type": "array",
+          "items": { "type": "integer", "minimum": 1 },
+          "minItems": 2, "maxItems": 2,
+          "description": "Frame dimensions [width, height] in pixels."
+        },
+        "animations": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/entityAnimation" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "entityAnimation": {
+      "type": "object",
+      "description": "A named animation within an entity's spritesheet.",
+      "required": ["frames", "fps"],
+      "properties": {
+        "frames": {
+          "type": "array",
+          "items": { "type": "integer", "minimum": 0 },
+          "minItems": 1
+        },
+        "fps": { "type": "number", "minimum": 1 },
+        "loop": { "type": "boolean", "default": true }
+      },
+      "additionalProperties": false
+    },
+    "entityInteraction": {
+      "type": "object",
+      "description": "An interaction the user can perform on an entity.",
+      "required": ["type"],
+      "properties": {
+        "type": { "type": "string", "enum": ["click", "context_menu", "drag"] },
+        "signal": { "type": "string" },
+        "label": { "type": "string" },
+        "mode": { "type": "string", "enum": ["drag_to_slot", "drag_free"] },
+        "options": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/contextMenuOption" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "contextMenuOption": {
+      "type": "object",
+      "description": "A single option in a context menu.",
+      "required": ["label", "signal"],
+      "properties": {
+        "label": { "type": "string" },
+        "signal": { "type": "string" },
+        "mode": { "type": "string", "enum": ["drag_to_slot", "drag_free"] }
+      },
+      "additionalProperties": false
+    }
+  }
+}
