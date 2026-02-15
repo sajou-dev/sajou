@@ -78,8 +78,42 @@ export interface StressTestConfig {
   readonly signalCount?: number;
   /** Interval between signals in ms. Defaults to 100. */
   readonly intervalMs?: number;
-  /** Signal types to randomly pick from. Defaults to all 7 types. */
+  /** Signal types to randomly pick from. Defaults to all 9 types. */
   readonly types?: readonly SignalType[];
   /** Agent identifier. Defaults to "agent-stress". */
   readonly agentId?: string;
+}
+
+/** LLM personality — controls timing, thinking, and tool use patterns. */
+export interface LLMProfile {
+  /** Model identifier shown in signals (e.g. "claude-sonnet-4-5-20250929"). */
+  readonly model: string;
+  /** Short display name (e.g. "Claude Sonnet"). */
+  readonly displayName: string;
+  /** Average ms between text_delta tokens. */
+  readonly tokenIntervalMs: number;
+  /** Whether this model emits thinking signals before responding. */
+  readonly hasThinking: boolean;
+  /** Average ms between thinking chunks (if hasThinking). */
+  readonly thinkingIntervalMs?: number;
+  /** Number of thinking chunks to emit (if hasThinking). */
+  readonly thinkingChunks?: number;
+  /** Whether this model can call tools mid-stream. */
+  readonly hasToolUse: boolean;
+}
+
+/** Configuration for LLM streaming flow builder. */
+export interface StreamingFlowConfig {
+  /** LLM profile to simulate. Uses CLAUDE_SONNET profile if omitted. */
+  readonly profile?: LLMProfile;
+  /** Text to stream token-by-token. Uses default sample if omitted. */
+  readonly text?: string;
+  /** Thinking text (for thinking models). Uses default sample if omitted. */
+  readonly thinkingText?: string;
+  /** Tools to call during the flow (empty = pure text streaming). */
+  readonly tools?: readonly { readonly name: string; readonly input?: Record<string, unknown>; readonly output?: Record<string, unknown> }[];
+  /** Timing jitter multiplier. Defaults to 0.15. */
+  readonly jitter?: number;
+  /** Task description for the initial dispatch. */
+  readonly taskDescription?: string;
 }
