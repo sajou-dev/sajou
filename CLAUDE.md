@@ -42,6 +42,11 @@ sajou/
 ├── tests/
 │   └── integration/       # Cross-package integration tests
 ├── docs/
+│   ├── backlog/           # Raw ideas — one markdown file per idea
+│   ├── active/            # Ideas currently in development
+│   ├── done/              # Completed and merged ideas
+│   ├── specs/             # Technical reference documents
+│   ├── decisions/         # Technical decisions and their context
 │   ├── adr/               # Architecture Decision Records
 │   ├── archive/           # Archived specs (implemented, kept for reference)
 │   └── brand/             # Brand guide and assets
@@ -186,6 +191,63 @@ Scopes: `core`, `schema`, `theme-api`, `theme-citadel`, `theme-office`, `emitter
 - **Never commit directly to `main`** — always branch and merge
 - Small, focused commits. One concern per commit.
 - If a change touches multiple packages, split into separate commits per package.
+
+---
+
+## Ideas, Specs & Decisions
+
+### Directory structure
+
+```
+docs/
+├── backlog/        → raw ideas, one per markdown file
+├── active/         → currently in development
+├── done/           → completed and merged
+├── specs/          → technical reference documents
+└── decisions/      → technical decisions and their context
+```
+
+### Backlog format
+
+Each idea is a minimal markdown file in `backlog/`. Filename in `kebab-case` (e.g. `smart-interruption-system.md`).
+
+```markdown
+# Titre de l'idée
+Tiers: core | interface | infra
+---
+Description libre, aussi courte ou longue que nécessaire.
+```
+
+No version, no priority, no date, no status. **The directory the file lives in IS the status.**
+
+### Lifecycle
+
+1. **Creation** — when the user mentions an idea in the chat, create the file in `backlog/`. Don't ask for clarifications, capture the idea as-is.
+2. **Activation** — when the user decides to work on an idea, move the file from `backlog/` to `active/`, enrich with technical details if needed, and create the corresponding Git branch (matching the tier).
+3. **Completion** — when the branch is merged into `main`, move the file from `active/` to `done/`, append the tag version and date at the bottom.
+4. **Grouping** — when activating an idea, check `backlog/` for related ideas that would make sense to tackle together.
+
+### Technical decisions
+
+When a significant technical choice is made during a session, create a file in `docs/decisions/` in `kebab-case` (e.g. `choix-framework-ui.md`).
+
+```markdown
+# Titre de la décision
+Date: YYYY-MM-DD
+Contexte: pourquoi la question se posait
+Décision: ce qu'on a choisi
+Alternatives envisagées: ce qu'on a écarté
+Raison: pourquoi ce choix et pas les autres
+```
+
+Don't log raw conversations. Capture only the decisions and their context. These files serve as the project's technical memory.
+
+### Rules
+
+- Never modify the content of files in `backlog/` unless explicitly asked
+- Never delete files — everything goes through the `backlog → active → done` cycle
+- `specs/` are technical reference documents independent of the idea lifecycle. Create or update them when a feature requires it.
+- The user can create backlog files themselves at any time — Claude Code must not impose strict formatting beyond the minimum above
 
 ---
 
