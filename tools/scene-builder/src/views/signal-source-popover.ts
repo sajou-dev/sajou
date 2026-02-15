@@ -21,6 +21,8 @@ import {
   disconnectSource,
   sendPromptToSource,
   stopSourcePrompt,
+  connectLocalSSE,
+  disconnectLocalSSE,
 } from "./signal-connection.js";
 
 // ---------------------------------------------------------------------------
@@ -218,56 +220,63 @@ function buildPopoverContent(content: HTMLElement, source: SignalSource): void {
   nameRow.appendChild(nameInput);
   content.appendChild(nameRow);
 
-  // -- URL input --
-  const urlRow = document.createElement("div");
-  urlRow.className = "nc-popover-row";
+  // -- URL + API key inputs (hidden for the built-in Local source) --
+  if (source.id !== "local") {
+    const urlRow = document.createElement("div");
+    urlRow.className = "nc-popover-row";
 
-  const urlLabel = document.createElement("span");
-  urlLabel.className = "nc-popover-label";
-  urlLabel.textContent = "url";
-  urlRow.appendChild(urlLabel);
+    const urlLabel = document.createElement("span");
+    urlLabel.className = "nc-popover-label";
+    urlLabel.textContent = "url";
+    urlRow.appendChild(urlLabel);
 
-  const urlInput = document.createElement("input");
-  urlInput.className = "nc-popover-select";
-  urlInput.type = "text";
-  urlInput.placeholder = "ws://localhost:9100";
-  urlInput.value = source.url;
-  urlInput.disabled = isActive;
-  urlInput.addEventListener("change", () => {
-    const url = urlInput.value;
-    const proto = detectProtocol(url);
-    updateSource(source.id, { url, protocol: proto });
-  });
-  urlRow.appendChild(urlInput);
-  content.appendChild(urlRow);
+    const urlInput = document.createElement("input");
+    urlInput.className = "nc-popover-select";
+    urlInput.type = "text";
+    urlInput.placeholder = "ws://localhost:9100";
+    urlInput.value = source.url;
+    urlInput.disabled = isActive;
+    urlInput.addEventListener("change", () => {
+      const url = urlInput.value;
+      const proto = detectProtocol(url);
+      updateSource(source.id, { url, protocol: proto });
+    });
+    urlRow.appendChild(urlInput);
+    content.appendChild(urlRow);
 
-  // -- API key input --
-  const keyRow = document.createElement("div");
-  keyRow.className = "nc-popover-row";
+    const keyRow = document.createElement("div");
+    keyRow.className = "nc-popover-row";
 
-  const keyLabel = document.createElement("span");
-  keyLabel.className = "nc-popover-label";
-  keyLabel.textContent = "key";
-  keyRow.appendChild(keyLabel);
+    const keyLabel = document.createElement("span");
+    keyLabel.className = "nc-popover-label";
+    keyLabel.textContent = "key";
+    keyRow.appendChild(keyLabel);
 
-  const keyInput = document.createElement("input");
-  keyInput.className = "nc-popover-select";
-  keyInput.type = "password";
-  keyInput.placeholder = "API key (optional)";
-  keyInput.value = source.apiKey;
-  keyInput.disabled = isActive;
-  keyInput.addEventListener("change", () => {
-    updateSource(source.id, { apiKey: keyInput.value });
-  });
-  keyRow.appendChild(keyInput);
-  content.appendChild(keyRow);
+    const keyInput = document.createElement("input");
+    keyInput.className = "nc-popover-select";
+    keyInput.type = "password";
+    keyInput.placeholder = "API key (optional)";
+    keyInput.value = source.apiKey;
+    keyInput.disabled = isActive;
+    keyInput.addEventListener("change", () => {
+      updateSource(source.id, { apiKey: keyInput.value });
+    });
+    keyRow.appendChild(keyInput);
+    content.appendChild(keyRow);
+  }
 
   // -- Connect / Disconnect button --
   const actionBtn = document.createElement("button");
   actionBtn.className = `source-block-action source-block-action--${isActive ? "disconnect" : "connect"}`;
   actionBtn.textContent = isActive ? "Disconnect" : "Connect";
   actionBtn.addEventListener("click", () => {
-    if (isActive) {
+    if (source.id === "local") {
+      if (isActive) {
+        disconnectLocalSSE();
+      } else {
+        connectLocalSSE();
+      }
+    } else if (isActive) {
       disconnectSource(source.id);
     } else {
       connectSource(source.id, source.url, source.apiKey);
@@ -335,17 +344,19 @@ function buildPopoverContent(content: HTMLElement, source: SignalSource): void {
     content.appendChild(errorEl);
   }
 
-  // -- Delete button --
-  const deleteBtn = document.createElement("button");
-  deleteBtn.className = "nc-popover-delete";
-  deleteBtn.textContent = "\u2716 Remove source";
-  deleteBtn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    disconnectSource(source.id);
-    removeSource(source.id);
-    closeSourcePopover();
-  });
-  content.appendChild(deleteBtn);
+  // -- Delete button (hidden for the built-in Local source) --
+  if (source.id !== "local") {
+    const deleteBtn = document.createElement("button");
+    deleteBtn.className = "nc-popover-delete";
+    deleteBtn.textContent = "\u2716 Remove source";
+    deleteBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      disconnectSource(source.id);
+      removeSource(source.id);
+      closeSourcePopover();
+    });
+    content.appendChild(deleteBtn);
+  }
 }
 
 // ---------------------------------------------------------------------------
