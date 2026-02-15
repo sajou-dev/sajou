@@ -74,6 +74,26 @@
     {
       "if": { "properties": { "type": { "const": "thinking" } } },
       "then": { "properties": { "payload": { "$ref": "#/$defs/thinkingPayload" } } }
+    },
+    {
+      "if": { "properties": { "type": { "const": "user.click" } } },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/userClickPayload" } } }
+    },
+    {
+      "if": { "properties": { "type": { "const": "user.move" } } },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/userMovePayload" } } }
+    },
+    {
+      "if": { "properties": { "type": { "const": "user.zone" } } },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/userZonePayload" } } }
+    },
+    {
+      "if": { "properties": { "type": { "const": "user.command" } } },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/userCommandPayload" } } }
+    },
+    {
+      "if": { "properties": { "type": { "const": "user.point" } } },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/userPointPayload" } } }
     }
   ],
   "$defs": {
@@ -302,6 +322,117 @@
         "content": {
           "type": "string",
           "description": "The thinking/reasoning text chunk."
+        }
+      },
+      "additionalProperties": false
+    },
+    "boardPosition": {
+      "type": "object",
+      "description": "2D position on the board.",
+      "required": ["x", "y"],
+      "properties": {
+        "x": { "type": "number", "description": "Horizontal position." },
+        "y": { "type": "number", "description": "Vertical position." }
+      },
+      "additionalProperties": false
+    },
+    "boardBounds": {
+      "type": "object",
+      "description": "Rectangular bounds on the board.",
+      "required": ["x", "y", "w", "h"],
+      "properties": {
+        "x": { "type": "number", "description": "Left edge." },
+        "y": { "type": "number", "description": "Top edge." },
+        "w": { "type": "number", "minimum": 0, "description": "Width." },
+        "h": { "type": "number", "minimum": 0, "description": "Height." }
+      },
+      "additionalProperties": false
+    },
+    "userClickPayload": {
+      "type": "object",
+      "description": "The user clicked on an entity in the Stage. Triggers agent inspection, selection, or a custom interaction.",
+      "required": ["target"],
+      "properties": {
+        "target": {
+          "type": "string",
+          "description": "The entity ID that was clicked."
+        },
+        "position": {
+          "$ref": "#/$defs/boardPosition",
+          "description": "Optional. Board position of the click."
+        }
+      },
+      "additionalProperties": false
+    },
+    "userMovePayload": {
+      "type": "object",
+      "description": "The user dragged an entity to a slot on the board.",
+      "required": ["entityId", "toSlot"],
+      "properties": {
+        "entityId": {
+          "type": "string",
+          "description": "The entity being moved."
+        },
+        "toSlot": {
+          "type": "string",
+          "description": "The destination slot ID."
+        },
+        "toZone": {
+          "type": "string",
+          "description": "Optional. The destination zone ID."
+        }
+      },
+      "additionalProperties": false
+    },
+    "userZonePayload": {
+      "type": "object",
+      "description": "The user drew a zone on the board (selection, patrol area, build zone).",
+      "required": ["bounds"],
+      "properties": {
+        "bounds": {
+          "$ref": "#/$defs/boardBounds",
+          "description": "Bounds of the drawn zone."
+        },
+        "intent": {
+          "type": "string",
+          "description": "Optional. Semantic intent (e.g., 'patrol_area', 'build_zone')."
+        }
+      },
+      "additionalProperties": false
+    },
+    "userCommandPayload": {
+      "type": "object",
+      "description": "The user selected an action from a context menu on an entity.",
+      "required": ["entityId", "action"],
+      "properties": {
+        "entityId": {
+          "type": "string",
+          "description": "The entity the command targets."
+        },
+        "action": {
+          "type": "string",
+          "description": "The action identifier (e.g., 'assign_task', 'inspect')."
+        },
+        "params": {
+          "type": "object",
+          "description": "Optional. Additional parameters for the action.",
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "userPointPayload": {
+      "type": "object",
+      "description": "The user clicked on an empty spot on the board.",
+      "required": ["position"],
+      "properties": {
+        "position": {
+          "$ref": "#/$defs/boardPosition",
+          "description": "Board position of the click."
+        },
+        "zone": {
+          "type": "string",
+          "description": "Optional. The zone containing the click."
         }
       },
       "additionalProperties": false

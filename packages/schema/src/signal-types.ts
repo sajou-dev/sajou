@@ -25,7 +25,12 @@ export type WellKnownSignalType =
   | "error"
   | "completion"
   | "text_delta"
-  | "thinking";
+  | "thinking"
+  | "user.click"
+  | "user.move"
+  | "user.zone"
+  | "user.command"
+  | "user.point";
 
 /**
  * Signal type discriminator — any string is valid.
@@ -200,6 +205,83 @@ export interface ThinkingPayload {
 }
 
 // ---------------------------------------------------------------------------
+// User interaction payload types (Stage → host, bidirectional loop)
+// ---------------------------------------------------------------------------
+
+/** 2D position on the board. */
+export interface BoardPosition {
+  readonly x: number;
+  readonly y: number;
+}
+
+/** Rectangular bounds on the board. */
+export interface BoardBounds {
+  readonly x: number;
+  readonly y: number;
+  readonly w: number;
+  readonly h: number;
+}
+
+/**
+ * Payload for `user.click` signals.
+ * The user clicked on an entity in the Stage.
+ */
+export interface UserClickPayload {
+  /** The entity that was clicked. */
+  readonly target: string;
+  /** Board position of the click. */
+  readonly position?: BoardPosition;
+}
+
+/**
+ * Payload for `user.move` signals.
+ * The user dragged an entity to a slot.
+ */
+export interface UserMovePayload {
+  /** The entity being moved. */
+  readonly entityId: string;
+  /** The destination slot ID. */
+  readonly toSlot: string;
+  /** The destination zone ID. */
+  readonly toZone?: string;
+}
+
+/**
+ * Payload for `user.zone` signals.
+ * The user drew a zone on the board.
+ */
+export interface UserZonePayload {
+  /** Bounds of the drawn zone. */
+  readonly bounds: BoardBounds;
+  /** Semantic intent (e.g., "patrol_area", "build_zone"). */
+  readonly intent?: string;
+}
+
+/**
+ * Payload for `user.command` signals.
+ * The user selected an action from a context menu.
+ */
+export interface UserCommandPayload {
+  /** The entity the command targets. */
+  readonly entityId: string;
+  /** The action identifier (e.g., "assign_task", "inspect"). */
+  readonly action: string;
+  /** Additional parameters for the action. */
+  readonly params?: Record<string, unknown>;
+}
+
+/**
+ * Payload for `user.point` signals.
+ * The user clicked on an empty spot on the board.
+ */
+export interface UserPointPayload {
+  /** Board position of the click. */
+  readonly position: BoardPosition;
+  /** The zone containing the click, if any. */
+  readonly zone?: string;
+}
+
+// ---------------------------------------------------------------------------
 // Payload type map (maps well-known signal type string to its payload)
 // ---------------------------------------------------------------------------
 
@@ -214,6 +296,11 @@ export interface SignalPayloadMap {
   completion: CompletionPayload;
   text_delta: TextDeltaPayload;
   thinking: ThinkingPayload;
+  "user.click": UserClickPayload;
+  "user.move": UserMovePayload;
+  "user.zone": UserZonePayload;
+  "user.command": UserCommandPayload;
+  "user.point": UserPointPayload;
 }
 
 // ---------------------------------------------------------------------------

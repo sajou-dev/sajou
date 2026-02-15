@@ -12,7 +12,8 @@
       "import": "./dist/index.js"
     },
     "./signal.schema.json": "./src/signal.schema.json",
-    "./entity-visual.schema.json": "./src/entity-visual.schema.json"
+    "./entity-visual.schema.json": "./src/entity-visual.schema.json",
+    "./stage-scene.schema.json": "./src/stage-scene.schema.json"
   },
   "files": [
     "dist",

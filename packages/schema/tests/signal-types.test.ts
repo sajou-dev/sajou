@@ -13,6 +13,11 @@ import type {
   CompletionPayload,
   TextDeltaPayload,
   ThinkingPayload,
+  UserClickPayload,
+  UserMovePayload,
+  UserZonePayload,
+  UserCommandPayload,
+  UserPointPayload,
 } from "../src/signal-types.js";
 
 describe("Signal types", () => {
@@ -305,6 +310,112 @@ describe("Open protocol (custom signal types)", () => {
   });
 });
 
+describe("User interaction signals (Stage → host)", () => {
+  it("creates a valid user.click signal", () => {
+    const signal: SignalEnvelope<"user.click"> = {
+      id: "sig-300",
+      type: "user.click",
+      timestamp: Date.now(),
+      source: "stage",
+      payload: {
+        target: "blacksmith-01",
+        position: { x: 200, y: 150 },
+      },
+    };
+
+    expect(signal.type).toBe("user.click");
+    expect(signal.payload.target).toBe("blacksmith-01");
+    expect(signal.payload.position?.x).toBe(200);
+  });
+
+  it("creates a valid user.move signal", () => {
+    const signal: SignalEnvelope<"user.move"> = {
+      id: "sig-301",
+      type: "user.move",
+      timestamp: Date.now(),
+      source: "stage",
+      payload: {
+        entityId: "guard-02",
+        toSlot: "rampart-post",
+        toZone: "rampart",
+      },
+    };
+
+    expect(signal.payload.entityId).toBe("guard-02");
+    expect(signal.payload.toSlot).toBe("rampart-post");
+    expect(signal.payload.toZone).toBe("rampart");
+  });
+
+  it("creates a valid user.zone signal", () => {
+    const signal: SignalEnvelope<"user.zone"> = {
+      id: "sig-302",
+      type: "user.zone",
+      timestamp: Date.now(),
+      source: "stage",
+      payload: {
+        bounds: { x: 100, y: 50, w: 300, h: 200 },
+        intent: "patrol_area",
+      },
+    };
+
+    expect(signal.payload.bounds.w).toBe(300);
+    expect(signal.payload.intent).toBe("patrol_area");
+  });
+
+  it("creates a valid user.command signal", () => {
+    const signal: SignalEnvelope<"user.command"> = {
+      id: "sig-303",
+      type: "user.command",
+      timestamp: Date.now(),
+      source: "stage",
+      payload: {
+        entityId: "blacksmith-01",
+        action: "assign_task",
+        params: { priority: "high" },
+      },
+    };
+
+    expect(signal.payload.action).toBe("assign_task");
+    expect(signal.payload.params?.["priority"]).toBe("high");
+  });
+
+  it("creates a valid user.point signal", () => {
+    const signal: SignalEnvelope<"user.point"> = {
+      id: "sig-304",
+      type: "user.point",
+      timestamp: Date.now(),
+      source: "stage",
+      payload: {
+        position: { x: 300, y: 200 },
+        zone: "forge",
+      },
+    };
+
+    expect(signal.payload.position.x).toBe(300);
+    expect(signal.payload.zone).toBe("forge");
+  });
+
+  it("narrows user.click in discriminated union", () => {
+    const signal: SignalEvent = {
+      id: "sig-305",
+      type: "user.click",
+      timestamp: Date.now(),
+      source: "stage",
+      payload: {
+        target: "agent-01",
+      },
+    };
+
+    switch (signal.type) {
+      case "user.click":
+        expect(signal.payload.target).toBe("agent-01");
+        break;
+      default:
+        expect.unreachable("unexpected signal type");
+    }
+  });
+});
+
 // Suppress unused import warnings — these are compile-time-only checks
 void (0 as unknown as TaskDispatchPayload);
 void (0 as unknown as ToolCallPayload);
@@ -315,4 +426,9 @@ void (0 as unknown as ErrorPayload);
 void (0 as unknown as CompletionPayload);
 void (0 as unknown as TextDeltaPayload);
 void (0 as unknown as ThinkingPayload);
+void (0 as unknown as UserClickPayload);
+void (0 as unknown as UserMovePayload);
+void (0 as unknown as UserZonePayload);
+void (0 as unknown as UserCommandPayload);
+void (0 as unknown as UserPointPayload);
 void (0 as unknown as WellKnownSignalType);
