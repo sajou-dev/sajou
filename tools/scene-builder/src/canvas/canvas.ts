@@ -188,6 +188,17 @@ export function sceneToScreen(sceneX: number, sceneY: number): { x: number; y: n
   return controller.sceneToScreen(sceneX, sceneY);
 }
 
+/** Convert world-space (x, y, z) coordinates to screen pixel coordinates. */
+export function worldToScreen(wx: number, wy: number, wz: number): { x: number; y: number } {
+  if (!controller || !overlayCanvas) return { x: 0, y: 0 };
+  const v = new THREE.Vector3(wx, wy, wz);
+  v.project(controller.camera);
+  return {
+    x: (v.x * 0.5 + 0.5) * overlayCanvas.width,
+    y: (-v.y * 0.5 + 0.5) * overlayCanvas.height,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Camera + overlay update
 // ---------------------------------------------------------------------------

@@ -16,7 +16,7 @@ import { getEntityStore } from "../state/entity-store.js";
 import { isRunModeActive } from "../run-mode/run-mode-state.js";
 import { buildPathPoints } from "../tools/route-tool.js";
 import { flattenRoutePath } from "../tools/route-math.js";
-import { sceneToScreen } from "./canvas.js";
+import { sceneToScreen, worldToScreen } from "./canvas.js";
 import type { EntityEntry } from "../types.js";
 
 // ---------------------------------------------------------------------------
@@ -205,6 +205,47 @@ export function renderSelection(ctx: CanvasRenderingContext2D, zoom: number): vo
     const ax = def?.defaults.anchor?.[0] ?? 0.5;
     const ay = def?.defaults.anchor?.[1] ?? 0.5;
 
+    if (isIsoMode()) {
+      // In iso mode the entity stands upright (billboard). Project the
+      // entity's world-space vertical extent to screen coordinates so the
+      // selection box wraps around the standing sprite, not flat on the ground.
+      const bottomPt = worldToScreen(placed.x, 0, placed.y);
+      const topPt = worldToScreen(placed.x, h, placed.y);
+
+      // Pixels per world unit (ortho: same horizontally and vertically)
+      const pxPerUnit = Math.abs(bottomPt.y - topPt.y) / h;
+      const screenW = w * pxPerUnit;
+      const screenH = Math.abs(bottomPt.y - topPt.y);
+
+      const selLeft = bottomPt.x - screenW * ax;
+      const selTop = topPt.y; // topPt has lower screen Y (screen Y grows downward)
+
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+      // Selection rectangle
+      ctx.strokeStyle = "#58a6ff";
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(selLeft - 2, selTop - 2, screenW + 4, screenH + 4);
+
+      // Corner handles
+      const hs = 5;
+      ctx.fillStyle = "#58a6ff";
+      const corners = [
+        { x: selLeft, y: selTop },
+        { x: selLeft + screenW, y: selTop },
+        { x: selLeft, y: selTop + screenH },
+        { x: selLeft + screenW, y: selTop + screenH },
+      ];
+      for (const c of corners) {
+        ctx.fillRect(c.x - hs / 2, c.y - hs / 2, hs, hs);
+      }
+
+      ctx.restore();
+      continue;
+    }
+
+    // Top-down: flat selection on scene plane
     const left = placed.x - w * ax;
     const top = placed.y - h * ay;
 
@@ -238,6 +279,7 @@ export function renderBindingHighlight(ctx: CanvasRenderingContext2D, zoom: numb
   if (!bindingDragActive) return;
 
   const { entities } = getSceneState();
+  const iso = isIsoMode();
 
   for (const placed of entities) {
     if (!placed.visible) continue;
@@ -246,15 +288,32 @@ export function renderBindingHighlight(ctx: CanvasRenderingContext2D, zoom: numb
     const w = (def?.displayWidth ?? 32) * placed.scale;
     const h = (def?.displayHeight ?? 32) * placed.scale;
     const ax = def?.defaults.anchor?.[0] ?? 0.5;
-    const ay = def?.defaults.anchor?.[1] ?? 0.5;
-
-    const left = placed.x - w * ax;
-    const top = placed.y - h * ay;
     const isHovered = placed.id === bindingDropHighlightId;
 
-    ctx.strokeStyle = numAlpha(0xe8a851, isHovered ? 0.9 : 0.3);
-    ctx.lineWidth = (isHovered ? 2.5 : 1) / zoom;
-    ctx.strokeRect(left - 3, top - 3, w + 6, h + 6);
+    if (iso) {
+      const bottomPt = worldToScreen(placed.x, 0, placed.y);
+      const topPt = worldToScreen(placed.x, h, placed.y);
+      const pxPerUnit = Math.abs(bottomPt.y - topPt.y) / h;
+      const screenW = w * pxPerUnit;
+      const screenH = Math.abs(bottomPt.y - topPt.y);
+      const selLeft = bottomPt.x - screenW * ax;
+      const selTop = topPt.y;
+
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.strokeStyle = numAlpha(0xe8a851, isHovered ? 0.9 : 0.3);
+      ctx.lineWidth = isHovered ? 2.5 : 1;
+      ctx.strokeRect(selLeft - 3, selTop - 3, screenW + 6, screenH + 6);
+      ctx.restore();
+    } else {
+      const ay = def?.defaults.anchor?.[1] ?? 0.5;
+      const left = placed.x - w * ax;
+      const top = placed.y - h * ay;
+
+      ctx.strokeStyle = numAlpha(0xe8a851, isHovered ? 0.9 : 0.3);
+      ctx.lineWidth = (isHovered ? 2.5 : 1) / zoom;
+      ctx.strokeRect(left - 3, top - 3, w + 6, h + 6);
+    }
   }
 }
 
@@ -596,6 +655,7 @@ export function renderActorBadges(ctx: CanvasRenderingContext2D, _zoom: number):
 
   const { entities } = getSceneState();
   const entityStore = getEntityStore();
+  const iso = isIsoMode();
 
   for (const placed of entities) {
     if (!placed.semanticId || !placed.visible) continue;
@@ -604,22 +664,42 @@ export function renderActorBadges(ctx: CanvasRenderingContext2D, _zoom: number):
     const w = (def?.displayWidth ?? 32) * placed.scale;
     const h = (def?.displayHeight ?? 32) * placed.scale;
     const ax = def?.defaults.anchor?.[0] ?? 0.5;
-    const ay = def?.defaults.anchor?.[1] ?? 0.5;
-
-    const right = placed.x + w * (1 - ax);
-    const top = placed.y - h * ay;
-    const bx = right - 2;
-    const by = top + 2;
     const bs = 4;
 
-    ctx.beginPath();
-    ctx.moveTo(bx, by - bs);
-    ctx.lineTo(bx + bs, by);
-    ctx.lineTo(bx, by + bs);
-    ctx.lineTo(bx - bs, by);
-    ctx.closePath();
-    ctx.fillStyle = numAlpha(0xe8a851, 0.9);
-    ctx.fill();
+    if (iso) {
+      const topPt = worldToScreen(placed.x, h, placed.y);
+      const pxPerUnit = Math.abs(worldToScreen(placed.x, 0, placed.y).y - topPt.y) / h;
+      const screenW = w * pxPerUnit;
+      const bx = topPt.x + screenW * (1 - ax) - 2;
+      const by = topPt.y + 2;
+
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.beginPath();
+      ctx.moveTo(bx, by - bs);
+      ctx.lineTo(bx + bs, by);
+      ctx.lineTo(bx, by + bs);
+      ctx.lineTo(bx - bs, by);
+      ctx.closePath();
+      ctx.fillStyle = numAlpha(0xe8a851, 0.9);
+      ctx.fill();
+      ctx.restore();
+    } else {
+      const ay = def?.defaults.anchor?.[1] ?? 0.5;
+      const right = placed.x + w * (1 - ax);
+      const top = placed.y - h * ay;
+      const bx = right - 2;
+      const by = top + 2;
+
+      ctx.beginPath();
+      ctx.moveTo(bx, by - bs);
+      ctx.lineTo(bx + bs, by);
+      ctx.lineTo(bx, by + bs);
+      ctx.lineTo(bx - bs, by);
+      ctx.closePath();
+      ctx.fillStyle = numAlpha(0xe8a851, 0.9);
+      ctx.fill();
+    }
   }
 }
 
