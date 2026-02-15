@@ -205,7 +205,8 @@ docs/
 ├── active/         → currently in development
 ├── done/           → completed and merged
 ├── specs/          → technical reference documents
-└── decisions/      → technical decisions and their context
+├── decisions/      → session-level technical choices and their context
+└── adr/            → foundational architecture decisions (numbered, rare)
 ```
 
 ### Backlog format
@@ -228,9 +229,9 @@ No version, no priority, no date, no status. **The directory the file lives in I
 3. **Completion** — when the branch is merged into `main`, move the file from `active/` to `done/`, append the tag version and date at the bottom.
 4. **Grouping** — when activating an idea, check `backlog/` for related ideas that would make sense to tackle together.
 
-### Technical decisions
+### Technical decisions — two levels
 
-When a significant technical choice is made during a session, create a file in `docs/decisions/` in `kebab-case` (e.g. `choix-framework-ui.md`).
+**`docs/decisions/`** — session-level choices. Frequent, lightweight. "We chose X over Y for this feature." Create a file in `kebab-case` whenever a meaningful technical choice is made during a session.
 
 ```markdown
 # Titre de la décision
@@ -240,6 +241,12 @@ Décision: ce qu'on a choisi
 Alternatives envisagées: ce qu'on a écarté
 Raison: pourquoi ce choix et pas les autres
 ```
+
+**`docs/adr/`** — foundational architecture decisions. Rare, numbered (`001-`, `002-`, ...), long-lived. These define the structural pillars of the project (signal protocol, choreographer runtime, entity format, renderer stack). An ADR is created only when a decision shapes the overall architecture, not for day-to-day choices.
+
+**When to use which:**
+- Choosing a library, a naming convention, a data format for a feature → `decisions/`
+- Defining how an entire subsystem works, its contracts, invariants, and trade-offs → `adr/`
 
 Don't log raw conversations. Capture only the decisions and their context. These files serve as the project's technical memory.
 
