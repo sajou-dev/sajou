@@ -40,8 +40,9 @@ import {
 import { createRunModeSink } from "./run-mode-sink.js";
 import { startAnimations, stopAnimations } from "./run-mode-animator.js";
 import { createBindingExecutor, type BindingExecutor } from "./run-mode-bindings.js";
-import { createPixiAdapter } from "../canvas/pixi-adapter.js";
-import { getEntitySpriteById, getCachedTexture } from "../canvas/scene-renderer.js";
+import { createThreeAdapter } from "../canvas/three-adapter.js";
+import { getEntityRecord } from "../canvas/scene-renderer.js";
+import { getCachedTextureSize } from "@sajou/stage";
 import type { RenderAdapter } from "../canvas/render-adapter.js";
 
 // ---------------------------------------------------------------------------
@@ -83,7 +84,7 @@ export async function startRunMode(): Promise<void> {
   const core = await import("@sajou/core");
 
   // 3. Create adapter + sink + clock + choreographer
-  adapter = createPixiAdapter(getEntitySpriteById, getCachedTexture);
+  adapter = createThreeAdapter(getEntityRecord, getCachedTextureSize);
   const sink = createRunModeSink(adapter);
   clock = new core.BrowserClock();
   choreographer = new core.Choreographer({ clock, sink });
