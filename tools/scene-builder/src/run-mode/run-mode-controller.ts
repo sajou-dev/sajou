@@ -4,7 +4,7 @@
  * startRunMode():
  *   1. Snapshot entity transforms
  *   2. Lazy-import @sajou/core (Choreographer, BrowserClock)
- *   3. Create sink + clock + choreographer
+ *   3. Create adapter + sink + clock + choreographer
  *   4. Convert editor definitions → runtime definitions + register
  *   5. Create binding executor (peer of choreographer for property bindings)
  *   6. Subscribe to onSignal() — dispatch to choreographer + binding executor
@@ -40,6 +40,9 @@ import {
 import { createRunModeSink } from "./run-mode-sink.js";
 import { startAnimations, stopAnimations } from "./run-mode-animator.js";
 import { createBindingExecutor, type BindingExecutor } from "./run-mode-bindings.js";
+import { createPixiAdapter } from "../canvas/pixi-adapter.js";
+import { getEntitySpriteById, getCachedTexture } from "../canvas/scene-renderer.js";
+import type { RenderAdapter } from "../canvas/render-adapter.js";
 
 // ---------------------------------------------------------------------------
 // Module state
@@ -53,6 +56,9 @@ let clock: import("@sajou/core").BrowserClock | null = null;
 
 /** Active BindingExecutor instance (null when not running). */
 let bindingExecutor: BindingExecutor | null = null;
+
+/** Active RenderAdapter instance (null when not running). */
+let adapter: RenderAdapter | null = null;
 
 /** Unsubscribe function for the signal listener. */
 let signalUnsub: (() => void) | null = null;
@@ -76,8 +82,9 @@ export async function startRunMode(): Promise<void> {
   // 2. Lazy-import @sajou/core
   const core = await import("@sajou/core");
 
-  // 3. Create sink + clock + choreographer
-  const sink = createRunModeSink();
+  // 3. Create adapter + sink + clock + choreographer
+  adapter = createPixiAdapter(getEntitySpriteById, getCachedTexture);
+  const sink = createRunModeSink(adapter);
   clock = new core.BrowserClock();
   choreographer = new core.Choreographer({ clock, sink });
   starting = false;
@@ -88,7 +95,7 @@ export async function startRunMode(): Promise<void> {
   choreographer.registerAll(runtimeDefs);
 
   // 5. Create binding executor (peer of choreographer for property bindings)
-  bindingExecutor = createBindingExecutor();
+  bindingExecutor = createBindingExecutor(adapter);
 
   // 6. Subscribe to incoming signals
   signalUnsub = onSignal((signal) => {
@@ -131,7 +138,7 @@ export async function startRunMode(): Promise<void> {
   document.getElementById("workspace")?.classList.add("workspace--running");
 
   // 8. Start spritesheet animations (idle cycles, etc.)
-  startAnimations();
+  startAnimations(adapter);
 
   console.log(
     `[run-mode] Started — ${runtimeDefs.length} choreograph${runtimeDefs.length !== 1 ? "ies" : "y"} registered`,
@@ -186,6 +193,7 @@ export function stopRunMode(): void {
 
   // 5. Clean up
   clearSnapshot();
+  adapter = null;
   setRunModeActive(false);
   document.getElementById("workspace")?.classList.remove("workspace--running");
 

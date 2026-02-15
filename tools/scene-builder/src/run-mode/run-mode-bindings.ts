@@ -27,11 +27,11 @@ import type {
   WhenConditionDef,
   WhenOperatorDef,
 } from "../types.js";
+import type { RenderAdapter } from "../canvas/render-adapter.js";
 import { getChoreographyState } from "../state/choreography-state.js";
 import { getChoreoInputInfo } from "../state/wiring-queries.js";
 import { getBindingsFromChoreography } from "../state/binding-store.js";
 import { resolveEntityId, resolvePosition } from "./run-mode-resolve.js";
-import { getEntitySpriteById } from "../canvas/scene-renderer.js";
 import { switchAnimation } from "./run-mode-animator.js";
 
 // ---------------------------------------------------------------------------
@@ -53,7 +53,7 @@ export interface BindingExecutor {
  * Reads binding state lazily on each signal (not snapshotted at creation)
  * so that bindings added during run mode are immediately effective.
  */
-export function createBindingExecutor(): BindingExecutor {
+export function createBindingExecutor(adapter: RenderAdapter): BindingExecutor {
   let disposed = false;
 
   return {
@@ -76,7 +76,7 @@ export function createBindingExecutor(): BindingExecutor {
 
         // All conditions met — execute each binding
         for (const binding of bindings) {
-          executeBinding(binding, signal);
+          executeBinding(binding, signal, adapter);
         }
       }
     },
@@ -95,6 +95,7 @@ export function createBindingExecutor(): BindingExecutor {
 function executeBinding(
   binding: EntityBinding,
   signal: { type: string; payload: Record<string, unknown> },
+  adapter: RenderAdapter,
 ): void {
   const placedId = resolveEntityId(binding.targetEntityId);
   if (!placedId) {
@@ -108,31 +109,31 @@ function executeBinding(
       break;
 
     case "visible":
-      executeVisible(placedId);
+      executeVisible(placedId, adapter);
       break;
 
     case "opacity":
-      executeValueBinding(placedId, binding, signal, "alpha");
+      executeValueBinding(placedId, binding, signal, "alpha", adapter);
       break;
 
     case "rotation":
-      executeValueBinding(placedId, binding, signal, "rotation");
+      executeValueBinding(placedId, binding, signal, "rotation", adapter);
       break;
 
     case "scale":
-      executeValueBinding(placedId, binding, signal, "scale");
+      executeValueBinding(placedId, binding, signal, "scale", adapter);
       break;
 
     case "position.x":
-      executeValueBinding(placedId, binding, signal, "x");
+      executeValueBinding(placedId, binding, signal, "x", adapter);
       break;
 
     case "position.y":
-      executeValueBinding(placedId, binding, signal, "y");
+      executeValueBinding(placedId, binding, signal, "y", adapter);
       break;
 
     case "teleportTo":
-      executeTeleportTo(placedId, binding);
+      executeTeleportTo(placedId, binding, adapter);
       break;
 
     default:
@@ -157,11 +158,11 @@ function executeAnimationState(placedId: string, binding: EntityBinding): void {
 }
 
 /** Toggle entity visibility. */
-function executeVisible(placedId: string): void {
-  const sprite = getEntitySpriteById(placedId);
-  if (!sprite) return;
-  sprite.visible = !sprite.visible;
-  console.log(`[bindings] ${placedId} → visible: ${sprite.visible}`);
+function executeVisible(placedId: string, adapter: RenderAdapter): void {
+  const handle = adapter.getHandle(placedId);
+  if (!handle) return;
+  handle.visible = !handle.visible;
+  console.log(`[bindings] ${placedId} → visible: ${handle.visible}`);
 }
 
 /** Execute a value binding (opacity, rotation, scale, position) with optional mapping. */
@@ -169,10 +170,11 @@ function executeValueBinding(
   placedId: string,
   binding: EntityBinding,
   signal: { type: string; payload: Record<string, unknown> },
-  spriteProp: "alpha" | "rotation" | "scale" | "x" | "y",
+  prop: "alpha" | "rotation" | "scale" | "x" | "y",
+  adapter: RenderAdapter,
 ): void {
-  const sprite = getEntitySpriteById(placedId);
-  if (!sprite) return;
+  const handle = adapter.getHandle(placedId);
+  if (!handle) return;
 
   // Extract numeric value from signal payload
   const raw = extractNumericValue(signal.payload, binding.property);
@@ -186,24 +188,24 @@ function executeValueBinding(
     ? applyMapping(raw, binding.mapping)
     : raw;
 
-  // Apply to sprite
-  if (spriteProp === "scale") {
-    sprite.scale.set(mapped);
-  } else if (spriteProp === "alpha") {
-    sprite.alpha = mapped;
-  } else if (spriteProp === "rotation") {
-    sprite.rotation = mapped;
-  } else if (spriteProp === "x") {
-    sprite.x = mapped;
-  } else if (spriteProp === "y") {
-    sprite.y = mapped;
+  // Apply to handle
+  if (prop === "scale") {
+    handle.scale.set(mapped);
+  } else if (prop === "alpha") {
+    handle.alpha = mapped;
+  } else if (prop === "rotation") {
+    handle.rotation = mapped;
+  } else if (prop === "x") {
+    handle.x = mapped;
+  } else if (prop === "y") {
+    handle.y = mapped;
   }
 
-  console.log(`[bindings] ${binding.targetEntityId} → ${spriteProp}: ${mapped}`);
+  console.log(`[bindings] ${binding.targetEntityId} → ${prop}: ${mapped}`);
 }
 
 /** Teleport entity to a named waypoint position. */
-function executeTeleportTo(placedId: string, binding: EntityBinding): void {
+function executeTeleportTo(placedId: string, binding: EntityBinding, adapter: RenderAdapter): void {
   const waypointName = binding.action?.waypoint;
   if (!waypointName) {
     console.warn(`[bindings] teleportTo binding has no waypoint`);
@@ -216,11 +218,11 @@ function executeTeleportTo(placedId: string, binding: EntityBinding): void {
     return;
   }
 
-  const sprite = getEntitySpriteById(placedId);
-  if (!sprite) return;
+  const handle = adapter.getHandle(placedId);
+  if (!handle) return;
 
-  sprite.x = pos.x;
-  sprite.y = pos.y;
+  handle.x = pos.x;
+  handle.y = pos.y;
   console.log(`[bindings] ${binding.targetEntityId} → teleport to ${waypointName} (${pos.x}, ${pos.y})`);
 }
 

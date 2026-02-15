@@ -1,12 +1,11 @@
 /**
- * Run mode command sink — bridges @sajou/core's CommandSink to PixiJS sprites.
+ * Run mode command sink — bridges @sajou/core's CommandSink to rendered entities.
  *
  * Receives action commands (start/update/complete/execute/interrupt) from the
- * Choreographer runtime and applies them to the PixiJS display objects living
- * in the scene-renderer's existing canvas.
+ * Choreographer runtime and applies them to display objects via a RenderAdapter.
  *
  * Entity resolution:
- *   entityRef (semantic ID from choreography) → PlacedEntity → PixiJS Sprite
+ *   entityRef (semantic ID from choreography) → PlacedEntity → DisplayObjectHandle
  *
  * Position resolution:
  *   params.to / params.at (position name) → ScenePosition → { x, y }
@@ -21,12 +20,11 @@ import type {
   InterruptCommand,
 } from "@sajou/core";
 
-import { getEntitySpriteById } from "../canvas/scene-renderer.js";
+import type { RenderAdapter, DisplayObjectHandle } from "../canvas/render-adapter.js";
 import { resolveEntityId, resolvePosition, resolveRoute } from "./run-mode-resolve.js";
 import { switchAnimation } from "./run-mode-animator.js";
 import { buildPathPoints } from "../tools/route-tool.js";
 import { flattenRoutePathWithMapping, computeSegmentLengths, interpolateAlongPath } from "../tools/route-math.js";
-import type { Sprite } from "pixi.js";
 
 // ---------------------------------------------------------------------------
 // Internal animation state
@@ -34,8 +32,8 @@ import type { Sprite } from "pixi.js";
 
 /** Tracked state for an animated action (move, fly, flash, followRoute). */
 interface ActiveAnimation {
-  /** The PixiJS sprite being animated. */
-  sprite: Sprite;
+  /** The display object being animated. */
+  handle: DisplayObjectHandle;
   /** Start X position. */
   startX: number;
   /** Start Y position. */
@@ -69,8 +67,8 @@ function animKey(performanceId: string, entityRef: string): string {
 // RunModeSink
 // ---------------------------------------------------------------------------
 
-/** Creates a CommandSink implementation that drives PixiJS sprites. */
-export function createRunModeSink(): CommandSink {
+/** Creates a CommandSink implementation that drives rendered entities via adapter. */
+export function createRunModeSink(adapter: RenderAdapter): CommandSink {
   const animations = new Map<string, ActiveAnimation>();
 
   return {
@@ -85,8 +83,8 @@ export function createRunModeSink(): CommandSink {
         return;
       }
 
-      const sprite = getEntitySpriteById(placedId);
-      if (!sprite) return;
+      const handle = adapter.getHandle(placedId);
+      if (!handle) return;
 
       const key = animKey(cmd.performanceId, cmd.entityRef);
 
@@ -99,11 +97,11 @@ export function createRunModeSink(): CommandSink {
         if (animDuring && placedId) switchAnimation(placedId, animDuring);
 
         animations.set(key, {
-          sprite,
-          startX: sprite.x,
-          startY: sprite.y,
-          targetX: target?.x ?? sprite.x,
-          targetY: target?.y ?? sprite.y,
+          handle,
+          startX: handle.x,
+          startY: handle.y,
+          targetX: target?.x ?? handle.x,
+          targetY: target?.y ?? handle.y,
           savedTint: 0xffffff,
           action: cmd.action,
           animationOnArrival: cmd.params["animationOnArrival"] as string | undefined,
@@ -111,12 +109,12 @@ export function createRunModeSink(): CommandSink {
         });
       } else if (cmd.action === "flash") {
         animations.set(key, {
-          sprite,
-          startX: sprite.x,
-          startY: sprite.y,
-          targetX: sprite.x,
-          targetY: sprite.y,
-          savedTint: sprite.tint as number,
+          handle,
+          startX: handle.x,
+          startY: handle.y,
+          targetX: handle.x,
+          targetY: handle.y,
+          savedTint: handle.tint,
           action: cmd.action,
         });
       } else if (cmd.action === "followRoute") {
@@ -171,25 +169,25 @@ export function createRunModeSink(): CommandSink {
         // Compute arc-length parameterization
         const cumulativeLengths = computeSegmentLengths(polyline);
 
-        // Teleport sprite to start of path
-        sprite.x = polyline[0]!.x;
-        sprite.y = polyline[0]!.y;
+        // Teleport entity to start of path
+        handle.x = polyline[0]!.x;
+        handle.y = polyline[0]!.y;
 
         // Start "during" animation
         const animDuring = cmd.params["animationDuring"] as string | undefined;
         if (animDuring && placedId) switchAnimation(placedId, animDuring);
 
         animations.set(key, {
-          sprite,
-          startX: sprite.x,
-          startY: sprite.y,
+          handle,
+          startX: handle.x,
+          startY: handle.y,
           targetX: polyline[polyline.length - 1]!.x,
           targetY: polyline[polyline.length - 1]!.y,
           savedTint: 0xffffff,
           action: cmd.action,
           polyline,
           cumulativeLengths,
-          originalScaleXSign: sprite.scale.x >= 0 ? 1 : -1,
+          originalScaleXSign: handle.scale.x >= 0 ? 1 : -1,
           animationOnArrival: cmd.params["animationOnArrival"] as string | undefined,
           placedId: placedId ?? undefined,
         });
@@ -203,26 +201,26 @@ export function createRunModeSink(): CommandSink {
       const anim = animations.get(key);
       if (!anim) return;
 
-      const { sprite, startX, startY, targetX, targetY } = anim;
+      const { handle, startX, startY, targetX, targetY } = anim;
       const t = cmd.progress;
 
       if (anim.action === "move") {
-        sprite.x = startX + (targetX - startX) * t;
-        sprite.y = startY + (targetY - startY) * t;
+        handle.x = startX + (targetX - startX) * t;
+        handle.y = startY + (targetY - startY) * t;
       } else if (anim.action === "fly") {
         // Move with arc: vertical offset via sin(progress * PI)
-        sprite.x = startX + (targetX - startX) * t;
+        handle.x = startX + (targetX - startX) * t;
         const linearY = startY + (targetY - startY) * t;
         const arcHeight = Math.abs(targetX - startX) * 0.3;
-        sprite.y = linearY - Math.sin(t * Math.PI) * arcHeight;
+        handle.y = linearY - Math.sin(t * Math.PI) * arcHeight;
       } else if (anim.action === "followRoute") {
         if (anim.polyline && anim.cumulativeLengths) {
           const sample = interpolateAlongPath(anim.polyline, anim.cumulativeLengths, t);
-          sprite.x = sample.x;
-          sprite.y = sample.y;
-          // Flip sprite based on movement direction
+          handle.x = sample.x;
+          handle.y = sample.y;
+          // Flip entity based on movement direction
           const origSign = anim.originalScaleXSign ?? 1;
-          sprite.scale.x = Math.abs(sprite.scale.x) * sample.directionX * origSign;
+          handle.scale.x = Math.abs(handle.scale.x) * sample.directionX * origSign;
         }
       } else if (anim.action === "flash") {
         const colorStr = cmd.params["color"] as string | undefined;
@@ -230,7 +228,7 @@ export function createRunModeSink(): CommandSink {
           const flashColor = parseHexColor(colorStr);
           // Blend: at progress 0.5 = full flash color, then fade back
           const intensity = t <= 0.5 ? t * 2 : (1 - t) * 2;
-          sprite.tint = lerpColor(anim.savedTint, flashColor, intensity);
+          handle.tint = lerpColor(anim.savedTint, flashColor, intensity);
         }
       }
     },
@@ -243,30 +241,30 @@ export function createRunModeSink(): CommandSink {
         return;
       }
 
-      const { sprite } = anim;
+      const { handle } = anim;
 
       if (anim.action === "move" || anim.action === "fly") {
         // Snap to final position
-        sprite.x = anim.targetX;
-        sprite.y = anim.targetY;
+        handle.x = anim.targetX;
+        handle.y = anim.targetY;
         // Switch to arrival animation if specified
         if (anim.animationOnArrival && anim.placedId) {
           switchAnimation(anim.placedId, anim.animationOnArrival);
         }
       } else if (anim.action === "followRoute") {
         // Snap to final path point
-        sprite.x = anim.targetX;
-        sprite.y = anim.targetY;
+        handle.x = anim.targetX;
+        handle.y = anim.targetY;
         // Restore original flip direction
         const origSign = anim.originalScaleXSign ?? 1;
-        sprite.scale.x = Math.abs(sprite.scale.x) * origSign;
+        handle.scale.x = Math.abs(handle.scale.x) * origSign;
         // Switch to arrival animation
         if (anim.animationOnArrival && anim.placedId) {
           switchAnimation(anim.placedId, anim.animationOnArrival);
         }
       } else if (anim.action === "flash") {
         // Restore original tint
-        sprite.tint = anim.savedTint;
+        handle.tint = anim.savedTint;
       }
 
       animations.delete(key);
@@ -283,23 +281,23 @@ export function createRunModeSink(): CommandSink {
         return;
       }
 
-      const sprite = getEntitySpriteById(placedId);
-      if (!sprite) return;
+      const handle = adapter.getHandle(placedId);
+      if (!handle) return;
 
       if (cmd.action === "spawn") {
         // Show the entity and teleport to position
-        sprite.visible = true;
+        handle.visible = true;
         const atName = cmd.params["at"] as string | undefined;
         if (atName) {
           const pos = resolvePosition(atName);
           if (pos) {
-            sprite.x = pos.x;
-            sprite.y = pos.y;
+            handle.x = pos.x;
+            handle.y = pos.y;
           }
         }
       } else if (cmd.action === "destroy") {
         // Hide the entity
-        sprite.visible = false;
+        handle.visible = false;
       } else if (cmd.action === "playSound") {
         // Skip V1 — just log
         console.log("[run-mode] playSound:", cmd.params["sound"]);
@@ -316,7 +314,7 @@ export function createRunModeSink(): CommandSink {
         if (key.startsWith(prefix)) {
           // Restore flash tint if interrupted mid-flash
           if (anim.action === "flash") {
-            anim.sprite.tint = anim.savedTint;
+            anim.handle.tint = anim.savedTint;
           }
           animations.delete(key);
         }

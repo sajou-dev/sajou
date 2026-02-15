@@ -1,19 +1,17 @@
 /**
  * Run mode resolution helpers — shared entity and position lookup.
  *
- * Centralizes semantic ID → PlacedEntity → PixiJS Sprite resolution
- * used by both the CommandSink and the BindingExecutor.
+ * Centralizes semantic ID → PlacedEntity resolution used by both
+ * the CommandSink and the BindingExecutor.
  *
  * Entity resolution chain:
- *   semanticId → PlacedEntity (scene-state) → Sprite (scene-renderer)
+ *   semanticId → PlacedEntity (scene-state) → placedId
  *
  * Position resolution:
  *   position name → ScenePosition (scene-state) → { x, y }
  */
 
-import type { Sprite } from "pixi.js";
 import { getSceneState } from "../state/scene-state.js";
-import { getEntitySpriteById } from "../canvas/scene-renderer.js";
 import type { PlacedEntity, SceneRoute } from "../types.js";
 
 // ---------------------------------------------------------------------------
@@ -37,17 +35,6 @@ export function resolveEntityId(semanticId: string): string | null {
 export function resolveEntity(semanticId: string): PlacedEntity | null {
   const { entities } = getSceneState();
   return entities.find((e) => e.semanticId === semanticId) ?? null;
-}
-
-/**
- * Resolve a semantic entity ID directly to its PixiJS Sprite.
- * Combines entity lookup + sprite lookup in one call.
- * Returns null if entity or sprite not found.
- */
-export function resolveSprite(semanticId: string): Sprite | null {
-  const placedId = resolveEntityId(semanticId);
-  if (!placedId) return null;
-  return getEntitySpriteById(placedId);
 }
 
 // ---------------------------------------------------------------------------
