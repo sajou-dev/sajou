@@ -195,13 +195,20 @@ function applyEntityTransform(
   // Rotation: 2D rotation → Y-axis rotation
   group.rotation.y = -(placed.rotation * Math.PI) / 180;
 
-  // Billboarding: rotate mesh to face camera in iso mode
+  // Billboarding: rotate mesh to face camera in iso mode.
+  // The geometry was baked flat (rotateX -PI/2) with anchor offset in Z.
+  // Un-rotating maps the Z offset to -Y, so the mesh sinks below ground.
+  // Compensate by lifting mesh.position.y = h * (1 - ay).
   const ctrl = getController();
   if (ctrl && ctrl.mode === "isometric") {
     const angle = computeBillboardAngle(ctrl.camera);
     mesh.rotation.set(Math.PI / 2, angle, 0);
+    const h = _def.displayHeight;
+    const ay = _def.defaults.anchor?.[1] ?? 0.5;
+    mesh.position.y = h * (1 - ay);
   } else {
     mesh.rotation.set(0, 0, 0);
+    mesh.position.y = 0;
   }
 
   // Opacity
@@ -345,16 +352,27 @@ async function renderEntities(): Promise<void> {
 // Billboarding
 // ---------------------------------------------------------------------------
 
-/** Apply billboard rotation to all existing entity meshes for a given controller. */
+/** Apply billboard rotation + Y-lift to all existing entity meshes for a given controller. */
 function applyBillboard(ctrl: CameraController): void {
+  const { entities } = getSceneState();
+  const placedMap = new Map(entities.map((e) => [e.id, e]));
+
   if (ctrl.mode === "isometric") {
     const angle = computeBillboardAngle(ctrl.camera);
     for (const [, record] of entityRecords) {
       record.mesh.rotation.set(Math.PI / 2, angle, 0);
+      const placed = placedMap.get(record.placedId);
+      if (placed) {
+        const def = getEntityDef(placed.entityId);
+        const h = def?.displayHeight ?? record.createdHeight;
+        const ay = def?.defaults.anchor?.[1] ?? 0.5;
+        record.mesh.position.y = h * (1 - ay);
+      }
     }
   } else {
     for (const [, record] of entityRecords) {
       record.mesh.rotation.set(0, 0, 0);
+      record.mesh.position.y = 0;
     }
   }
 }

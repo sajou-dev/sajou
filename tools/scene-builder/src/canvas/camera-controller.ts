@@ -180,6 +180,8 @@ export class IsometricController implements CameraController {
   private target = new THREE.Vector3();
   private viewportW: number;
   private viewportH: number;
+  private sceneW: number;
+  private sceneH: number;
 
   /** Camera distance from target (along the (1,1,1) direction). */
   private static readonly CAMERA_DIST = 500;
@@ -187,6 +189,8 @@ export class IsometricController implements CameraController {
   constructor(w: number, h: number, sceneW: number, sceneH: number) {
     this.viewportW = w;
     this.viewportH = h;
+    this.sceneW = sceneW;
+    this.sceneH = sceneH;
     // Initial viewSize: fit the scene
     this.viewSize = Math.max(sceneW, sceneH) * 1.2;
     this.target.set(sceneW / 2, 0, sceneH / 2);
@@ -201,6 +205,11 @@ export class IsometricController implements CameraController {
     const dir = new THREE.Vector3(1, 1, 1).normalize();
     this.camera.position.copy(this.target).addScaledVector(dir, d);
     this.camera.lookAt(this.target);
+    // Ensure near/far encompass the full scene from this position.
+    // Far must cover camera→farthest-corner distance for any scene size.
+    const diag = Math.hypot(this.sceneW, this.sceneH);
+    this.camera.near = 0.1;
+    this.camera.far = d + diag * 2;
   }
 
   screenToScene(clientX: number, clientY: number, rect: DOMRect): { x: number; y: number } {
