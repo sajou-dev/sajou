@@ -187,11 +187,6 @@ function applyEntityTransform(
   const layerOrder = layer?.order ?? 0;
   group.position.set(placed.x, depthToY(layerOrder, placed.zIndex), placed.y);
 
-  // Scale (includes flip)
-  const scaleX = placed.flipH ? -placed.scale : placed.scale;
-  const scaleY = placed.flipV ? -placed.scale : placed.scale;
-  group.scale.set(scaleX, 1, scaleY);
-
   // Rotation: 2D rotation → Y-axis rotation
   group.rotation.y = -(placed.rotation * Math.PI) / 180;
 
@@ -210,9 +205,21 @@ function applyEntityTransform(
     const h = _def.displayHeight;
     const ay = _def.defaults.anchor?.[1] ?? 0.5;
     mesh.position.y = h * (1 - ay);
+
+    // In iso, the billboard height is along Y, width is split across X/Z.
+    // Use uniform scale so width and height scale equally.
+    // flipH negates X+Z together; flipV negates Y.
+    const sx = placed.flipH ? -placed.scale : placed.scale;
+    const sy = placed.flipV ? -placed.scale : placed.scale;
+    group.scale.set(sx, sy, sx);
   } else {
     mesh.rotation.set(0, 0, 0, "YXZ");
     mesh.position.y = 0;
+
+    // Top-down: width = X, height = Z, depth = Y (always 1)
+    const sx = placed.flipH ? -placed.scale : placed.scale;
+    const sz = placed.flipV ? -placed.scale : placed.scale;
+    group.scale.set(sx, 1, sz);
   }
 
   // Opacity
