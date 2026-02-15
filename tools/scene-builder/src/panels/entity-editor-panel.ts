@@ -308,6 +308,18 @@ export function initEntityEditorPanel(contentEl: HTMLElement): void {
       setEntity(entity.id, { ...entity, defaults: { ...entity.defaults, opacity: v } }), 0.1));
     form.appendChild(createField("Defaults", defaultsRow));
 
+    // Billboard toggle (isometric view)
+    const bbLabel = document.createElement("label");
+    bbLabel.className = "ee-checkbox-label";
+    const bbCheck = document.createElement("input");
+    bbCheck.type = "checkbox";
+    bbCheck.checked = entity.defaults.billboard === true;
+    bbCheck.addEventListener("change", () =>
+      setEntity(entity.id, { ...entity, defaults: { ...entity.defaults, billboard: bbCheck.checked } }));
+    bbLabel.appendChild(bbCheck);
+    bbLabel.appendChild(document.createTextNode(" Stand upright in iso view"));
+    form.appendChild(createField("Billboard", bbLabel));
+
     // Visual type selector
     const typeRow = document.createElement("div");
     typeRow.className = "ee-type-row";

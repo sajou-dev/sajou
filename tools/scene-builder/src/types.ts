@@ -540,6 +540,12 @@ export interface EntityDefaults {
   zIndex?: number;
   /** Initial opacity (0-1). */
   opacity?: number;
+  /**
+   * Whether this entity stands upright in isometric view (billboard).
+   * true = entity faces the camera (characters, NPCs).
+   * false/undefined = entity stays flat on the ground (floors, walls, furniture).
+   */
+  billboard?: boolean;
 }
 
 /**

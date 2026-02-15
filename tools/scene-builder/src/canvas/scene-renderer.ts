@@ -191,6 +191,8 @@ function applyEntityTransform(
   group.rotation.y = -(placed.rotation * Math.PI) / 180;
 
   // Cylindrical billboard: stand the entity upright and face the camera.
+  // Only applies to entities with billboard=true (characters, NPCs).
+  // Flat entities (floors, walls, furniture) stay on the ground plane.
   //
   // The geometry was baked flat (rotateX -PI/2) → lies in XZ.
   // To stand it up: Rx(PI/2), then rotate around Y to face camera: Ry(angle).
@@ -199,7 +201,8 @@ function applyEntityTransform(
   // After standing up, the anchor Z-offset maps to -Y, so the mesh
   // sinks below ground. Compensate with mesh.position.y = h * (1 - ay).
   const ctrl = getController();
-  if (ctrl && ctrl.mode === "isometric") {
+  const shouldBillboard = ctrl?.mode === "isometric" && _def.defaults.billboard === true;
+  if (shouldBillboard) {
     const angle = computeBillboardAngle(ctrl.camera);
     mesh.rotation.set(Math.PI / 2, angle, 0, "YXZ");
     const h = _def.displayHeight;
@@ -216,7 +219,7 @@ function applyEntityTransform(
     mesh.rotation.set(0, 0, 0, "YXZ");
     mesh.position.y = 0;
 
-    // Top-down: width = X, height = Z, depth = Y (always 1)
+    // Top-down / flat: width = X, height = Z, depth = Y (always 1)
     const sx = placed.flipH ? -placed.scale : placed.scale;
     const sz = placed.flipV ? -placed.scale : placed.scale;
     group.scale.set(sx, 1, sz);
@@ -371,13 +374,17 @@ function applyBillboard(ctrl: CameraController): void {
   if (ctrl.mode === "isometric") {
     const angle = computeBillboardAngle(ctrl.camera);
     for (const [, record] of entityRecords) {
-      record.mesh.rotation.set(Math.PI / 2, angle, 0, "YXZ");
       const placed = placedMap.get(record.placedId);
-      if (placed) {
-        const def = getEntityDef(placed.entityId);
-        const h = def?.displayHeight ?? record.createdHeight;
-        const ay = def?.defaults.anchor?.[1] ?? 0.5;
+      const def = placed ? getEntityDef(placed.entityId) : null;
+
+      if (def?.defaults.billboard) {
+        record.mesh.rotation.set(Math.PI / 2, angle, 0, "YXZ");
+        const h = def.displayHeight;
+        const ay = def.defaults.anchor?.[1] ?? 0.5;
         record.mesh.position.y = h * (1 - ay);
+      } else {
+        record.mesh.rotation.set(0, 0, 0, "YXZ");
+        record.mesh.position.y = 0;
       }
     }
   } else {
