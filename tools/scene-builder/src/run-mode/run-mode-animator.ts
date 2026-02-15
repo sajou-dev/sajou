@@ -1,41 +1,35 @@
 /**
  * Run mode spritesheet animator.
  *
- * During run mode, entities with spritesheet visuals should cycle through
- * their animation frames (idle, walk, etc.) — just like in the Preview.
+ * During run mode, entities with spritesheet visuals cycle through
+ * their animation frames (idle, walk, etc.).
  *
- * The editor's scene-renderer uses plain `Sprite` with a static first frame.
- * This module runs a `requestAnimationFrame` tick loop that swaps the sprite's
- * texture each frame, achieving the same effect as PixiJS `AnimatedSprite`
- * but without replacing the existing sprites.
+ * Uses a RenderAdapter to slice spritesheet frames and swap them
+ * on each tick, rather than directly manipulating PixiJS Sprites.
  *
  * Lifecycle:
- *   startAnimations()  — scan entities, build frame textures, start rAF loop
- *   stopAnimations()   — stop loop, restore original static textures
- *   switchAnimation()  — change an entity's animation state mid-run
+ *   startAnimations(adapter)  — scan entities, build frames, start rAF loop
+ *   stopAnimations()          — stop loop, restore original frames
+ *   switchAnimation()         — change an entity's animation state mid-run
  */
 
-import { Texture, Rectangle } from "pixi.js";
-import type { Sprite } from "pixi.js";
+import type { RenderAdapter, FrameHandle } from "../canvas/render-adapter.js";
 import { getSceneState } from "../state/scene-state.js";
 import { getEntityStore } from "../state/entity-store.js";
-import { getEntitySpriteById, getCachedTexture } from "../canvas/scene-renderer.js";
 import type { SpritesheetVisual, SpriteAnimation, PlacedEntity } from "../types.js";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-/** Tracked animation state for a single entity sprite. */
+/** Tracked animation state for a single entity. */
 interface AnimatedEntity {
   /** The placed entity instance ID. */
   placedId: string;
   /** The entity definition ID (for spritesheet lookup). */
   entityId: string;
-  /** The PixiJS sprite being animated. */
-  sprite: Sprite;
-  /** Pre-sliced frame textures for the active animation. */
-  frames: Texture[];
+  /** Pre-sliced frame handles for the active animation. */
+  frames: FrameHandle[];
   /** FPS of this animation. */
   fps: number;
   /** Whether the animation loops. */
@@ -44,8 +38,8 @@ interface AnimatedEntity {
   currentFrame: number;
   /** Time accumulator (ms) since last frame change. */
   accumulator: number;
-  /** The original texture to restore when stopping. */
-  originalTexture: Texture;
+  /** The original frame to restore when stopping. */
+  originalFrame: FrameHandle;
 }
 
 // ---------------------------------------------------------------------------
@@ -54,6 +48,9 @@ interface AnimatedEntity {
 
 /** All currently animated entities, keyed by placedId for O(1) lookup. */
 const animatedEntities = new Map<string, AnimatedEntity>();
+
+/** The active render adapter (set on start, cleared on stop). */
+let activeAdapter: RenderAdapter | null = null;
 
 /** rAF handle for cancellation. */
 let rafId: number | null = null;
@@ -69,8 +66,9 @@ let lastTime = 0;
  * Start spritesheet animations for all entities with spritesheet visuals.
  * Call this when entering run mode.
  */
-export function startAnimations(): void {
+export function startAnimations(adapter: RenderAdapter): void {
   stopAnimations(); // Clean up any previous state
+  activeAdapter = adapter;
 
   const { entities } = getSceneState();
   const entityStore = getEntityStore();
@@ -82,30 +80,38 @@ export function startAnimations(): void {
     if (!def) continue;
     if (def.visual.type !== "spritesheet") continue;
 
-    const sprite = getEntitySpriteById(placed.id);
-    if (!sprite) continue;
+    const handle = adapter.getHandle(placed.id);
+    if (!handle) continue;
 
     const visual = def.visual as SpritesheetVisual;
     const anim = resolveAnimation(visual, placed);
     if (!anim || anim.frames.length === 0) continue;
 
-    const frameTextures = sliceFrames(visual, anim);
-    if (frameTextures.length < 2) continue; // No point animating a single frame
+    const frameHandles = adapter.sliceFrames(
+      visual.source,
+      visual.frameWidth,
+      visual.frameHeight,
+      anim.frames,
+    );
+    if (frameHandles.length < 2) continue; // No point animating a single frame
+
+    // Capture current frame for restoration
+    const originalFrame = adapter.captureFrame(placed.id);
+    if (!originalFrame) continue;
 
     animatedEntities.set(placed.id, {
       placedId: placed.id,
       entityId: placed.entityId,
-      sprite,
-      frames: frameTextures,
+      frames: frameHandles,
       fps: anim.fps,
       loop: anim.loop !== false,
       currentFrame: 0,
       accumulator: 0,
-      originalTexture: sprite.texture,
+      originalFrame,
     });
 
     // Set first frame immediately
-    sprite.texture = frameTextures[0]!;
+    adapter.setFrame(placed.id, frameHandles[0]!);
   }
 
   if (animatedEntities.size === 0) return;
@@ -120,7 +126,7 @@ export function startAnimations(): void {
 }
 
 /**
- * Stop all spritesheet animations and restore original textures.
+ * Stop all spritesheet animations and restore original frames.
  * Call this when exiting run mode.
  */
 export function stopAnimations(): void {
@@ -130,12 +136,15 @@ export function stopAnimations(): void {
     rafId = null;
   }
 
-  // Restore original textures
-  for (const anim of animatedEntities.values()) {
-    anim.sprite.texture = anim.originalTexture;
+  // Restore original frames
+  if (activeAdapter) {
+    for (const anim of animatedEntities.values()) {
+      activeAdapter.restoreFrame(anim.placedId, anim.originalFrame);
+    }
   }
 
   animatedEntities.clear();
+  activeAdapter = null;
 }
 
 /**
@@ -150,6 +159,8 @@ export function stopAnimations(): void {
  * @returns true if the switch succeeded, false if the entity or animation wasn't found.
  */
 export function switchAnimation(placedId: string, newState: string): boolean {
+  if (!activeAdapter) return false;
+
   const entityStore = getEntityStore();
 
   // Find the placed entity
@@ -164,37 +175,44 @@ export function switchAnimation(placedId: string, newState: string): boolean {
   const targetAnim = visual.animations[newState];
   if (!targetAnim || targetAnim.frames.length === 0) return false;
 
-  const frameTextures = sliceFrames(visual, targetAnim);
-  if (frameTextures.length === 0) return false;
+  const frameHandles = activeAdapter.sliceFrames(
+    visual.source,
+    visual.frameWidth,
+    visual.frameHeight,
+    targetAnim.frames,
+  );
+  if (frameHandles.length === 0) return false;
 
   const existing = animatedEntities.get(placedId);
 
   if (existing) {
     // Update existing entry: swap frames, reset playback
-    existing.frames = frameTextures;
+    existing.frames = frameHandles;
     existing.fps = targetAnim.fps;
     existing.loop = targetAnim.loop !== false;
     existing.currentFrame = 0;
     existing.accumulator = 0;
-    existing.sprite.texture = frameTextures[0]!;
+    activeAdapter.setFrame(placedId, frameHandles[0]!);
   } else {
     // Entity was static — add it to the animator
-    const sprite = getEntitySpriteById(placedId);
-    if (!sprite) return false;
+    const handle = activeAdapter.getHandle(placedId);
+    if (!handle) return false;
+
+    const originalFrame = activeAdapter.captureFrame(placedId);
+    if (!originalFrame) return false;
 
     animatedEntities.set(placedId, {
       placedId,
       entityId: placed.entityId,
-      sprite,
-      frames: frameTextures,
+      frames: frameHandles,
       fps: targetAnim.fps,
       loop: targetAnim.loop !== false,
       currentFrame: 0,
       accumulator: 0,
-      originalTexture: sprite.texture,
+      originalFrame,
     });
 
-    sprite.texture = frameTextures[0]!;
+    activeAdapter.setFrame(placedId, frameHandles[0]!);
 
     // Ensure the rAF loop is running
     if (rafId === null) {
@@ -233,8 +251,10 @@ function tick(now: number): void {
       }
     }
 
-    // Apply the current frame texture
-    anim.sprite.texture = anim.frames[anim.currentFrame]!;
+    // Apply the current frame
+    if (activeAdapter) {
+      activeAdapter.setFrame(anim.placedId, anim.frames[anim.currentFrame]!);
+    }
   }
 
   rafId = requestAnimationFrame(tick);
@@ -243,42 +263,6 @@ function tick(now: number): void {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-/**
- * Slice frame textures from a spritesheet for a given animation.
- *
- * Reads the full spritesheet texture from cache, computes the grid layout,
- * and creates individual Texture instances for each frame index.
- *
- * Reusable by both startAnimations() and switchAnimation().
- */
-function sliceFrames(visual: SpritesheetVisual, anim: SpriteAnimation): Texture[] {
-  const sheetTex = getCachedTexture(visual.source);
-  if (!sheetTex) return [];
-
-  const cols = visual.frameWidth > 0 ? Math.floor(sheetTex.width / visual.frameWidth) : 0;
-  if (cols === 0) return [];
-
-  const frameTextures: Texture[] = [];
-  for (const frameIndex of anim.frames) {
-    const fx = (frameIndex % cols) * visual.frameWidth;
-    const fy = Math.floor(frameIndex / cols) * visual.frameHeight;
-
-    // Bounds check
-    if (fx + visual.frameWidth > sheetTex.width || fy + visual.frameHeight > sheetTex.height) {
-      continue;
-    }
-
-    frameTextures.push(
-      new Texture({
-        source: sheetTex.source,
-        frame: new Rectangle(fx, fy, visual.frameWidth, visual.frameHeight),
-      }),
-    );
-  }
-
-  return frameTextures;
-}
 
 /** Resolve the active animation for a placed entity's spritesheet visual. */
 function resolveAnimation(

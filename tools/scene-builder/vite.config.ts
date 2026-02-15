@@ -1,5 +1,8 @@
 import { defineConfig } from "vite";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import type { Server as HttpServer } from "node:http";
+import { readFile, writeFile, mkdir, stat } from "node:fs/promises";
+import { join, dirname } from "node:path";
 
 /**
  * Dynamic CORS proxy middleware for the Vite dev server.
@@ -245,9 +248,170 @@ function signalIngestionPlugin() {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Tap hook management — inline logic (no runtime dependency on @sajou/tap dist)
+// ---------------------------------------------------------------------------
+
+const TAP_HOOK_TAG = "sajou-tap";
+const TAP_HOOK_EVENTS = ["PreToolUse", "PostToolUse", "PostToolUseFailure", "SubagentStart", "SubagentStop", "Stop"];
+
+interface TapHookEntry { type: string; command: string; async: boolean; timeout: number; statusMessage: string }
+type TapHookConfig = Record<string, Array<{ hooks: TapHookEntry[] }>>;
+interface TapSettings { hooks?: TapHookConfig; [key: string]: unknown }
+
+/** Find nearest .claude directory by walking up from cwd. */
+async function findClaudeDir(): Promise<string> {
+  let dir = process.cwd();
+  while (true) {
+    const candidate = join(dir, ".claude");
+    try {
+      const s = await stat(candidate);
+      if (s.isDirectory()) return candidate;
+    } catch { /* keep walking */ }
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return join(process.cwd(), ".claude");
+}
+
+async function readSettings(path: string): Promise<TapSettings> {
+  try { return JSON.parse(await readFile(path, "utf8")) as TapSettings; }
+  catch { return {}; }
+}
+
+function isTapHook(h: TapHookEntry): boolean { return h.statusMessage === TAP_HOOK_TAG; }
+
+async function installTapHooks(): Promise<void> {
+  const claudeDir = await findClaudeDir();
+  const settingsPath = join(claudeDir, "settings.local.json");
+  const settings = await readSettings(settingsPath);
+  if (!settings.hooks) settings.hooks = {};
+
+  for (const event of TAP_HOOK_EVENTS) {
+    if (!settings.hooks[event]) settings.hooks[event] = [];
+    // Deduplicate: remove existing tap hooks for this event
+    settings.hooks[event] = settings.hooks[event]!.filter(g => !g.hooks.some(isTapHook));
+    settings.hooks[event]!.push({
+      hooks: [{ type: "command", command: "npx sajou-emit --stdin", async: true, timeout: 5, statusMessage: TAP_HOOK_TAG }],
+    });
+  }
+
+  await mkdir(claudeDir, { recursive: true });
+  await writeFile(settingsPath, JSON.stringify(settings, null, 2) + "\n");
+}
+
+async function uninstallTapHooks(): Promise<void> {
+  const claudeDir = await findClaudeDir();
+  const settingsPath = join(claudeDir, "settings.local.json");
+  const settings = await readSettings(settingsPath);
+  if (!settings.hooks) return;
+
+  const cleaned: TapHookConfig = {};
+  for (const [event, groups] of Object.entries(settings.hooks)) {
+    const filtered = groups.filter(g => !g.hooks.some(isTapHook));
+    if (filtered.length > 0) cleaned[event] = filtered;
+  }
+  settings.hooks = Object.keys(cleaned).length > 0 ? cleaned : undefined;
+  if (!settings.hooks) delete settings.hooks;
+
+  await writeFile(settingsPath, JSON.stringify(settings, null, 2) + "\n");
+}
+
+/**
+ * Tap hook management plugin — install/uninstall Claude Code hooks.
+ *
+ * Adds two routes:
+ * - `POST /api/tap/connect`    — installs sajou-tap hooks in settings.local.json
+ * - `POST /api/tap/disconnect` — removes sajou-tap hooks
+ *
+ * On server shutdown, hooks are automatically cleaned up.
+ */
+function tapHookPlugin() {
+  let hooksInstalled = false;
+
+  return {
+    name: "tap-hooks",
+    configureServer(server: {
+      middlewares: { use: (fn: (req: IncomingMessage, res: ServerResponse, next: () => void) => void) => void };
+      httpServer?: HttpServer | null;
+    }) {
+      // Cleanup hooks when server shuts down
+      if (server.httpServer) {
+        server.httpServer.on("close", () => {
+          if (hooksInstalled) {
+            uninstallTapHooks().catch(() => {});
+            hooksInstalled = false;
+          }
+        });
+      }
+
+      server.middlewares.use((req, res, next) => {
+        const url = req.url ?? "";
+
+        // OPTIONS preflight for /api/tap/*
+        if (req.method === "OPTIONS" && url.startsWith("/api/tap/")) {
+          res.writeHead(204, {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type",
+            "Access-Control-Max-Age": "86400",
+          });
+          res.end();
+          return;
+        }
+
+        // POST /api/tap/connect
+        if (req.method === "POST" && url.startsWith("/api/tap/connect")) {
+          installTapHooks()
+            .then(() => {
+              hooksInstalled = true;
+              res.writeHead(200, {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": "*",
+              });
+              res.end(JSON.stringify({ ok: true }));
+            })
+            .catch((e) => {
+              res.writeHead(500, {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": "*",
+              });
+              res.end(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }));
+            });
+          return;
+        }
+
+        // POST /api/tap/disconnect
+        if (req.method === "POST" && url.startsWith("/api/tap/disconnect")) {
+          uninstallTapHooks()
+            .then(() => {
+              hooksInstalled = false;
+              res.writeHead(200, {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": "*",
+              });
+              res.end(JSON.stringify({ ok: true }));
+            })
+            .catch((e) => {
+              res.writeHead(500, {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": "*",
+              });
+              res.end(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }));
+            });
+          return;
+        }
+
+        next();
+      });
+    },
+  };
+}
+
 export default defineConfig({
   root: ".",
-  plugins: [corsProxyPlugin(), signalIngestionPlugin()],
+  plugins: [corsProxyPlugin(), signalIngestionPlugin(), tapHookPlugin()],
   server: {
     host: "0.0.0.0",
     port: 5175,

@@ -11,11 +11,14 @@
   },
   "dependencies": {
     "@sajou/core": "workspace:*",
+    "@sajou/stage": "workspace:*",
     "fflate": "^0.8.2",
     "gifuct-js": "^2.1.2",
-    "pixi.js": "^8.16.0"
+    "three": "^0.175.0"
   },
   "devDependencies": {
+    "@sajou/tap": "workspace:*",
+    "@types/three": "^0.175.0",
     "typescript": "^5.9.3",
     "vite": "^6.3.5"
   }

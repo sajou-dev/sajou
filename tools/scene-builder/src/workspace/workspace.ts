@@ -139,10 +139,10 @@ export async function initWorkspace(): Promise<void> {
   // Help bar (contextual tool hints at bottom)
   initHelpBar();
 
-  // PixiJS canvas (async — waits for app.init)
-  await initCanvas();
+  // Three.js canvas + Canvas2D overlay
+  initCanvas();
 
-  // Scene renderer (syncs state → PixiJS display objects)
+  // Scene renderer (syncs state → Three.js entities + Canvas2D overlays)
   initSceneRenderer();
 
   // Canvas drop handler (drag asset from Asset Manager → auto-place)

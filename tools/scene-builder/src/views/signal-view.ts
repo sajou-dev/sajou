@@ -17,6 +17,7 @@
 import {
   onSignal,
   onDebug,
+  connectLocalSSE,
 } from "./signal-connection.js";
 import type { ReceivedSignal } from "./signal-connection.js";
 import {
@@ -104,6 +105,9 @@ export function initSignalView(): void {
   onDebug((message: string, level: "info" | "warn" | "error", sourceId: string) => {
     addDebugEntry(message, level, sourceId);
   });
+
+  // ── Auto-connect to local signal stream (tap / emit signals) ──
+  connectLocalSSE();
 }
 
 // ---------------------------------------------------------------------------
