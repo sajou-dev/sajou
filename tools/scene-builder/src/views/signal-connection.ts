@@ -990,3 +990,61 @@ export function dispatchSignal(signal: ReceivedSignal, sourceId = ""): void {
 function notifyState(): void {
   for (const fn of stateListeners) fn();
 }
+
+// ---------------------------------------------------------------------------
+// Local SSE auto-connect — listens to /__signals__/stream (tap signals)
+// ---------------------------------------------------------------------------
+
+let localSSE: EventSource | null = null;
+
+/**
+ * Connect to the local `/__signals__/stream` SSE endpoint.
+ *
+ * Signals pushed via `POST /api/signal` (e.g. by `sajou-emit` / `sajou-tap`)
+ * are broadcast here. This auto-connect makes them visible in the raw log
+ * without any manual source configuration.
+ *
+ * Idempotent — calling multiple times is safe.
+ */
+export function connectLocalSSE(): void {
+  if (localSSE) return;
+
+  try {
+    localSSE = new EventSource("/__signals__/stream");
+  } catch {
+    debug("[local] Failed to create EventSource for /__signals__/stream", "warn", "local");
+    return;
+  }
+
+  localSSE.addEventListener("open", () => {
+    debug("[local] Connected to local signal stream.", "info", "local");
+  });
+
+  localSSE.addEventListener("message", (event) => {
+    const raw = event.data as string;
+    if (!raw) return;
+
+    try {
+      const envelope = JSON.parse(raw) as Record<string, unknown>;
+      const signal: ReceivedSignal = {
+        id: String(envelope["id"] ?? crypto.randomUUID()),
+        type: String(envelope["type"] ?? "event") as SignalType,
+        timestamp: typeof envelope["timestamp"] === "number" ? envelope["timestamp"] : Date.now(),
+        source: String(envelope["source"] ?? "local"),
+        correlationId: typeof envelope["correlationId"] === "string" ? envelope["correlationId"] : undefined,
+        payload: (typeof envelope["payload"] === "object" && envelope["payload"] !== null
+          ? envelope["payload"]
+          : {}) as Record<string, unknown>,
+        raw,
+      };
+      dispatchSignal(signal, "local");
+    } catch {
+      debug(`[local] Unparseable SSE message: ${raw.slice(0, 120)}`, "warn", "local");
+    }
+  });
+
+  localSSE.addEventListener("error", () => {
+    // EventSource auto-reconnects — just log
+    debug("[local] SSE connection error (will auto-reconnect).", "warn", "local");
+  });
+}
