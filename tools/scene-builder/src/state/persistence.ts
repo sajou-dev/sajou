@@ -56,6 +56,7 @@ import type {
   EditorState,
   PanelId,
   PanelLayout,
+  PipelineLayout,
   InterfaceState,
   ViewMode,
 } from "../types.js";
@@ -177,6 +178,7 @@ interface PersistedEditorPrefs {
   rideauSplit: number;
   interfaceState: InterfaceState;
   viewMode: ViewMode;
+  pipelineLayout?: PipelineLayout;
 }
 
 function serializeEditorPrefs(): string {
@@ -189,6 +191,7 @@ function serializeEditorPrefs(): string {
     rideauSplit: s.rideauSplit,
     interfaceState: s.interfaceState,
     viewMode: s.viewMode,
+    pipelineLayout: s.pipelineLayout,
   };
   return JSON.stringify(prefs);
 }
@@ -211,6 +214,18 @@ function restoreEditorPrefs(): void {
     if (typeof prefs.rideauSplit === "number") update.rideauSplit = prefs.rideauSplit;
     if (typeof prefs.interfaceState === "number") update.interfaceState = prefs.interfaceState;
     if (prefs.viewMode) update.viewMode = prefs.viewMode;
+
+    // Pipeline layout — restore or migrate from rideauSplit
+    if (prefs.pipelineLayout) {
+      update.pipelineLayout = prefs.pipelineLayout;
+    } else if (typeof prefs.rideauSplit === "number") {
+      // Migration: derive from rideauSplit
+      if (prefs.rideauSplit >= 0.95) {
+        update.pipelineLayout = { extended: ["signal", "choreographer"] };
+      } else {
+        update.pipelineLayout = { extended: ["visual"] };
+      }
+    }
 
     if (Object.keys(update).length > 0) {
       updateEditorState(update);

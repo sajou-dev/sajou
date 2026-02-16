@@ -396,6 +396,19 @@ export interface SceneState {
 /** Workspace view identifiers (top-level tab navigation — V1 compat). */
 export type ViewId = "signal" | "orchestrator" | "visual" | "shader";
 
+// ---------------------------------------------------------------------------
+// Pipeline layout (V3 — horizontal rail)
+// ---------------------------------------------------------------------------
+
+/** Pipeline node identifiers (left-to-right). */
+export type PipelineNodeId = "signal" | "choreographer" | "visual" | "shader";
+
+/** Pipeline layout configuration — which nodes are extended. */
+export interface PipelineLayout {
+  /** Node IDs currently extended (max 2). Rest are mini. */
+  extended: PipelineNodeId[];
+}
+
 /** Zone identifiers for the V2 spatial layout. */
 export type ZoneId = "signal" | "choreographer" | "theme";
 
@@ -494,6 +507,8 @@ export interface EditorState {
   selectedLightIds: string[];
   /** Selected particle emitter IDs (particle tool). */
   selectedParticleIds: string[];
+  /** Pipeline layout — which nodes are extended vs mini. */
+  pipelineLayout: PipelineLayout;
 }
 
 // ---------------------------------------------------------------------------

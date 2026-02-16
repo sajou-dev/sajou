@@ -5,7 +5,7 @@
  * Not saved to the scene file.
  */
 
-import type { EditorState, InterfaceState, NodeCanvasViewport, PanelId, PanelLayout, ToolId, ViewId, ViewMode } from "../types.js";
+import type { EditorState, InterfaceState, NodeCanvasViewport, PanelId, PanelLayout, PipelineLayout, PipelineNodeId, ToolId, ViewId, ViewMode } from "../types.js";
 
 // ---------------------------------------------------------------------------
 // Default state
@@ -49,6 +49,7 @@ function createDefault(): EditorState {
     viewMode: "top-down",
     selectedLightIds: [],
     selectedParticleIds: [],
+    pipelineLayout: { extended: ["visual"] },
   };
 }
 
@@ -210,6 +211,61 @@ export function setViewMode(mode: ViewMode): void {
 /** Toggle between top-down and isometric view. */
 export function toggleViewMode(): void {
   setViewMode(state.viewMode === "top-down" ? "isometric" : "top-down");
+}
+
+// ---------------------------------------------------------------------------
+// Pipeline layout
+// ---------------------------------------------------------------------------
+
+/** Ordered pipeline nodes for distance calculation. */
+const PIPELINE_ORDER: readonly PipelineNodeId[] = ["signal", "choreographer", "visual", "shader"];
+
+/** Set which pipeline nodes are extended (max 2). */
+export function setPipelineExtended(nodes: PipelineNodeId[]): void {
+  state = { ...state, pipelineLayout: { extended: nodes.slice(0, 2) } };
+  notify();
+}
+
+/** Toggle a pipeline node's extended state. If >2 extended, eject the farthest from the toggled node. */
+export function togglePipelineNode(id: PipelineNodeId): void {
+  const current = [...state.pipelineLayout.extended];
+  const idx = current.indexOf(id);
+  if (idx >= 0) {
+    // Already extended — collapse it (but keep at least one)
+    if (current.length > 1) {
+      current.splice(idx, 1);
+    }
+  } else {
+    current.push(id);
+    // If more than 2, eject the one farthest from the newly toggled
+    if (current.length > 2) {
+      const clickedOrder = PIPELINE_ORDER.indexOf(id);
+      let farthestIdx = 0;
+      let farthestDist = -1;
+      for (let i = 0; i < current.length; i++) {
+        if (current[i] === id) continue;
+        const dist = Math.abs(PIPELINE_ORDER.indexOf(current[i]!) - clickedOrder);
+        if (dist > farthestDist) {
+          farthestDist = dist;
+          farthestIdx = i;
+        }
+      }
+      current.splice(farthestIdx, 1);
+    }
+  }
+  state = { ...state, pipelineLayout: { extended: current } };
+  notify();
+}
+
+/** Focus a single pipeline node (solo mode). */
+export function focusPipelineNode(id: PipelineNodeId): void {
+  state = { ...state, pipelineLayout: { extended: [id] } };
+  notify();
+}
+
+/** Get the primary focused pipeline node (first extended, fallback "visual"). */
+export function getPipelineFocusedNode(): PipelineNodeId {
+  return state.pipelineLayout.extended[0] ?? "visual";
 }
 
 /** Subscribe to editor state changes. Returns unsubscribe function. */
