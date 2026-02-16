@@ -918,7 +918,7 @@ export type ConnectionStatus = "disconnected" | "connecting" | "connected" | "er
 export type SourceCategory = "local" | "remote";
 
 /** Transport protocol for a signal source. */
-export type TransportProtocol = "websocket" | "sse" | "openai" | "anthropic" | "openclaw";
+export type TransportProtocol = "websocket" | "sse" | "openai" | "anthropic" | "openclaw" | "midi";
 
 /**
  * A single signal source in the V2 multi-source architecture.
