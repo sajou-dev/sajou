@@ -3,6 +3,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Server as HttpServer } from "node:http";
 import { readFile, writeFile, mkdir, stat } from "node:fs/promises";
 import { join, dirname } from "node:path";
+import { createConnection } from "node:net";
 
 /**
  * Dynamic CORS proxy middleware for the Vite dev server.
@@ -409,9 +410,232 @@ function tapHookPlugin() {
   };
 }
 
+// ---------------------------------------------------------------------------
+// OpenClaw token reader — reads token from ~/.openclaw/openclaw.json
+// ---------------------------------------------------------------------------
+
+/** Path to the OpenClaw config file. */
+const OPENCLAW_CONFIG_PATH = join(
+  process.env["HOME"] ?? process.env["USERPROFILE"] ?? ".",
+  ".openclaw",
+  "openclaw.json",
+);
+
+interface OpenClawConfig {
+  gateway?: {
+    auth?: {
+      token?: string;
+    };
+  };
+}
+
+/** Read the OpenClaw gateway auth token from the local config file. */
+async function readOpenClawToken(): Promise<string | null> {
+  try {
+    const raw = await readFile(OPENCLAW_CONFIG_PATH, "utf8");
+    const config = JSON.parse(raw) as OpenClawConfig;
+    return config.gateway?.auth?.token ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * OpenClaw token plugin — serves the gateway token for auto-fill.
+ *
+ * Route: `GET /api/openclaw/token`
+ * Returns: `{ ok: true, token: "..." }` or `{ ok: false }`
+ *
+ * Security: CORS origin restricted to the Vite dev server origin.
+ * In production builds this endpoint does not exist.
+ */
+function openclawTokenPlugin() {
+  return {
+    name: "openclaw-token",
+    configureServer(server: {
+      middlewares: { use: (fn: (req: IncomingMessage, res: ServerResponse, next: () => void) => void) => void };
+      config: { server: { port?: number } };
+    }) {
+      server.middlewares.use((req, res, next) => {
+        if (req.method !== "GET" || !req.url?.startsWith("/api/openclaw/token")) {
+          next();
+          return;
+        }
+
+        // CORS origin check — only allow requests from the dev server itself
+        const origin = req.headers["origin"] ?? "";
+        const port = server.config.server.port ?? 5175;
+        const allowedOrigins = [
+          `http://localhost:${port}`,
+          `http://127.0.0.1:${port}`,
+          `http://0.0.0.0:${port}`,
+        ];
+
+        if (origin && !allowedOrigins.includes(origin)) {
+          res.writeHead(403, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ ok: false, error: "Forbidden origin" }));
+          return;
+        }
+
+        readOpenClawToken().then((token) => {
+          const headers: Record<string, string> = {
+            "Content-Type": "application/json",
+          };
+          if (origin) {
+            headers["Access-Control-Allow-Origin"] = origin;
+          }
+          if (token) {
+            res.writeHead(200, headers);
+            res.end(JSON.stringify({ ok: true, token }));
+          } else {
+            res.writeHead(200, headers);
+            res.end(JSON.stringify({ ok: false }));
+          }
+        });
+      });
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Local service discovery — server-side probes
+// ---------------------------------------------------------------------------
+
+/** Probe a TCP port on localhost. Resolves true if something is listening. */
+function tcpProbe(port: number, timeoutMs = 300): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = createConnection({ host: "127.0.0.1", port });
+    const timer = setTimeout(() => {
+      socket.destroy();
+      resolve(false);
+    }, timeoutMs);
+    socket.on("connect", () => {
+      clearTimeout(timer);
+      socket.destroy();
+      resolve(true);
+    });
+    socket.on("error", () => {
+      clearTimeout(timer);
+      socket.destroy();
+      resolve(false);
+    });
+  });
+}
+
+/** Probe an HTTP endpoint. Returns models list on success, null on failure. */
+async function httpProbe(
+  url: string,
+  timeoutMs = 300,
+): Promise<{ ok: boolean; models?: string[] }> {
+  try {
+    const resp = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
+    if (!resp.ok) return { ok: false };
+    const json = (await resp.json()) as Record<string, unknown>;
+    const data = json["data"];
+    if (Array.isArray(data)) {
+      const models = data.map((m) => {
+        const entry = m as Record<string, unknown>;
+        return String(entry["id"] ?? "unknown");
+      });
+      return { ok: true, models };
+    }
+    return { ok: true, models: [] };
+  } catch {
+    return { ok: false };
+  }
+}
+
+interface DiscoveredServiceResponse {
+  id: string;
+  label: string;
+  protocol: string;
+  url: string;
+  available: boolean;
+  needsApiKey?: boolean;
+  models: string[];
+}
+
+/**
+ * Local discovery plugin — probes known local services on startup/rescan.
+ *
+ * Route: `GET /api/discover/local`
+ * Returns: `{ services: DiscoveredServiceResponse[] }`
+ */
+function localDiscoveryPlugin() {
+  return {
+    name: "local-discovery",
+    configureServer(server: { middlewares: { use: (fn: (req: IncomingMessage, res: ServerResponse, next: () => void) => void) => void } }) {
+      server.middlewares.use((req, res, next) => {
+        if (req.method !== "GET" || !req.url?.startsWith("/api/discover/local")) {
+          next();
+          return;
+        }
+
+        // Run all probes in parallel
+        Promise.allSettled([
+          // Claude Code — always present (SSE internal endpoint)
+          Promise.resolve<DiscoveredServiceResponse>({
+            id: "local:claude-code",
+            label: "Claude Code",
+            protocol: "sse",
+            url: "/__signals__/stream",
+            available: true,
+            models: [],
+          }),
+
+          // OpenClaw — TCP probe on 18789
+          tcpProbe(18789, 300).then<DiscoveredServiceResponse>((up) => ({
+            id: "local:openclaw",
+            label: "OpenClaw",
+            protocol: "openclaw",
+            url: "ws://127.0.0.1:18789",
+            available: up,
+            needsApiKey: true,
+            models: [],
+          })),
+
+          // LM Studio — HTTP probe on 1234
+          httpProbe("http://127.0.0.1:1234/v1/models", 300).then<DiscoveredServiceResponse>((r) => ({
+            id: "local:lm-studio",
+            label: "LM Studio",
+            protocol: "openai",
+            url: "http://127.0.0.1:1234",
+            available: r.ok,
+            needsApiKey: true,
+            models: r.models ?? [],
+          })),
+
+          // Ollama — HTTP probe on 11434
+          httpProbe("http://127.0.0.1:11434/v1/models", 300).then<DiscoveredServiceResponse>((r) => ({
+            id: "local:ollama",
+            label: "Ollama",
+            protocol: "openai",
+            url: "http://127.0.0.1:11434",
+            available: r.ok,
+            models: r.models ?? [],
+          })),
+        ]).then((results) => {
+          const services: DiscoveredServiceResponse[] = [];
+          for (const result of results) {
+            if (result.status === "fulfilled") {
+              services.push(result.value);
+            }
+          }
+
+          res.writeHead(200, {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+          });
+          res.end(JSON.stringify({ services }));
+        });
+      });
+    },
+  };
+}
+
 export default defineConfig({
   root: ".",
-  plugins: [corsProxyPlugin(), signalIngestionPlugin(), tapHookPlugin()],
+  plugins: [corsProxyPlugin(), signalIngestionPlugin(), tapHookPlugin(), openclawTokenPlugin(), localDiscoveryPlugin()],
   server: {
     host: "0.0.0.0",
     port: 5175,

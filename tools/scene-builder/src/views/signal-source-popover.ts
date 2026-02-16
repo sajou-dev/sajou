@@ -8,7 +8,7 @@
  * are called directly — no intermediate state.
  */
 
-import type { SignalSource } from "../types.js";
+import type { SignalSource, TransportProtocol } from "../types.js";
 import {
   getSignalSourcesState,
   updateSource,
@@ -34,6 +34,7 @@ const STATUS_COLORS: Record<string, string> = {
   connecting: "#E8A851",
   connected: "#4A9E6E",
   error: "#C44040",
+  unavailable: "#4A4A5A",
 };
 
 // ---------------------------------------------------------------------------
@@ -168,6 +169,8 @@ export function closeSourcePopover(): void {
 
 function buildPopoverContent(content: HTMLElement, source: SignalSource): void {
   const isActive = source.status === "connected" || source.status === "connecting";
+  const isLocal = source.category === "local";
+  const isUnavailable = source.status === "unavailable";
 
   // -- Status row: dot + protocol badge --
   const statusRow = document.createElement("div");
@@ -183,12 +186,12 @@ function buildPopoverContent(content: HTMLElement, source: SignalSource): void {
   statusLabel.className = "nc-popover-label";
   statusLabel.style.minWidth = "0";
   statusLabel.style.flex = "1";
-  statusLabel.textContent = source.status;
+  statusLabel.textContent = isUnavailable ? "not detected" : source.status;
   statusRow.appendChild(statusLabel);
 
   const protoBadge = document.createElement("span");
   protoBadge.className = `sv-chip-proto source-block-proto--${source.protocol}`;
-  protoBadge.textContent = { websocket: "WS", sse: "SSE", openai: "AI", openclaw: "CLAW" }[source.protocol] ?? source.protocol;
+  protoBadge.textContent = { websocket: "WS", sse: "SSE", openai: "AI", openclaw: "CLAW", anthropic: "ANTH" }[source.protocol] ?? source.protocol;
   statusRow.appendChild(protoBadge);
 
   if (source.eventsPerSecond > 0) {
@@ -214,14 +217,44 @@ function buildPopoverContent(content: HTMLElement, source: SignalSource): void {
   nameInput.className = "nc-popover-select";
   nameInput.type = "text";
   nameInput.value = source.name;
+  nameInput.disabled = isLocal;
   nameInput.addEventListener("change", () => {
     updateSource(source.id, { name: nameInput.value.trim() || source.name });
   });
   nameRow.appendChild(nameInput);
   content.appendChild(nameRow);
 
-  // -- URL + API key inputs (hidden for the built-in Local source) --
-  if (source.id !== "local") {
+  // -- Protocol selector for local HTTP-based sources (LM Studio, Ollama) --
+  if (isLocal && source.protocol !== "sse" && source.protocol !== "openclaw") {
+    const protoRow = document.createElement("div");
+    protoRow.className = "nc-popover-row";
+
+    const protoLabel = document.createElement("span");
+    protoLabel.className = "nc-popover-label";
+    protoLabel.textContent = "protocol";
+    protoRow.appendChild(protoLabel);
+
+    const protoSelect = document.createElement("select");
+    protoSelect.className = "nc-popover-select";
+    protoSelect.disabled = isActive;
+    for (const [value, label] of [["openai", "OpenAI"], ["sse", "SSE"], ["anthropic", "Anthropic"]] as const) {
+      const opt = document.createElement("option");
+      opt.value = value;
+      opt.textContent = label;
+      if (source.protocol === value) opt.selected = true;
+      protoSelect.appendChild(opt);
+    }
+    protoSelect.addEventListener("change", () => {
+      updateSource(source.id, { protocol: protoSelect.value as TransportProtocol });
+    });
+    protoRow.appendChild(protoSelect);
+    content.appendChild(protoRow);
+  }
+
+  // -- URL + API key inputs --
+  // Local sources: show URL read-only (pre-filled), hide for SSE locals (Claude Code)
+  // Remote sources: fully editable
+  if (!isLocal || source.protocol !== "sse") {
     const urlRow = document.createElement("div");
     urlRow.className = "nc-popover-row";
 
@@ -233,17 +266,22 @@ function buildPopoverContent(content: HTMLElement, source: SignalSource): void {
     const urlInput = document.createElement("input");
     urlInput.className = "nc-popover-select";
     urlInput.type = "text";
-    urlInput.placeholder = "ws://localhost:9100";
+    urlInput.placeholder = "wss://test.sajou.dev/signals";
     urlInput.value = source.url;
-    urlInput.disabled = isActive;
-    urlInput.addEventListener("change", () => {
-      const url = urlInput.value;
-      const proto = detectProtocol(url);
-      updateSource(source.id, { url, protocol: proto });
-    });
+    urlInput.disabled = isActive || isLocal;
+    if (!isLocal) {
+      urlInput.addEventListener("change", () => {
+        const url = urlInput.value;
+        const proto = detectProtocol(url);
+        updateSource(source.id, { url, protocol: proto });
+      });
+    }
     urlRow.appendChild(urlInput);
     content.appendChild(urlRow);
+  }
 
+  // API key — show for remote sources and local sources with non-SSE protocols
+  if (!isLocal || (isLocal && source.protocol !== "sse")) {
     const keyRow = document.createElement("div");
     keyRow.className = "nc-popover-row";
 
@@ -252,37 +290,76 @@ function buildPopoverContent(content: HTMLElement, source: SignalSource): void {
     keyLabel.textContent = "key";
     keyRow.appendChild(keyLabel);
 
+    const keyWrap = document.createElement("div");
+    keyWrap.style.display = "flex";
+    keyWrap.style.gap = "4px";
+    keyWrap.style.flex = "1";
+    keyWrap.style.minWidth = "0";
+
     const keyInput = document.createElement("input");
     keyInput.className = "nc-popover-select";
+    keyInput.style.flex = "1";
+    keyInput.style.minWidth = "0";
     keyInput.type = "password";
-    keyInput.placeholder = "API key (optional)";
+    keyInput.placeholder = source.id === "local:openclaw"
+      ? "Auto-filled from ~/.openclaw"
+      : "API key (optional)";
     keyInput.value = source.apiKey;
     keyInput.disabled = isActive;
     keyInput.addEventListener("change", () => {
       updateSource(source.id, { apiKey: keyInput.value });
     });
-    keyRow.appendChild(keyInput);
+    keyWrap.appendChild(keyInput);
+
+    // "Paste from config" button for OpenClaw local source
+    if (source.id === "local:openclaw" && !isActive) {
+      const pasteBtn = document.createElement("button");
+      pasteBtn.className = "sv-paste-token-btn";
+      pasteBtn.title = "Read token from ~/.openclaw/openclaw.json";
+      pasteBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>`;
+      pasteBtn.addEventListener("click", async () => {
+        const { fetchOpenClawToken } = await import("../state/local-discovery.js");
+        const token = await fetchOpenClawToken();
+        if (token) {
+          keyInput.value = token;
+          updateSource(source.id, { apiKey: token });
+        }
+      });
+      keyWrap.appendChild(pasteBtn);
+    }
+
+    keyRow.appendChild(keyWrap);
     content.appendChild(keyRow);
   }
 
   // -- Connect / Disconnect button --
-  const actionBtn = document.createElement("button");
-  actionBtn.className = `source-block-action source-block-action--${isActive ? "disconnect" : "connect"}`;
-  actionBtn.textContent = isActive ? "Disconnect" : "Connect";
-  actionBtn.addEventListener("click", () => {
-    if (source.id === "local") {
-      if (isActive) {
-        disconnectLocalSSE();
+  if (isUnavailable) {
+    const unavailMsg = document.createElement("div");
+    unavailMsg.className = "nc-popover-label";
+    unavailMsg.style.opacity = "0.5";
+    unavailMsg.style.fontStyle = "italic";
+    unavailMsg.style.padding = "4px 0";
+    unavailMsg.textContent = "Service not detected — click Rescan to retry";
+    content.appendChild(unavailMsg);
+  } else {
+    const actionBtn = document.createElement("button");
+    actionBtn.className = `source-block-action source-block-action--${isActive ? "disconnect" : "connect"}`;
+    actionBtn.textContent = isActive ? "Disconnect" : "Connect";
+    actionBtn.addEventListener("click", () => {
+      if (source.id === "local:claude-code") {
+        if (isActive) {
+          disconnectLocalSSE();
+        } else {
+          connectLocalSSE(source.id);
+        }
+      } else if (isActive) {
+        disconnectSource(source.id);
       } else {
-        connectLocalSSE();
+        connectSource(source.id, source.url, source.apiKey);
       }
-    } else if (isActive) {
-      disconnectSource(source.id);
-    } else {
-      connectSource(source.id, source.url, source.apiKey);
-    }
-  });
-  content.appendChild(actionBtn);
+    });
+    content.appendChild(actionBtn);
+  }
 
   // -- OpenAI prompt section (only when connected in OpenAI mode) --
   if (source.protocol === "openai" && source.status === "connected") {
@@ -344,8 +421,8 @@ function buildPopoverContent(content: HTMLElement, source: SignalSource): void {
     content.appendChild(errorEl);
   }
 
-  // -- Delete button (hidden for the built-in Local source) --
-  if (source.id !== "local") {
+  // -- Delete button (only for remote sources) --
+  if (!isLocal) {
     const deleteBtn = document.createElement("button");
     deleteBtn.className = "nc-popover-delete";
     deleteBtn.textContent = "\u2716 Remove source";
