@@ -44,6 +44,27 @@ Remplacer l'approche "pack de PNGs" par une architecture **shaders + SVG paramé
 
 Mix **Ryoji Ikeda + réaction-diffusion** : les données sont froides, précises, graphiques. Quand l'agent "pense", ça devient organique, vivant, imprévisible. Le contraste entre la machine et l'émergence — l'IA c'est du calcul qui produit de l'inattendu. Le shader incarne ça.
 
+## Deux modes d'édition
+
+L'éditeur shader doit supporter deux modes, switchables :
+
+### Mode GLSL
+- Éditeur de code GLSL en panel (type CodeMirror/Monaco)
+- Écriture directe de vertex/fragment shaders
+- Preview temps réel, uniforms exposés comme sliders/pickers
+- Pour les devs shader / contrôle fin
+
+### Mode p5.js / Three.js (scripté)
+- Éditeur de code JS avec accès à l'API p5.js ou Three.js
+- Le langage naturel du generative art (Zach Lieberman, creative coding community)
+- Permet de porter directement des sketches existants (OpenProcessing, ShaderToy adaptés, etc.)
+- Plus accessible pour les artistes visuels
+
+### Compatibilité
+- Les deux modes produisent le même format de sortie (shader theme JSON)
+- Le mode p5.js/Three.js compile vers des shaders ou tourne dans un runtime sandbox
+- À investiguer : est-ce qu'un mode wrapping (p5 → ShaderMaterial) est viable sans trop de compromis de performance ?
+
 ## Status
 
 Backlog — à spécifier avant implémentation.
