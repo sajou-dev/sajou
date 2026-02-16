@@ -15,7 +15,7 @@
  */
 
 import type { SignalType } from "../types.js";
-import { updateSource, getSignalSourcesState, setSignalSourcesState } from "../state/signal-source-state.js";
+import { updateSource } from "../state/signal-source-state.js";
 import { getSignalTimelineState } from "../state/signal-timeline-state.js";
 import {
   parseMessage,
@@ -29,7 +29,7 @@ import {
 // ---------------------------------------------------------------------------
 
 /** Connection status. */
-export type ConnectionStatus = "disconnected" | "connecting" | "connected" | "error";
+export type ConnectionStatus = "disconnected" | "connecting" | "connected" | "error" | "unavailable";
 
 /** Transport protocol. */
 export type TransportProtocol = "websocket" | "sse" | "openai" | "anthropic" | "openclaw";
@@ -1208,57 +1208,23 @@ function notifyState(): void {
 
 let localSSE: EventSource | null = null;
 
-/** Well-known source ID for the local SSE stream. */
-const LOCAL_SOURCE_ID = "local";
+/** The source ID currently connected via local SSE. */
+let localSSESourceId: string | null = null;
 
 /**
- * Ensure a "Local" source exists in the signal-source-state store,
- * always as the first entry so it appears first in the chip bar.
- * Returns its ID (always `"local"`).
- */
-function ensureLocalSource(): string {
-  const state = getSignalSourcesState();
-  if (state.sources.some((s) => s.id === LOCAL_SOURCE_ID)) return LOCAL_SOURCE_ID;
-
-  // Prepend a fully-formed SignalSource
-  setSignalSourcesState({
-    ...state,
-    sources: [
-      {
-        id: LOCAL_SOURCE_ID,
-        name: "Local",
-        color: "#4EC9B0",
-        protocol: "sse",
-        url: "/__signals__/stream",
-        apiKey: "",
-        status: "connecting",
-        error: null,
-        eventsPerSecond: 0,
-        availableModels: [],
-        selectedModel: "",
-        streaming: false,
-      },
-      ...state.sources,
-    ],
-  });
-
-  return LOCAL_SOURCE_ID;
-}
-
-/**
- * Connect the local signal pipeline:
+ * Connect the local Claude Code signal pipeline:
  * 1. Install Claude Code hooks via `POST /api/tap/connect`
  * 2. Open EventSource on `/__signals__/stream` to receive signals
  *
- * Creates a proper source entry so signals are visible in the raw log
- * and can be wired to the choreographer.
+ * The source must already exist in the signal-source-state store
+ * (created by scanAndSyncLocal via local discovery).
  *
- * Idempotent — calling multiple times is safe.
+ * @param sourceId — the source ID to connect (e.g. "local:claude-code")
  */
-export async function connectLocalSSE(): Promise<void> {
+export async function connectLocalSSE(sourceId = "local:claude-code"): Promise<void> {
   if (localSSE) return;
 
-  const sourceId = ensureLocalSource();
+  localSSESourceId = sourceId;
   updateSource(sourceId, { status: "connecting", error: null });
 
   // Install Claude Code hooks
@@ -1266,28 +1232,26 @@ export async function connectLocalSSE(): Promise<void> {
     const resp = await fetch("/api/tap/connect", { method: "POST" });
     const body = await resp.json() as { ok: boolean; error?: string };
     if (!body.ok) {
-      debug(`[local] Hook install failed: ${body.error ?? "unknown"}`, "error", sourceId);
-      // Continue anyway — SSE stream still works for manual signals (curl, etc.)
+      debug(`[${sourceId}] Hook install failed: ${body.error ?? "unknown"}`, "error", sourceId);
     } else {
-      debug("[local] Claude Code hooks installed.", "info", sourceId);
+      debug(`[${sourceId}] Claude Code hooks installed.`, "info", sourceId);
     }
   } catch (e) {
-    debug(`[local] Hook install request failed: ${e instanceof Error ? e.message : String(e)}`, "warn", sourceId);
-    // Continue — SSE still useful without hooks
+    debug(`[${sourceId}] Hook install request failed: ${e instanceof Error ? e.message : String(e)}`, "warn", sourceId);
   }
 
   // Open SSE stream
   try {
     localSSE = new EventSource("/__signals__/stream");
   } catch {
-    debug("[local] Failed to create EventSource for /__signals__/stream", "warn", sourceId);
+    debug(`[${sourceId}] Failed to create EventSource for /__signals__/stream`, "warn", sourceId);
     updateSource(sourceId, { status: "error", error: "EventSource creation failed" });
     return;
   }
 
   localSSE.addEventListener("open", () => {
     updateSource(sourceId, { status: "connected", error: null });
-    debug("[local] Connected to local signal stream.", "info", sourceId);
+    debug(`[${sourceId}] Connected to local signal stream.`, "info", sourceId);
   });
 
   localSSE.addEventListener("message", (event) => {
@@ -1309,23 +1273,19 @@ export async function connectLocalSSE(): Promise<void> {
       };
       dispatchSignal(signal, sourceId);
     } catch {
-      debug(`[local] Unparseable SSE message: ${raw.slice(0, 120)}`, "warn", sourceId);
+      debug(`[${sourceId}] Unparseable SSE message: ${raw.slice(0, 120)}`, "warn", sourceId);
     }
   });
 
   localSSE.addEventListener("error", () => {
     updateSource(sourceId, { status: "error", error: "SSE connection lost (auto-reconnecting)" });
-    debug("[local] SSE connection error (will auto-reconnect).", "warn", sourceId);
+    debug(`[${sourceId}] SSE connection error (will auto-reconnect).`, "warn", sourceId);
   });
 }
 
 /**
- * Disconnect the local signal pipeline:
- * 1. Close the SSE stream
- * 2. Uninstall Claude Code hooks via `POST /api/tap/disconnect`
- *
- * The source stays in the store (cannot be removed).
- * Call `connectLocalSSE()` again to re-enable.
+ * Disconnect the local Claude Code signal pipeline.
+ * Closes the SSE stream and uninstalls Claude Code hooks.
  */
 export async function disconnectLocalSSE(): Promise<void> {
   if (localSSE) {
@@ -1333,20 +1293,23 @@ export async function disconnectLocalSSE(): Promise<void> {
     localSSE = null;
   }
 
-  updateSource(LOCAL_SOURCE_ID, { status: "disconnected", error: null });
+  const sourceId = localSSESourceId ?? "local:claude-code";
+  localSSESourceId = null;
+
+  updateSource(sourceId, { status: "disconnected", error: null });
 
   // Uninstall Claude Code hooks
   try {
     const resp = await fetch("/api/tap/disconnect", { method: "POST" });
     const body = await resp.json() as { ok: boolean; error?: string };
     if (body.ok) {
-      debug("[local] Claude Code hooks removed.", "info", LOCAL_SOURCE_ID);
+      debug(`[${sourceId}] Claude Code hooks removed.`, "info", sourceId);
     }
   } catch {
     // Best-effort — hooks will be cleaned up on server shutdown anyway
   }
 
-  debug("[local] Local signal stream disconnected.", "info", LOCAL_SOURCE_ID);
+  debug(`[${sourceId}] Local signal stream disconnected.`, "info", sourceId);
 }
 
 /** Whether the local SSE stream is currently active. */

@@ -42,7 +42,7 @@ function nextSourceColor(): string {
 // Default state
 // ---------------------------------------------------------------------------
 
-/** Create a new empty source with a unique ID. */
+/** Create a new empty remote source with a unique ID. */
 export function createSource(name?: string): SignalSource {
   const id = crypto.randomUUID();
   return {
@@ -50,7 +50,7 @@ export function createSource(name?: string): SignalSource {
     name: name ?? `source-${id.slice(0, 4)}`,
     color: nextSourceColor(),
     protocol: "websocket",
-    url: "ws://localhost:9100",
+    url: "wss://test.sajou.dev/signals",
     apiKey: "",
     status: "disconnected",
     error: null,
@@ -58,12 +58,43 @@ export function createSource(name?: string): SignalSource {
     availableModels: [],
     selectedModel: "",
     streaming: false,
+    category: "remote",
+  };
+}
+
+/** Descriptor for a locally discovered service. */
+export interface DiscoveredService {
+  id: string;
+  label: string;
+  protocol: TransportProtocol;
+  url: string;
+  available: boolean;
+  needsApiKey?: boolean;
+  models?: string[];
+}
+
+/** Create a local source from a discovered service descriptor. */
+export function createLocalSource(service: DiscoveredService): SignalSource {
+  return {
+    id: service.id,
+    name: service.label,
+    color: nextSourceColor(),
+    protocol: service.protocol,
+    url: service.url,
+    apiKey: "",
+    status: service.available ? "disconnected" : "unavailable",
+    error: null,
+    eventsPerSecond: 0,
+    availableModels: service.models ?? [],
+    selectedModel: "",
+    streaming: false,
+    category: "local",
   };
 }
 
 function createDefault(): SignalSourcesState {
   return {
-    sources: [createSource("New source")],
+    sources: [],
     selectedSourceId: null,
     expanded: true,
   };
@@ -103,12 +134,11 @@ export function addSource(name?: string): string {
   return source.id;
 }
 
-/** Well-known ID for the built-in local SSE source. Cannot be removed. */
-export const LOCAL_SOURCE_ID = "local";
-
-/** Remove a source by ID. Also cleans up any signal→signal-type wires referencing it. */
+/** Remove a source by ID. Local sources cannot be removed. Also cleans up wires. */
 export function removeSource(id: string): void {
-  if (id === LOCAL_SOURCE_ID) return;
+  const source = state.sources.find((s) => s.id === id);
+  if (!source || source.category === "local") return;
+
   // Clean up orphaned wires: remove all signal→signal-type wires from this source
   const { wires } = getWiringState();
   for (const wire of wires) {
@@ -121,6 +151,70 @@ export function removeSource(id: string): void {
     ...state,
     sources: state.sources.filter((s) => s.id !== id),
     selectedSourceId: state.selectedSourceId === id ? null : state.selectedSourceId,
+  };
+  notify();
+}
+
+/** Get all local sources. */
+export function getLocalSources(): SignalSource[] {
+  return state.sources.filter((s) => s.category === "local");
+}
+
+/** Get all remote sources. */
+export function getRemoteSources(): SignalSource[] {
+  return state.sources.filter((s) => s.category === "remote");
+}
+
+/**
+ * Synchronize local sources with a fresh list of discovered services.
+ * - New services → create local source entries
+ * - Existing available services → update models, mark disconnected if not connected
+ * - Missing services → mark "unavailable"
+ * - Connected sources are never touched (don't interrupt active connections)
+ */
+export function upsertLocalSources(services: DiscoveredService[]): void {
+  const serviceIds = new Set(services.map((s) => s.id));
+  const existingLocals = state.sources.filter((s) => s.category === "local");
+  const existingLocalIds = new Set(existingLocals.map((s) => s.id));
+  const remotes = state.sources.filter((s) => s.category === "remote");
+
+  const updatedLocals: SignalSource[] = [];
+
+  // Update or keep existing local sources
+  for (const existing of existingLocals) {
+    const service = services.find((s) => s.id === existing.id);
+    if (service) {
+      // Service still available — update models, don't touch connected sources
+      if (existing.status === "connected" || existing.status === "connecting") {
+        updatedLocals.push({ ...existing, availableModels: service.models ?? existing.availableModels });
+      } else {
+        updatedLocals.push({
+          ...existing,
+          status: service.available ? "disconnected" : "unavailable",
+          availableModels: service.models ?? existing.availableModels,
+          error: service.available ? null : existing.error,
+        });
+      }
+    } else {
+      // Service disappeared — mark unavailable unless actively connected
+      if (existing.status === "connected" || existing.status === "connecting") {
+        updatedLocals.push(existing);
+      } else {
+        updatedLocals.push({ ...existing, status: "unavailable", error: null });
+      }
+    }
+  }
+
+  // Add newly discovered services
+  for (const service of services) {
+    if (!existingLocalIds.has(service.id)) {
+      updatedLocals.push(createLocalSource(service));
+    }
+  }
+
+  state = {
+    ...state,
+    sources: [...updatedLocals, ...remotes],
   };
   notify();
 }

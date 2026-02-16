@@ -897,7 +897,10 @@ export interface ChoreographyEditorState {
 // ---------------------------------------------------------------------------
 
 /** Connection status for a signal source. */
-export type ConnectionStatus = "disconnected" | "connecting" | "connected" | "error";
+export type ConnectionStatus = "disconnected" | "connecting" | "connected" | "error" | "unavailable";
+
+/** Category for a signal source: locally discovered or manually added remote. */
+export type SourceCategory = "local" | "remote";
 
 /** Transport protocol for a signal source. */
 export type TransportProtocol = "websocket" | "sse" | "openai" | "anthropic" | "openclaw";
@@ -931,6 +934,8 @@ export interface SignalSource {
   selectedModel: string;
   /** Whether this source is currently streaming (OpenAI mode only). */
   streaming: boolean;
+  /** Whether this source is locally discovered or manually added remote. */
+  category: SourceCategory;
 }
 
 /** Full state for the signal sources panel (V2 multi-source). */

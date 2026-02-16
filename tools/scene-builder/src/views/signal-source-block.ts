@@ -32,6 +32,7 @@ const STATUS_COLORS: Record<string, string> = {
   connecting: "#E8A851",
   connected: "#4A9E6E",
   error: "#C44040",
+  unavailable: "#4A4A5A",
 };
 
 // ---------------------------------------------------------------------------
@@ -59,7 +60,7 @@ export function createSourceBlock(source: SignalSource): HTMLElement {
   });
   header.appendChild(nameInput);
 
-  if (source.id !== "local") {
+  if (source.category !== "local") {
     const removeBtn = document.createElement("button");
     removeBtn.className = "source-block-remove";
     removeBtn.textContent = "\u00D7";
@@ -108,7 +109,7 @@ export function createSourceBlock(source: SignalSource): HTMLElement {
   const urlInput = document.createElement("input");
   urlInput.className = "source-block-url";
   urlInput.type = "text";
-  urlInput.placeholder = "ws://localhost:9100";
+  urlInput.placeholder = "wss://test.sajou.dev/signals";
   urlInput.value = source.url;
   urlInput.addEventListener("change", () => {
     const url = urlInput.value;
