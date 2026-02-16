@@ -24,6 +24,7 @@ import {
 } from "../state/editor-state.js";
 import { createPanel } from "./panel.js";
 import { initPipelineLayout } from "./pipeline-layout.js";
+import { initMiniPreviews } from "./pipeline-mini-previews.js";
 import { initViewTabs } from "./view-tabs.js";
 import { initRideau } from "./rideau.js";
 import { initConnectorBarH } from "./connector-bar-horizontal.js";
@@ -173,6 +174,9 @@ export async function initWorkspace(): Promise<void> {
 
   // Shader editor view (hidden by default, toggled via header button)
   initShaderView();
+
+  // Mini-previews for collapsed pipeline nodes
+  initMiniPreviews();
 
   // Canvas drop handler (drag asset from Asset Manager → auto-place)
   initCanvasDropHandler();
