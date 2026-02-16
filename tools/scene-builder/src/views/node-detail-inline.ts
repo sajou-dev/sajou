@@ -1,26 +1,40 @@
 /**
- * Node detail header — compact header rendered above the step chain.
+ * Node detail — inline parameter editor for the active dock.
  *
- * Displays: wired input badges (or signal type fallback), interrupts toggle.
- * The step list and step detail have been replaced by the step chain (step-chain.ts)
- * and step popover (step-popover.ts).
+ * Two sections:
+ *   1. Selected step params (action type, common fields, action-specific fields)
+ *   2. Dock params (inputs/on, when filter, target entity, interrupts)
+ *
+ * Step params use the same ISF controls as the former popover, but rendered
+ * inline inside the dock's detail area — no floating menu needed.
  */
 
-import type { ChoreographyDef, WhenConditionDef, WhenOperatorDef } from "../types.js";
+import type { ChoreographyDef, ChoreographyStepDef, WhenConditionDef, WhenOperatorDef } from "../types.js";
+import { STRUCTURAL_ACTIONS } from "../types.js";
 import {
   getWiringState,
   removeWire,
 } from "../state/wiring-state.js";
-import { removeChoreography } from "../state/choreography-state.js";
+import {
+  getChoreographyState,
+  removeChoreography,
+} from "../state/choreography-state.js";
 import {
   getChoreoInputInfo,
   getSourcesForChoreo,
 } from "../state/wiring-queries.js";
 import { getSignalSourcesState } from "../state/signal-source-state.js";
+import { getActionSchema } from "../choreography/action-inputs.js";
+import { createInputControl } from "../choreography/input-controls.js";
+import type { OnInputChange } from "../choreography/input-controls.js";
 import {
+  ACTION_TYPES,
   SIGNAL_TYPES,
   SIGNAL_TYPE_COLORS,
+  flattenSteps,
   updateChoreographyCmd,
+  updateStepCmd,
+  removeStepCmd,
 } from "./step-commands.js";
 
 // ---------------------------------------------------------------------------
@@ -37,13 +51,23 @@ export function renderNodeDetail(choreo: ChoreographyDef): HTMLElement {
   return renderNodeHeader(choreo);
 }
 
-/** Render the compact header for a choreography node (preferred name). */
+/** Render the inline detail for a choreography dock. */
 export function renderNodeHeader(choreo: ChoreographyDef): HTMLElement {
   const header = document.createElement("div");
   header.className = "nc-node-detail";
 
-  // Prevent node drag when interacting with header
+  // Prevent rack drag when interacting with detail
   header.addEventListener("mousedown", (e) => e.stopPropagation());
+
+  // ── Selected step params (if any) ──
+  const { selectedStepId } = getChoreographyState();
+  if (selectedStepId) {
+    const allSteps = flattenSteps(choreo.steps);
+    const step = allSteps.find((s) => s.id === selectedStepId);
+    if (step) {
+      header.appendChild(renderStepParams(choreo.id, step));
+    }
+  }
 
   const section = document.createElement("div");
   section.className = "nc-detail-section";
@@ -234,6 +258,129 @@ export function renderNodeHeader(choreo: ChoreographyDef): HTMLElement {
   header.appendChild(section);
 
   return header;
+}
+
+// ---------------------------------------------------------------------------
+// Inline step parameter editor
+// ---------------------------------------------------------------------------
+
+/** Read a fresh step from the store (avoids stale closure on param edits). */
+function getFreshStep(choreoId: string, stepId: string): ChoreographyStepDef | null {
+  const { choreographies } = getChoreographyState();
+  const choreo = choreographies.find((c) => c.id === choreoId);
+  if (!choreo) return null;
+  return flattenSteps(choreo.steps).find((s) => s.id === stepId) ?? null;
+}
+
+/** Render inline parameter controls for a selected step. */
+function renderStepParams(choreoId: string, step: ChoreographyStepDef): HTMLElement {
+  const section = document.createElement("div");
+  section.className = "nc-detail-section nc-step-params";
+
+  // Section label
+  const title = document.createElement("div");
+  title.className = "nc-detail-label";
+  title.textContent = "step";
+  section.appendChild(title);
+
+  // Action type selector
+  const actionRow = document.createElement("div");
+  actionRow.className = "nc-detail-row";
+
+  const actionLabel = document.createElement("span");
+  actionLabel.className = "nc-detail-label";
+  actionLabel.textContent = "action";
+  actionRow.appendChild(actionLabel);
+
+  const actionSelect = document.createElement("select");
+  actionSelect.className = "nc-detail-select";
+  for (const a of ACTION_TYPES) {
+    const opt = document.createElement("option");
+    opt.value = a;
+    opt.textContent = a;
+    if (a === step.action) opt.selected = true;
+    actionSelect.appendChild(opt);
+  }
+  actionSelect.addEventListener("change", () => {
+    const newAction = actionSelect.value;
+    const updates: Partial<ChoreographyStepDef> = { action: newAction };
+    if (STRUCTURAL_ACTIONS.includes(newAction) && !step.children) {
+      updates.children = [];
+    }
+    if (!STRUCTURAL_ACTIONS.includes(newAction) && step.children) {
+      updates.children = undefined;
+    }
+    updateStepCmd(choreoId, step.id, updates);
+  });
+  actionRow.appendChild(actionSelect);
+  section.appendChild(actionRow);
+
+  // ISF controls — commit on change
+  const onChange: OnInputChange = (key: string, value: unknown) => {
+    const updates: Partial<ChoreographyStepDef> = {};
+    if (key === "entity") { updates.entity = value as string; }
+    else if (key === "target") { updates.target = value as string; }
+    else if (key === "delay") { updates.delay = value as number; }
+    else if (key === "duration") { updates.duration = value as number; }
+    else if (key === "easing") { updates.easing = value as string; }
+    else {
+      const fresh = getFreshStep(choreoId, step.id);
+      const currentParams = fresh?.params ?? step.params;
+      updates.params = { ...currentParams, [key]: value };
+    }
+    updateStepCmd(choreoId, step.id, updates);
+  };
+
+  const schema = getActionSchema(step.action);
+  if (schema) {
+    // Common fields
+    for (const decl of schema.common) {
+      let currentValue: unknown;
+      if (decl.key === "entity") currentValue = step.entity;
+      else if (decl.key === "target") currentValue = step.target;
+      else if (decl.key === "delay") currentValue = step.delay;
+      else if (decl.key === "duration") currentValue = step.duration;
+      else if (decl.key === "easing") currentValue = step.easing;
+      section.appendChild(createInputControl(decl, currentValue, onChange));
+    }
+
+    // Action-specific params
+    if (schema.params.length > 0) {
+      const paramLabel = document.createElement("div");
+      paramLabel.className = "nc-detail-label";
+      paramLabel.textContent = "params";
+      section.appendChild(paramLabel);
+
+      for (const decl of schema.params) {
+        section.appendChild(createInputControl(decl, step.params[decl.key], onChange));
+      }
+    }
+  } else {
+    // Fallback: raw JSON
+    const textarea = document.createElement("textarea");
+    textarea.className = "nc-detail-textarea";
+    textarea.value = JSON.stringify(step.params, null, 2);
+    textarea.rows = 4;
+    textarea.addEventListener("change", () => {
+      try {
+        const parsed = JSON.parse(textarea.value) as Record<string, unknown>;
+        updateStepCmd(choreoId, step.id, { params: parsed });
+      } catch { /* ignore invalid JSON */ }
+    });
+    section.appendChild(textarea);
+  }
+
+  // Delete step button
+  const deleteBtn = document.createElement("button");
+  deleteBtn.className = "nc-detail-delete nc-detail-delete--step";
+  deleteBtn.textContent = "\u2716 Delete step";
+  deleteBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    removeStepCmd(choreoId, step.id);
+  });
+  section.appendChild(deleteBtn);
+
+  return section;
 }
 
 // ---------------------------------------------------------------------------

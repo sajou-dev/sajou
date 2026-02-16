@@ -5447,6 +5447,13 @@ button {
   letter-spacing: 0.5px;
 }
 
+.rack-head-filter {
+  font-size: 10px;
+  color: var(--color-text-dim);
+  margin-left: 2px;
+  opacity: 0.7;
+}
+
 .rack-head-controls {
   display: flex;
   gap: 2px;
@@ -5794,6 +5801,30 @@ button {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+/* Step params section — visually separated from dock params */
+.nc-step-params {
+  padding-bottom: 8px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.nc-detail-textarea {
+  width: 100%;
+  min-height: 60px;
+  padding: 6px 8px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--color-text);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  resize: vertical;
+}
+
+.nc-detail-delete--step {
+  margin-top: 4px;
 }
 
 .nc-detail-separator {

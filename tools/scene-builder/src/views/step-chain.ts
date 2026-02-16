@@ -63,12 +63,6 @@ export function renderStepChain(
 
   const { selectedStepId } = getChoreographyState();
 
-  // When filter as first block (if present)
-  if (choreo.when) {
-    const whenBlock = renderWhenBlock(choreo);
-    chain.appendChild(whenBlock);
-  }
-
   // Step blocks
   for (const step of choreo.steps) {
     const block = renderBlock(step, step.id === selectedStepId, callbacks.onStepClick, choreo.id);
@@ -83,47 +77,6 @@ export function renderStepChain(
   chain.appendChild(dropHint);
 
   return chain;
-}
-
-// ---------------------------------------------------------------------------
-// When filter block
-// ---------------------------------------------------------------------------
-
-/** Render the when condition as the first block in the chain. */
-function renderWhenBlock(choreo: ChoreographyDef): HTMLElement {
-  const block = document.createElement("div");
-  block.className = "nc-block nc-block--when";
-
-  const icon = document.createElement("span");
-  icon.className = "nc-block-icon";
-  icon.textContent = "\u2630"; // ☰ filter
-  block.appendChild(icon);
-
-  const label = document.createElement("span");
-  label.className = "nc-block-label";
-  label.textContent = summarizeWhen(choreo);
-  block.appendChild(label);
-
-  return block;
-}
-
-/** Summarize a when clause for display. */
-function summarizeWhen(choreo: ChoreographyDef): string {
-  const when = choreo.when;
-  if (!when) return "when";
-
-  const condition = Array.isArray(when) ? when[0] : when;
-  if (!condition) return "when";
-
-  const entries = Object.entries(condition);
-  if (entries.length === 0) return "when";
-
-  const [path, ops] = entries[0]!;
-  const opEntries = Object.entries(ops as Record<string, unknown>);
-  if (opEntries.length === 0) return `when ${path}`;
-
-  const [op, val] = opEntries[0]!;
-  return `when ${path} ${op} ${val}`;
 }
 
 // ---------------------------------------------------------------------------

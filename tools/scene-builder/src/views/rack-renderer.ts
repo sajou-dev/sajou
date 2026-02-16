@@ -20,7 +20,6 @@ import {
 import { removeChoreography } from "../state/choreography-state.js";
 import { renderNodeDetail } from "./node-detail-inline.js";
 import { renderStepChain } from "./step-chain.js";
-import { openStepPopover, closeStepPopover } from "./step-popover.js";
 import { SIGNAL_TYPE_COLORS, SIGNAL_TYPE_LABELS } from "./step-commands.js";
 
 // ---------------------------------------------------------------------------
@@ -75,6 +74,15 @@ function renderDock(choreo: ChoreographyDef, isSelected: boolean): HTMLElement {
   typeName.textContent = SIGNAL_TYPE_LABELS[primaryType] ?? primaryType;
   head.appendChild(typeName);
 
+  // When filter indicator (if conditions exist)
+  if (choreo.when) {
+    const filterTag = document.createElement("span");
+    filterTag.className = "rack-head-filter";
+    filterTag.textContent = "\u2630"; // ☰
+    filterTag.title = "Has filter conditions";
+    head.appendChild(filterTag);
+  }
+
   // Controls (collapse + delete)
   const controls = document.createElement("span");
   controls.className = "rack-head-controls";
@@ -115,22 +123,11 @@ function renderDock(choreo: ChoreographyDef, isSelected: boolean): HTMLElement {
   dock.className = "rack-dock";
 
   if (!choreo.collapsed) {
-    // Block chain
+    // Block chain — click toggles selection, params show inline in detail
     const chain = renderStepChain(choreo, {
       onStepClick: (stepId) => {
         const { selectedStepId } = getChoreographyState();
-        if (stepId === selectedStepId) {
-          closeStepPopover();
-          selectChoreographyStep(null);
-        } else {
-          selectChoreographyStep(stepId);
-          requestAnimationFrame(() => {
-            const livePill = document.querySelector(
-              `.rack[data-choreo-id="${choreo.id}"] .nc-block[data-step-id="${stepId}"]`,
-            );
-            if (livePill) openStepPopover(stepId, choreo.id, livePill as HTMLElement);
-          });
-        }
+        selectChoreographyStep(stepId === selectedStepId ? null : stepId);
       },
       onAddClick: () => {
         // No-op — palette replaces the picker
