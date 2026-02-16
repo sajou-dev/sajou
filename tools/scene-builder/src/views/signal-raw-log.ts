@@ -22,7 +22,14 @@ import {
 // Constants
 // ---------------------------------------------------------------------------
 
-const MAX_ENTRIES = 500;
+/** Maximum entries kept in memory (JS objects — cheap). */
+const MAX_ENTRIES = 10_000;
+
+/** How many entries to render in the DOM at once (controls perf). */
+const RENDER_WINDOW = 500;
+
+/** How many more entries to load when the user clicks "Load older". */
+const RENDER_STEP = 500;
 
 // ---------------------------------------------------------------------------
 // State
@@ -44,6 +51,9 @@ export interface RawLogEntry {
 let entries: RawLogEntry[] = [];
 let searchText = "";
 let activeFilters: Set<SignalType> = new Set(ALL_SIGNAL_TYPES);
+
+/** How many entries to show from the tail of filtered results. */
+let renderLimit = RENDER_WINDOW;
 
 /**
  * Source filter state.
@@ -110,6 +120,7 @@ export function addDebugEntry(
 /** Clear all log entries. */
 export function clearLog(): void {
   entries = [];
+  renderLimit = RENDER_WINDOW;
   renderPending = true;
   scheduleRender();
 }
@@ -300,9 +311,9 @@ function getSourceName(sourceId: string): string {
 function render(): void {
   if (!logEl) return;
 
-  const filtered = getFilteredEntries();
+  const allFiltered = getFilteredEntries();
 
-  if (filtered.length === 0) {
+  if (allFiltered.length === 0) {
     logEl.innerHTML = `<div class="sv-log-empty">${
       entries.length === 0
         ? "No signals received yet. Connect to a signal source to start."
@@ -311,8 +322,28 @@ function render(): void {
     return;
   }
 
+  // Only render the tail of filtered entries (render window)
+  const totalFiltered = allFiltered.length;
+  const olderCount = Math.max(0, totalFiltered - renderLimit);
+  const filtered = olderCount > 0 ? allFiltered.slice(olderCount) : allFiltered;
+
   // Build DOM in a fragment for performance
   const frag = document.createDocumentFragment();
+
+  // "Load older" button when there are hidden entries
+  if (olderCount > 0) {
+    const loadBtn = document.createElement("button");
+    loadBtn.className = "sv-log-load-older";
+    const nextBatch = Math.min(olderCount, RENDER_STEP);
+    loadBtn.textContent = `Load ${nextBatch} older (${olderCount} hidden)`;
+    loadBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      renderLimit += RENDER_STEP;
+      renderPending = true;
+      scheduleRender();
+    });
+    frag.appendChild(loadBtn);
+  }
 
   for (const entry of filtered) {
     const row = document.createElement("div");

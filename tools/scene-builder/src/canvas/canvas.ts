@@ -5,17 +5,24 @@
  * for the scene builder. Full-screen canvas behind all panels.
  * Handles zoom (wheel), pan (middle-click, Space+drag, or Hand tool).
  *
- * Three.js renders entities with a top-down OrthographicCamera.
+ * Three.js renders entities via a CameraController that supports
+ * both top-down and isometric projection modes.
  * A transparent Canvas2D overlay on top draws editor chrome
  * (grid, boundary, selection, positions, routes, etc.).
  */
 
 import * as THREE from "three";
-import { createTopDownCamera } from "@sajou/stage";
 import { getSceneState, subscribeScene } from "../state/scene-state.js";
 import { getEditorState, subscribeEditor } from "../state/editor-state.js";
 import { isRunModeActive } from "../run-mode/run-mode-state.js";
-import type { ToolId } from "../types.js";
+import type { ToolId, ViewMode } from "../types.js";
+import {
+  TopDownController,
+  createController,
+  type CameraController,
+} from "./camera-controller.js";
+import { initLightRenderer, tickFlicker } from "./light-renderer.js";
+import { initParticleRenderer, tickParticles } from "./particle-renderer.js";
 
 // ---------------------------------------------------------------------------
 // Interfaces
@@ -40,6 +47,8 @@ const TOOL_CURSORS: Record<ToolId, string> = {
   place: "crosshair",
   position: "crosshair",
   route: "crosshair",
+  light: "crosshair",
+  particle: "crosshair",
 };
 
 // ---------------------------------------------------------------------------
@@ -48,7 +57,7 @@ const TOOL_CURSORS: Record<ToolId, string> = {
 
 let webGLRenderer: THREE.WebGLRenderer | null = null;
 let scene: THREE.Scene | null = null;
-let camera: THREE.OrthographicCamera | null = null;
+let controller: CameraController | null = null;
 let overlayCanvas: HTMLCanvasElement | null = null;
 let overlayCtx: CanvasRenderingContext2D | null = null;
 let animFrameId: number | null = null;
@@ -57,21 +66,19 @@ let overlayDrawCallback:
   | ((ctx: CanvasRenderingContext2D, z: number, px: number, py: number) => void)
   | null = null;
 
+/** Listeners notified when the controller is swapped (for billboarding etc.). */
+type ControllerChangeListener = (ctrl: CameraController) => void;
+const controllerChangeListeners: ControllerChangeListener[] = [];
+
 const canvasContainer = document.getElementById("canvas-container")!;
 const zoomLevelBtn = document.getElementById("zoom-level")!;
 
-// Zoom / Pan
-let zoom = 1;
-let panX = 0;
-let panY = 0;
 let canvasWidth = 800;
 let canvasHeight = 600;
 let spaceDown = false;
 let panning: {
-  startX: number;
-  startY: number;
-  origPanX: number;
-  origPanY: number;
+  lastX: number;
+  lastY: number;
 } | null = null;
 
 // Ground plane (scene area fill)
@@ -92,9 +99,14 @@ export function getThreeScene(): THREE.Scene | null {
   return scene;
 }
 
-/** Get the top-down camera. */
+/** Get the active camera. */
 export function getCamera(): THREE.OrthographicCamera | null {
-  return camera;
+  return controller?.camera ?? null;
+}
+
+/** Get the active camera controller. */
+export function getController(): CameraController | null {
+  return controller;
 }
 
 /** Get the WebGL renderer. */
@@ -112,14 +124,18 @@ export function getOverlayCanvas(): HTMLCanvasElement | null {
   return overlayCanvas;
 }
 
-/** Get current zoom level. */
+/** Get current effective zoom level. */
 export function getZoom(): number {
-  return zoom;
+  return controller?.getEffectiveZoom() ?? 1;
 }
 
-/** Get current pan offset. */
+/** Get current pan offset (top-down only; iso returns 0,0). */
 export function getPan(): { x: number; y: number } {
-  return { x: panX, y: panY };
+  if (controller) {
+    const t = controller.getOverlayTransform();
+    return { x: t.e, y: t.f };
+  }
+  return { x: 0, y: 0 };
 }
 
 /** Get the canvas container DOM element. */
@@ -147,33 +163,49 @@ export function setOverlayDrawCallback(
   overlayDrawCallback = cb;
 }
 
+/**
+ * Subscribe to controller changes (when switching top-down ↔ iso).
+ * Returns unsubscribe function.
+ */
+export function onControllerChange(fn: ControllerChangeListener): () => void {
+  controllerChangeListeners.push(fn);
+  return () => {
+    const idx = controllerChangeListeners.indexOf(fn);
+    if (idx >= 0) controllerChangeListeners.splice(idx, 1);
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Coordinate transforms
 // ---------------------------------------------------------------------------
 
 /** Convert screen (mouse) coordinates to scene coordinates. */
 export function screenToScene(e: MouseEvent): { x: number; y: number } {
-  if (!overlayCanvas) return { x: 0, y: 0 };
+  if (!overlayCanvas || !controller) return { x: 0, y: 0 };
   const rect = overlayCanvas.getBoundingClientRect();
+  return controller.screenToScene(e.clientX, e.clientY, rect);
+}
+
+/** Convert scene coordinates to screen (viewport) pixel coordinates. */
+export function sceneToScreen(sceneX: number, sceneY: number): { x: number; y: number } {
+  if (!controller) return { x: 0, y: 0 };
+  return controller.sceneToScreen(sceneX, sceneY);
+}
+
+/** Convert world-space (x, y, z) coordinates to screen pixel coordinates. */
+export function worldToScreen(wx: number, wy: number, wz: number): { x: number; y: number } {
+  if (!controller || !overlayCanvas) return { x: 0, y: 0 };
+  const v = new THREE.Vector3(wx, wy, wz);
+  v.project(controller.camera);
   return {
-    x: (e.clientX - rect.left - panX) / zoom,
-    y: (e.clientY - rect.top - panY) / zoom,
+    x: (v.x * 0.5 + 0.5) * overlayCanvas.width,
+    y: (-v.y * 0.5 + 0.5) * overlayCanvas.height,
   };
 }
 
 // ---------------------------------------------------------------------------
 // Camera + overlay update
 // ---------------------------------------------------------------------------
-
-/** Update the camera frustum to reflect current zoom/pan. */
-function updateCamera(): void {
-  if (!camera) return;
-  camera.left = -panX / zoom;
-  camera.right = (canvasWidth - panX) / zoom;
-  camera.top = panY / zoom;
-  camera.bottom = (panY - canvasHeight) / zoom;
-  camera.updateProjectionMatrix();
-}
 
 /** Update the ground plane to match current scene dimensions and background. */
 function updateGroundPlane(): void {
@@ -197,25 +229,28 @@ function updateGroundPlane(): void {
   });
 
   groundPlane = new THREE.Mesh(geom, groundMaterial);
-  groundPlane.renderOrder = -1;
+  groundPlane.position.y = -0.1;
   scene.add(groundPlane);
 }
 
 /** Full overlay redraw: clear, draw grid/boundary, then scene overlays. */
 export function redrawOverlay(): void {
-  if (!overlayCtx || !overlayCanvas) return;
+  if (!overlayCtx || !overlayCanvas || !controller) return;
 
   overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
 
+  const t = controller.getOverlayTransform();
+  const effectiveZoom = controller.getEffectiveZoom();
+
   // Draw grid and boundary in scene coordinates
   overlayCtx.save();
-  overlayCtx.setTransform(zoom, 0, 0, zoom, panX, panY);
-  drawSceneBoundary(overlayCtx);
-  drawGrid(overlayCtx);
+  overlayCtx.setTransform(t.a, t.b, t.c, t.d, t.e, t.f);
+  drawSceneBoundary(overlayCtx, effectiveZoom);
+  drawGrid(overlayCtx, effectiveZoom);
   overlayCtx.restore();
 
   // Scene overlays (positions, routes, selection, etc.)
-  overlayDrawCallback?.(overlayCtx, zoom, panX, panY);
+  overlayDrawCallback?.(overlayCtx, effectiveZoom, t.e, t.f);
 }
 
 // ---------------------------------------------------------------------------
@@ -223,47 +258,75 @@ export function redrawOverlay(): void {
 // ---------------------------------------------------------------------------
 
 function applyTransform(): void {
-  updateCamera();
+  if (!controller) return;
+  controller.updateCamera();
   updateZoomDisplay();
   redrawOverlay();
 }
 
 /** Center and fit the scene in the viewport. */
 export function fitToView(): void {
-  if (!camera) return;
+  if (!controller) return;
   const { dimensions } = getSceneState();
-  const fitZoom =
-    Math.min(canvasWidth / dimensions.width, canvasHeight / dimensions.height) *
-    0.85;
-  zoom = Math.min(fitZoom, 2);
-  panX = (canvasWidth - dimensions.width * zoom) / 2;
-  panY = (canvasHeight - dimensions.height * zoom) / 2;
+  controller.fitToView(dimensions.width, dimensions.height);
   applyTransform();
 }
 
 /** Set zoom to an exact level, centered on the viewport. */
 export function setZoomLevel(level: number): void {
-  const newZoom = Math.max(0.1, Math.min(10, level));
-  const cx = canvasWidth / 2;
-  const cy = canvasHeight / 2;
-  panX = cx - ((cx - panX) / zoom) * newZoom;
-  panY = cy - ((cy - panY) / zoom) * newZoom;
-  zoom = newZoom;
+  if (!controller) return;
+  if (controller instanceof TopDownController) {
+    controller.setZoomLevel(level);
+  } else {
+    // For iso, convert level to a relative factor from current zoom
+    const current = controller.getEffectiveZoom();
+    if (current > 0) {
+      controller.applyZoom(level / current, canvasWidth / 2, canvasHeight / 2);
+    }
+  }
   applyTransform();
 }
 
 /** Zoom in by one step (~10%). */
 export function zoomIn(): void {
-  setZoomLevel(zoom * 1.15);
+  if (!controller) return;
+  controller.applyZoom(1.15, canvasWidth / 2, canvasHeight / 2);
+  applyTransform();
 }
 
 /** Zoom out by one step (~10%). */
 export function zoomOut(): void {
-  setZoomLevel(zoom / 1.15);
+  if (!controller) return;
+  controller.applyZoom(1 / 1.15, canvasWidth / 2, canvasHeight / 2);
+  applyTransform();
 }
 
 function updateZoomDisplay(): void {
-  zoomLevelBtn.textContent = `${Math.round(zoom * 100)}%`;
+  const z = controller?.getEffectiveZoom() ?? 1;
+  zoomLevelBtn.textContent = `${Math.round(z * 100)}%`;
+}
+
+// ---------------------------------------------------------------------------
+// Controller switching
+// ---------------------------------------------------------------------------
+
+/** Track the last view mode to detect changes from editor state. */
+let currentViewMode: ViewMode = "top-down";
+
+/** Switch the active camera controller to match a new view mode. */
+export function switchController(mode: ViewMode): void {
+  if (!scene) return;
+  const { dimensions } = getSceneState();
+
+  controller = createController(mode, canvasWidth, canvasHeight, dimensions.width, dimensions.height);
+  controller.fitToView(dimensions.width, dimensions.height);
+  controller.updateCamera();
+  currentViewMode = mode;
+
+  // Notify listeners (e.g., scene-renderer for billboarding)
+  for (const fn of controllerChangeListeners) fn(controller);
+
+  applyTransform();
 }
 
 // ---------------------------------------------------------------------------
@@ -290,12 +353,12 @@ export function updateCursor(): void {
 // Scene boundary (Canvas2D overlay)
 // ---------------------------------------------------------------------------
 
-function drawSceneBoundary(ctx: CanvasRenderingContext2D): void {
+function drawSceneBoundary(ctx: CanvasRenderingContext2D, effectiveZoom: number): void {
   const { dimensions } = getSceneState();
 
   // Border outline — brand "border" (#1E1E2E)
   ctx.strokeStyle = "#1e1e2e";
-  ctx.lineWidth = 1.5 / zoom;
+  ctx.lineWidth = 1.5 / effectiveZoom;
   ctx.strokeRect(0, 0, dimensions.width, dimensions.height);
 }
 
@@ -303,7 +366,7 @@ function drawSceneBoundary(ctx: CanvasRenderingContext2D): void {
 // Grid (Canvas2D overlay)
 // ---------------------------------------------------------------------------
 
-function drawGrid(ctx: CanvasRenderingContext2D): void {
+function drawGrid(ctx: CanvasRenderingContext2D, effectiveZoom: number): void {
   const { gridEnabled, gridSize } = getEditorState();
   if (!gridEnabled) return;
 
@@ -320,7 +383,7 @@ function drawGrid(ctx: CanvasRenderingContext2D): void {
   }
 
   ctx.strokeStyle = "rgba(30, 30, 46, 0.5)";
-  ctx.lineWidth = 1 / zoom;
+  ctx.lineWidth = 1 / effectiveZoom;
   ctx.stroke();
 }
 
@@ -330,17 +393,13 @@ function drawGrid(ctx: CanvasRenderingContext2D): void {
 
 function handleWheel(e: WheelEvent): void {
   e.preventDefault();
-  if (!overlayCanvas) return;
+  if (!overlayCanvas || !controller) return;
   const rect = overlayCanvas.getBoundingClientRect();
   const mx = e.clientX - rect.left;
   const my = e.clientY - rect.top;
 
   const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
-  const newZoom = Math.max(0.1, Math.min(10, zoom * factor));
-
-  panX = mx - ((mx - panX) / zoom) * newZoom;
-  panY = my - ((my - panY) / zoom) * newZoom;
-  zoom = newZoom;
+  controller.applyZoom(factor, mx, my);
   applyTransform();
 }
 
@@ -352,18 +411,19 @@ function handlePanStart(e: MouseEvent): void {
   if (!isMiddle && !isSpaceLeft && !isHandTool) return;
   e.preventDefault();
   panning = {
-    startX: e.clientX,
-    startY: e.clientY,
-    origPanX: panX,
-    origPanY: panY,
+    lastX: e.clientX,
+    lastY: e.clientY,
   };
   canvasContainer.style.cursor = "grabbing";
 }
 
 function handlePanMove(e: MouseEvent): void {
-  if (!panning) return;
-  panX = panning.origPanX + (e.clientX - panning.startX);
-  panY = panning.origPanY + (e.clientY - panning.startY);
+  if (!panning || !controller) return;
+  const dx = e.clientX - panning.lastX;
+  const dy = e.clientY - panning.lastY;
+  panning.lastX = e.clientX;
+  panning.lastY = e.clientY;
+  controller.applyPan(dx, dy);
   applyTransform();
 }
 
@@ -395,7 +455,7 @@ function handleKeyUp(e: KeyboardEvent): void {
 // ---------------------------------------------------------------------------
 
 function resizeToContainer(): void {
-  if (!webGLRenderer || !overlayCanvas) return;
+  if (!webGLRenderer || !overlayCanvas || !controller) return;
   canvasWidth = canvasContainer.clientWidth || 800;
   canvasHeight = canvasContainer.clientHeight || 600;
 
@@ -405,7 +465,8 @@ function resizeToContainer(): void {
   overlayCanvas.style.width = `${canvasWidth}px`;
   overlayCanvas.style.height = `${canvasHeight}px`;
 
-  updateCamera();
+  controller.resize(canvasWidth, canvasHeight);
+  controller.updateCamera();
   redrawOverlay();
 }
 
@@ -416,10 +477,17 @@ function resizeToContainer(): void {
 function startRenderLoop(): void {
   if (animFrameId !== null) return;
 
+  let lastFrameTime = performance.now();
+
   const loop = (): void => {
     animFrameId = requestAnimationFrame(loop);
-    if (webGLRenderer && scene && camera) {
-      webGLRenderer.render(scene, camera);
+    if (webGLRenderer && scene && controller) {
+      const now = performance.now();
+      const dt = (now - lastFrameTime) / 1000;
+      lastFrameTime = now;
+      tickFlicker(now);
+      tickParticles(dt);
+      webGLRenderer.render(scene, controller.camera);
     }
   };
   loop();
@@ -451,17 +519,21 @@ export function initCanvas(): void {
 
   canvasContainer.appendChild(webGLCanvas);
 
-  // --- Three.js scene + camera ---
+  // --- Three.js scene ---
   scene = new THREE.Scene();
 
-  camera = createTopDownCamera(canvasWidth, canvasHeight);
-
-  // Ambient light for flat 2D rendering
-  const ambient = new THREE.AmbientLight(0xffffff, 1.0);
-  scene.add(ambient);
+  // --- Camera controller (top-down by default) ---
+  controller = new TopDownController(canvasWidth, canvasHeight);
+  currentViewMode = "top-down";
 
   // Ground plane (scene area fill + background color)
   updateGroundPlane();
+
+  // Light renderer (ambient, directional, point lights from state)
+  initLightRenderer();
+
+  // Particle renderer (particle emitters from state)
+  initParticleRenderer();
 
   // --- Canvas2D overlay (transparent, on top of WebGL) ---
   overlayCanvas = document.createElement("canvas");
@@ -528,6 +600,11 @@ export function initCanvas(): void {
 
   // Redraw when state changes
   subscribeEditor(() => {
+    // Detect view mode change
+    const { viewMode } = getEditorState();
+    if (viewMode !== currentViewMode) {
+      switchController(viewMode);
+    }
     redrawOverlay();
     updateCursor();
   });

@@ -8,7 +8,7 @@
  */
 
 import type { ToolId, PanelId } from "../types.js";
-import { getEditorState, setActiveTool, togglePanel, subscribeEditor, toggleGrid } from "../state/editor-state.js";
+import { getEditorState, setActiveTool, togglePanel, subscribeEditor, toggleGrid, toggleViewMode } from "../state/editor-state.js";
 import { zoomIn, zoomOut, setZoomLevel, fitToView } from "../canvas/canvas.js";
 import { toggleHelpBar, isHelpBarVisible } from "./help-bar.js";
 
@@ -51,6 +51,26 @@ const ICON = {
     '<circle cx="6" cy="19" r="3"/>' +
     '<path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/>' +
     '<circle cx="18" cy="5" r="3"/>'
+  ),
+  light: lucide(
+    '<circle cx="12" cy="12" r="4"/>' +
+    '<path d="M12 2v2"/>' +
+    '<path d="M12 20v2"/>' +
+    '<path d="m4.93 4.93 1.41 1.41"/>' +
+    '<path d="m17.66 17.66 1.41 1.41"/>' +
+    '<path d="M2 12h2"/>' +
+    '<path d="M20 12h2"/>' +
+    '<path d="m6.34 17.66-1.41 1.41"/>' +
+    '<path d="m19.07 4.93-1.41 1.41"/>'
+  ),
+
+  // Sparkles (particle tool)
+  particle: lucide(
+    '<path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/>' +
+    '<path d="M20 3v4"/>' +
+    '<path d="M22 5h-4"/>' +
+    '<path d="M4 17v2"/>' +
+    '<path d="M5 18H3"/>'
   ),
 
   // Panels
@@ -105,6 +125,8 @@ const TOOLS: ToolDef[] = [
   { id: "background", label: "Background", iconKey: "background", shortcut: "B" },
   { id: "position", label: "Position", iconKey: "position", shortcut: "P" },
   { id: "route", label: "Route", iconKey: "route", shortcut: "R" },
+  { id: "light", label: "Light", iconKey: "light", shortcut: "J" },
+  { id: "particle", label: "Particle", iconKey: "particle", shortcut: "K" },
 ];
 
 const PANEL_TOGGLES: PanelToggleDef[] = [
@@ -112,6 +134,8 @@ const PANEL_TOGGLES: PanelToggleDef[] = [
   { panelId: "entity-editor", label: "Entities", iconKey: "entities", shortcut: "E" },
   { panelId: "layers", label: "Layers", iconKey: "layers", shortcut: "L" },
   { panelId: "settings", label: "Settings", iconKey: "settings", shortcut: "" },
+  { panelId: "lighting", label: "Lighting", iconKey: "light", shortcut: "" },
+  { panelId: "particles", label: "Particles", iconKey: "particle", shortcut: "" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -219,9 +243,17 @@ function initZoomBar(): void {
   const zoomOutBtn = document.getElementById("zoom-out");
   const zoomInBtn = document.getElementById("zoom-in");
   const presetsEl = document.getElementById("zoom-presets");
+  const viewModeBtn = document.getElementById("view-mode-toggle");
 
   zoomOutBtn?.addEventListener("click", () => zoomOut());
   zoomInBtn?.addEventListener("click", () => zoomIn());
+  viewModeBtn?.addEventListener("click", () => toggleViewMode());
+
+  // Sync view mode button active state
+  subscribeEditor(() => {
+    const { viewMode } = getEditorState();
+    viewModeBtn?.classList.toggle("view-mode-btn--active", viewMode === "isometric");
+  });
 
   // Preset buttons (hover show/hide is handled by pure CSS)
   presetsEl?.addEventListener("click", (e) => {
@@ -272,11 +304,16 @@ function initShortcuts(): void {
       case "o": case "O": setActiveTool("place"); break;
       case "p": case "P": setActiveTool("position"); break;
       case "r": case "R": setActiveTool("route"); break;
+      case "j": case "J": setActiveTool("light"); break;
+      case "k": case "K": setActiveTool("particle"); break;
 
       // Panels
       case "a": case "A": togglePanel("asset-manager"); break;
       case "e": case "E": togglePanel("entity-editor"); break;
       case "l": case "L": togglePanel("layers"); break;
+
+      // View mode
+      case "i": case "I": toggleViewMode(); break;
 
       // Grid
       case "g": case "G": toggleGrid(); break;

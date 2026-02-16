@@ -34,6 +34,26 @@ import type {
 // Active preview state
 // ---------------------------------------------------------------------------
 
+/** Tracked point light for flicker animation. */
+interface PreviewPointLight {
+  light: THREE.PointLight;
+  baseIntensity: number;
+  flickerSpeed: number;
+  flickerAmount: number;
+}
+
+/** Tracked particle system for preview animation. */
+interface PreviewParticleSystem {
+  points: THREE.Points;
+  geometry: THREE.BufferGeometry;
+  material: THREE.PointsMaterial;
+  particles: Array<{ age: number; lifetime: number; x: number; z: number; vx: number; vz: number }>;
+  positionAttr: THREE.Float32BufferAttribute;
+  colorAttr: THREE.Float32BufferAttribute;
+  sizeAttr: THREE.Float32BufferAttribute;
+  config: import("../types.js").ParticleEmitterState;
+}
+
 let activePreview: {
   renderer: THREE.WebGLRenderer;
   scene: THREE.Scene;
@@ -43,6 +63,8 @@ let activePreview: {
   keyHandler: (e: KeyboardEvent) => void;
   animFrameId: number;
   animatedEntities: AnimatedPreviewEntity[];
+  pointLights: PreviewPointLight[];
+  particleSystems: PreviewParticleSystem[];
 } | null = null;
 
 /** Tracked animation for a preview entity. */
@@ -92,6 +114,18 @@ function buildLayerMap(): Map<string, SceneLayer> {
 }
 
 // ---------------------------------------------------------------------------
+// Depth helpers
+// ---------------------------------------------------------------------------
+
+/** Y-offset step per depth unit. Encodes (layerOrder, zIndex) into Y position. */
+const DEPTH_Y_STEP = 0.001;
+
+/** Convert layer order + zIndex to a Y offset for depth sorting. */
+function depthToY(layerOrder: number, zIndex: number): number {
+  return (layerOrder * 10000 + zIndex) * DEPTH_Y_STEP;
+}
+
+// ---------------------------------------------------------------------------
 // Entity rendering
 // ---------------------------------------------------------------------------
 
@@ -115,20 +149,23 @@ function createPreviewMesh(
   const offsetZ = (0.5 - ay) * h;
   geom.translate(offsetX, 0, offsetZ);
 
-  const material = new THREE.MeshBasicMaterial({
+  const material = new THREE.MeshStandardMaterial({
     color: tex ? 0xffffff : (def.fallbackColor || "#666666"),
     map: tex ?? undefined,
     transparent: true,
     alphaTest: 0.01,
     side: THREE.DoubleSide,
-    depthTest: false,
-    depthWrite: false,
+    depthTest: true,
+    depthWrite: true,
+    roughness: 1,
+    metalness: 0,
   });
 
   const mesh = new THREE.Mesh(geom, material);
 
-  // Position
-  mesh.position.set(placed.x, 0, placed.y);
+  // Position: scene (x, y) → world (x, depthY, z)
+  const layerOrder = layer?.order ?? 0;
+  mesh.position.set(placed.x, depthToY(layerOrder, placed.zIndex), placed.y);
 
   // Scale (includes flip)
   const scaleX = placed.flipH ? -placed.scale : placed.scale;
@@ -140,10 +177,6 @@ function createPreviewMesh(
 
   // Opacity
   material.opacity = placed.opacity;
-
-  // Depth ordering
-  const layerOrder = layer?.order ?? 0;
-  mesh.renderOrder = layerOrder * 10000 + placed.zIndex;
 
   return mesh;
 }
@@ -167,16 +200,14 @@ function renderFallback(
     transparent: true,
     opacity: 0.6,
     side: THREE.DoubleSide,
-    depthTest: false,
-    depthWrite: false,
+    depthTest: true,
+    depthWrite: true,
   });
 
   const mesh = new THREE.Mesh(geom, material);
-  mesh.position.set(placed.x, 0, placed.y);
-  mesh.rotation.y = -(placed.rotation * Math.PI) / 180;
-
   const layerOrder = layer?.order ?? 0;
-  mesh.renderOrder = layerOrder * 10000 + placed.zIndex;
+  mesh.position.set(placed.x, depthToY(layerOrder, placed.zIndex), placed.y);
+  mesh.rotation.y = -(placed.rotation * Math.PI) / 180;
 
   scene.add(mesh);
 }
@@ -465,10 +496,98 @@ function previewLoop(now: number, lastTime: { v: number }): void {
     }
   }
 
+  // Flicker point lights
+  const t2 = now / 1000;
+  for (const pl of activePreview.pointLights) {
+    if (pl.flickerAmount <= 0 || pl.flickerSpeed <= 0) continue;
+    const wave1 = Math.sin(t2 * pl.flickerSpeed * 2 * Math.PI);
+    const wave2 = Math.sin(t2 * pl.flickerSpeed * 1.7 * Math.PI + 0.5);
+    const combined = wave1 * 0.6 + wave2 * 0.4;
+    pl.light.intensity = pl.baseIntensity * (1 + combined * pl.flickerAmount);
+  }
+
+  // Tick particle systems
+  const dtSec = dt / 1000;
+  for (const ps of activePreview.particleSystems) {
+    const { particles, config, positionAttr, colorAttr, sizeAttr } = ps;
+    const posArr = positionAttr.array as Float32Array;
+    const colArr = colorAttr.array as Float32Array;
+    const szArr = sizeAttr.array as Float32Array;
+
+    for (let i = 0; i < particles.length; i++) {
+      const p = particles[i]!;
+      p.age += dtSec;
+
+      if (p.age >= p.lifetime) {
+        // Respawn
+        p.age = 0;
+        p.lifetime = config.lifetime[0] + Math.random() * (config.lifetime[1] - config.lifetime[0]);
+        p.x = 0;
+        p.z = 0;
+        if (config.type === "radial") {
+          p.vx = config.velocity.x[0] + Math.random() * (config.velocity.x[1] - config.velocity.x[0]);
+          p.vz = config.velocity.y[0] + Math.random() * (config.velocity.y[1] - config.velocity.y[0]);
+        } else {
+          const len = Math.hypot(config.direction.x, config.direction.y);
+          const baseAngle = len > 0 ? Math.atan2(config.direction.y, config.direction.x) : 0;
+          const spread = (17 * Math.PI) / 180;
+          const angle = baseAngle + (Math.random() - 0.5) * 2 * spread;
+          const speed = config.speed[0] + Math.random() * (config.speed[1] - config.speed[0]);
+          p.vx = Math.cos(angle) * speed;
+          p.vz = Math.sin(angle) * speed;
+        }
+        continue;
+      }
+
+      p.x += p.vx * dtSec;
+      p.z += p.vz * dtSec;
+    }
+
+    // Update buffers
+    for (let i = 0; i < particles.length; i++) {
+      const p = particles[i]!;
+      const t = p.lifetime > 0 ? p.age / p.lifetime : 1;
+
+      posArr[i * 3] = p.x;
+      posArr[i * 3 + 1] = 0;
+      posArr[i * 3 + 2] = p.z;
+
+      // Color gradient
+      const stops = config.colorOverLife;
+      let cr = 1, cg = 1, cb = 1;
+      if (stops.length === 1) {
+        const n = parseInt(stops[0]!.replace("#", ""), 16);
+        cr = ((n >> 16) & 0xff) / 255;
+        cg = ((n >> 8) & 0xff) / 255;
+        cb = (n & 0xff) / 255;
+      } else if (stops.length > 1) {
+        const segCount = stops.length - 1;
+        const rawIdx = Math.min(1, Math.max(0, t)) * segCount;
+        const idx = Math.min(Math.floor(rawIdx), segCount - 1);
+        const frac = rawIdx - idx;
+        const n1 = parseInt(stops[idx]!.replace("#", ""), 16);
+        const n2 = parseInt(stops[idx + 1]!.replace("#", ""), 16);
+        cr = (((n1 >> 16) & 0xff) + (((n2 >> 16) & 0xff) - ((n1 >> 16) & 0xff)) * frac) / 255;
+        cg = (((n1 >> 8) & 0xff) + (((n2 >> 8) & 0xff) - ((n1 >> 8) & 0xff)) * frac) / 255;
+        cb = ((n1 & 0xff) + ((n2 & 0xff) - (n1 & 0xff)) * frac) / 255;
+      }
+      colArr[i * 3] = cr;
+      colArr[i * 3 + 1] = cg;
+      colArr[i * 3 + 2] = cb;
+
+      const sizeLerp = config.size[0] + (config.size[1] - config.size[0]) * t;
+      szArr[i] = sizeLerp * (1 - t);
+    }
+
+    positionAttr.needsUpdate = true;
+    colorAttr.needsUpdate = true;
+    sizeAttr.needsUpdate = true;
+  }
+
   // Render Three.js
   activePreview.renderer.render(activePreview.scene, activePreview.camera);
 
-  activePreview.animFrameId = requestAnimationFrame((t) => previewLoop(t, lastTime));
+  activePreview.animFrameId = requestAnimationFrame((t3) => previewLoop(t3, lastTime));
 }
 
 // ---------------------------------------------------------------------------
@@ -536,8 +655,37 @@ export async function openPreview(): Promise<void> {
   camera.bottom = dimensions.height;
   camera.updateProjectionMatrix();
 
-  // Ambient light
-  threeScene.add(new THREE.AmbientLight(0xffffff, 1.0));
+  // Lighting from scene state
+  const { lighting } = sceneState;
+
+  threeScene.add(new THREE.AmbientLight(lighting.ambient.color, lighting.ambient.intensity));
+
+  if (lighting.directional.enabled) {
+    const dirLight = new THREE.DirectionalLight(lighting.directional.color, lighting.directional.intensity);
+    const cx = dimensions.width / 2;
+    const cz = dimensions.height / 2;
+    const dist = 20;
+    const angleRad = (lighting.directional.angle * Math.PI) / 180;
+    const elevRad = (lighting.directional.elevation * Math.PI) / 180;
+    const horizDist = dist * Math.cos(elevRad);
+    dirLight.position.set(
+      cx + Math.sin(angleRad) * horizDist,
+      dist * Math.sin(elevRad),
+      cz - Math.cos(angleRad) * horizDist,
+    );
+    dirLight.target.position.set(cx, 0, cz);
+    threeScene.add(dirLight);
+    threeScene.add(dirLight.target);
+  }
+
+  // Point lights from state
+  const previewPointLights: { light: THREE.PointLight; source: typeof lighting.sources[number] }[] = [];
+  for (const source of lighting.sources) {
+    const pl = new THREE.PointLight(source.color, source.intensity, source.radius);
+    pl.position.set(source.x, 1.5, source.y);
+    threeScene.add(pl);
+    previewPointLights.push({ light: pl, source });
+  }
 
   // Ground plane
   const groundGeom = new THREE.PlaneGeometry(dimensions.width, dimensions.height);
@@ -547,8 +695,70 @@ export async function openPreview(): Promise<void> {
     color: parseInt(background.color.replace("#", ""), 16) || 0x222222,
   });
   const ground = new THREE.Mesh(groundGeom, groundMat);
-  ground.renderOrder = -1;
+  ground.position.y = -0.1;
   threeScene.add(ground);
+
+  // --- Particle systems ---
+  const previewParticleSystems: PreviewParticleSystem[] = [];
+  for (const emitter of sceneState.particles) {
+    const count = emitter.count;
+    const posArr = new Float32Array(count * 3);
+    const colArr = new Float32Array(count * 3);
+    const szArr = new Float32Array(count);
+
+    const geom = new THREE.BufferGeometry();
+    const posAttr = new THREE.Float32BufferAttribute(posArr, 3);
+    const colAttr = new THREE.Float32BufferAttribute(colArr, 3);
+    const szAttr = new THREE.Float32BufferAttribute(szArr, 1);
+    geom.setAttribute("position", posAttr);
+    geom.setAttribute("color", colAttr);
+    geom.setAttribute("size", szAttr);
+
+    const mat = new THREE.PointsMaterial({
+      size: emitter.size[0],
+      vertexColors: true,
+      transparent: true,
+      depthWrite: false,
+      blending: emitter.glow ? THREE.AdditiveBlending : THREE.NormalBlending,
+      sizeAttenuation: false,
+    });
+
+    const pts = new THREE.Points(geom, mat);
+    pts.position.set(emitter.x, 0.5, emitter.y);
+    threeScene.add(pts);
+
+    // Initialize particles with spread ages
+    const particles: PreviewParticleSystem["particles"] = [];
+    for (let i = 0; i < count; i++) {
+      const lt = emitter.lifetime[0] + Math.random() * (emitter.lifetime[1] - emitter.lifetime[0]);
+      let vx: number, vz: number;
+      if (emitter.type === "radial") {
+        vx = emitter.velocity.x[0] + Math.random() * (emitter.velocity.x[1] - emitter.velocity.x[0]);
+        vz = emitter.velocity.y[0] + Math.random() * (emitter.velocity.y[1] - emitter.velocity.y[0]);
+      } else {
+        const len = Math.hypot(emitter.direction.x, emitter.direction.y);
+        const baseAngle = len > 0 ? Math.atan2(emitter.direction.y, emitter.direction.x) : 0;
+        const spread = (17 * Math.PI) / 180;
+        const angle = baseAngle + (Math.random() - 0.5) * 2 * spread;
+        const speed = emitter.speed[0] + Math.random() * (emitter.speed[1] - emitter.speed[0]);
+        vx = Math.cos(angle) * speed;
+        vz = Math.sin(angle) * speed;
+      }
+      const age = Math.random() * lt;
+      particles.push({ age, lifetime: lt, x: vx * age, z: vz * age, vx, vz });
+    }
+
+    previewParticleSystems.push({
+      points: pts,
+      geometry: geom,
+      material: mat,
+      particles,
+      positionAttr: posAttr,
+      colorAttr: colAttr,
+      sizeAttr: szAttr,
+      config: emitter,
+    });
+  }
 
   // --- Canvas2D overlay ---
   const overlayCanvas = document.createElement("canvas");
@@ -659,6 +869,14 @@ export async function openPreview(): Promise<void> {
   const lastTime = { v: performance.now() };
   const animFrameId = requestAnimationFrame((t) => previewLoop(t, lastTime));
 
+  // Build preview point light tracking
+  const trackedPointLights: PreviewPointLight[] = previewPointLights.map((pl) => ({
+    light: pl.light,
+    baseIntensity: pl.source.intensity,
+    flickerSpeed: pl.source.flicker?.speed ?? 0,
+    flickerAmount: pl.source.flicker?.amount ?? 0,
+  }));
+
   // Store active state
   activePreview = {
     renderer,
@@ -669,6 +887,8 @@ export async function openPreview(): Promise<void> {
     keyHandler: onKeyDown,
     animFrameId,
     animatedEntities,
+    pointLights: trackedPointLights,
+    particleSystems: previewParticleSystems,
   };
 
   setStatus("Ready");
@@ -679,13 +899,19 @@ export async function openPreview(): Promise<void> {
 export function closePreview(): void {
   if (!activePreview) return;
 
-  const { renderer, overlay, keyHandler, animFrameId } = activePreview;
+  const { renderer, overlay, keyHandler, animFrameId, particleSystems } = activePreview;
 
   // Stop animation loop
   cancelAnimationFrame(animFrameId);
 
   // Remove escape key handler
   document.removeEventListener("keydown", keyHandler);
+
+  // Dispose particle systems
+  for (const ps of particleSystems) {
+    ps.geometry.dispose();
+    ps.material.dispose();
+  }
 
   // Dispose Three.js
   renderer.dispose();

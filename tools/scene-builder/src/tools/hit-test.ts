@@ -3,10 +3,14 @@
  *
  * Provides proximity-based hit testing for positions (waypoints)
  * and AABB hit testing for entities (binding drag targets).
+ * In isometric mode, billboard entities use screen-space projection
+ * for accurate hit testing against the standing sprite.
  */
 
 import { getSceneState } from "../state/scene-state.js";
+import { getEditorState } from "../state/editor-state.js";
 import { getEntityStore } from "../state/entity-store.js";
+import { worldToScreen, getOverlayCanvas } from "../canvas/canvas.js";
 import type { SceneLayer } from "../types.js";
 
 /** Default hit-test radius in scene coordinates (pixels). */
@@ -107,6 +111,107 @@ export function hitTestAnyEntity(sx: number, sy: number): EntityHitResult | null
         entityId: placed.entityId,
         semanticId: placed.semanticId ?? null,
       };
+    }
+  }
+
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// Screen-space hit-test (isometric billboard support)
+// ---------------------------------------------------------------------------
+
+/** Sorted entity list for hit-testing (z-order descending). */
+function sortedEntities() {
+  const { entities, layers } = getSceneState();
+  const layerMap = new Map<string, SceneLayer>();
+  for (const l of layers) layerMap.set(l.id, l);
+
+  const sorted = [...entities].sort((a, b) => {
+    const la = layerMap.get(a.layerId);
+    const lb = layerMap.get(b.layerId);
+    const za = (la?.order ?? 0) * 10000 + a.zIndex;
+    const zb = (lb?.order ?? 0) * 10000 + b.zIndex;
+    return zb - za;
+  });
+
+  return { sorted, layerMap };
+}
+
+/**
+ * Screen-space hit-test for isometric mode.
+ *
+ * Billboard entities are tested against their screen-projected bounding box
+ * (the standing sprite). Flat entities use their scene-coordinate AABB
+ * projected to screen space.
+ *
+ * @param clientX - Mouse clientX from the MouseEvent.
+ * @param clientY - Mouse clientY from the MouseEvent.
+ * @returns The topmost hit entity's placed ID, or null.
+ */
+export function hitTestScreenSpace(clientX: number, clientY: number): string | null {
+  if (getEditorState().viewMode !== "isometric") return null;
+
+  const canvas = getOverlayCanvas();
+  if (!canvas) return null;
+  const rect = canvas.getBoundingClientRect();
+  const mx = clientX - rect.left;
+  const my = clientY - rect.top;
+
+  const entityStore = getEntityStore();
+  const { sorted, layerMap } = sortedEntities();
+
+  for (const placed of sorted) {
+    if (!placed.visible) continue;
+    const layer = layerMap.get(placed.layerId);
+    if (layer && (!layer.visible || layer.locked)) continue;
+
+    const def = entityStore.entities[placed.entityId];
+    if (!def) continue;
+
+    const w = def.displayWidth * placed.scale;
+    const h = def.displayHeight * placed.scale;
+    const ax = def.defaults.anchor?.[0] ?? 0.5;
+
+    if (!def.defaults.flat) {
+      // Billboard: test screen-projected vertical bounds
+      // Use shifted Z so feet match their top-down position.
+      const ay = def.defaults.anchor?.[1] ?? 0.5;
+      const feetZ = placed.y + (1 - ay) * h;
+      const bottomPt = worldToScreen(placed.x, 0, feetZ);
+      const topPt = worldToScreen(placed.x, h, feetZ);
+      const pxPerUnit = Math.abs(bottomPt.y - topPt.y) / h;
+      const screenW = w * pxPerUnit;
+      const screenH = Math.abs(bottomPt.y - topPt.y);
+      const selLeft = bottomPt.x - screenW * ax;
+      const selTop = topPt.y;
+
+      if (mx >= selLeft && mx <= selLeft + screenW &&
+          my >= selTop && my <= selTop + screenH) {
+        return placed.id;
+      }
+    } else {
+      // Flat entity: project scene AABB corners to screen
+      const ay = def.defaults.anchor?.[1] ?? 0.5;
+      const left = placed.x - w * ax;
+      const top = placed.y - h * ay;
+
+      // Project all 4 corners (iso transforms rectangles to parallelograms)
+      const tl = worldToScreen(left, 0, top);
+      const tr = worldToScreen(left + w, 0, top);
+      const bl = worldToScreen(left, 0, top + h);
+      const br = worldToScreen(left + w, 0, top + h);
+
+      const xs = [tl.x, tr.x, bl.x, br.x];
+      const ys = [tl.y, tr.y, bl.y, br.y];
+      const minX = Math.min(...xs);
+      const maxX = Math.max(...xs);
+      const minY = Math.min(...ys);
+      const maxY = Math.max(...ys);
+
+      if (mx >= minX && mx <= maxX && my >= minY && my <= maxY) {
+        return placed.id;
+      }
     }
   }
 

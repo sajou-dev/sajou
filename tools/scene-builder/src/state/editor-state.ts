@@ -5,7 +5,7 @@
  * Not saved to the scene file.
  */
 
-import type { EditorState, InterfaceState, NodeCanvasViewport, PanelId, PanelLayout, ToolId, ViewId } from "../types.js";
+import type { EditorState, InterfaceState, NodeCanvasViewport, PanelId, PanelLayout, ToolId, ViewId, ViewMode } from "../types.js";
 
 // ---------------------------------------------------------------------------
 // Default state
@@ -31,6 +31,8 @@ function createDefault(): EditorState {
       layers: defaultPanelLayout(20, 430, 280, 300),
       settings: defaultPanelLayout(40, 100, 320, 250),
       "signal-timeline": defaultPanelLayout(40, 100, 480, 520),
+      lighting: defaultPanelLayout(40, 100, 300, 400),
+      particles: defaultPanelLayout(40, 100, 300, 450),
     },
     gridEnabled: true,
     gridSize: 32,
@@ -44,6 +46,9 @@ function createDefault(): EditorState {
     bindingDragActive: false,
     bindingDropHighlightId: null,
     activeZoneTypeId: null,
+    viewMode: "top-down",
+    selectedLightIds: [],
+    selectedParticleIds: [],
   };
 }
 
@@ -147,6 +152,18 @@ export function setRouteSelection(ids: string[]): void {
   notify();
 }
 
+/** Set selected light source IDs (light tool). */
+export function setLightSelection(ids: string[]): void {
+  state = { ...state, selectedLightIds: ids };
+  notify();
+}
+
+/** Set selected particle emitter IDs (particle tool). */
+export function setParticleSelection(ids: string[]): void {
+  state = { ...state, selectedParticleIds: ids };
+  notify();
+}
+
 /** Toggle grid visibility. */
 export function toggleGrid(): void {
   state = { ...state, gridEnabled: !state.gridEnabled };
@@ -181,6 +198,18 @@ export function setNodeCanvasViewport(viewport: NodeCanvasViewport): void {
 export function setActiveZoneType(id: string | null): void {
   state = { ...state, activeZoneTypeId: id };
   notify();
+}
+
+/** Set the camera view mode. */
+export function setViewMode(mode: ViewMode): void {
+  if (state.viewMode === mode) return;
+  state = { ...state, viewMode: mode };
+  notify();
+}
+
+/** Toggle between top-down and isometric view. */
+export function toggleViewMode(): void {
+  setViewMode(state.viewMode === "top-down" ? "isometric" : "top-down");
 }
 
 /** Subscribe to editor state changes. Returns unsubscribe function. */

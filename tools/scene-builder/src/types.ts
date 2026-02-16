@@ -290,6 +290,86 @@ export interface ZoneGrid {
   cells: (string | null)[];
 }
 
+// ---------------------------------------------------------------------------
+// Lighting
+// ---------------------------------------------------------------------------
+
+/** Ambient light configuration. */
+export interface LightingAmbient {
+  intensity: number;
+  color: string;
+}
+
+/** Directional light configuration. */
+export interface LightingDirectional {
+  enabled: boolean;
+  /** Compass angle in degrees (0 = north, 90 = east, 180 = south, 270 = west). */
+  angle: number;
+  /** Elevation angle in degrees (0 = horizon, 90 = directly above). */
+  elevation: number;
+  color: string;
+  intensity: number;
+}
+
+/** Flicker animation parameters for a point light. */
+export interface LightFlicker {
+  /** Flicker oscillation speed (0–10). */
+  speed: number;
+  /** Flicker intensity variation (0–1, fraction of base intensity). */
+  amount: number;
+}
+
+/** A point light source placed on the scene. */
+export interface LightSourceState {
+  id: string;
+  x: number;
+  y: number;
+  color: string;
+  intensity: number;
+  /** Light falloff radius in scene pixels. */
+  radius: number;
+  /** Optional flicker animation. */
+  flicker?: LightFlicker;
+}
+
+/** Full lighting configuration for the scene. */
+export interface LightingState {
+  ambient: LightingAmbient;
+  directional: LightingDirectional;
+  sources: LightSourceState[];
+}
+
+// ---------------------------------------------------------------------------
+// Particles
+// ---------------------------------------------------------------------------
+
+/** A particle emitter placed on the scene. */
+export interface ParticleEmitterState {
+  id: string;
+  x: number;
+  y: number;
+  /** Sprite asset path ("" = default circle). */
+  sprite: string;
+  /** Emission pattern. */
+  type: "radial" | "directional";
+  /** Number of particles. */
+  count: number;
+  /** Particle lifetime range [min, max] in seconds. */
+  lifetime: [number, number];
+  /** Velocity ranges for radial mode (scene-pixels/second). */
+  velocity: { x: [number, number]; y: [number, number] };
+  /** Direction vector for directional mode. */
+  direction: { x: number; y: number };
+  /** Speed range for directional mode (scene-pixels/second). */
+  speed: [number, number];
+  /** Color gradient stops over particle lifetime (hex strings). */
+  colorOverLife: string[];
+  /** Size range [start, end] in scene pixels. */
+  size: [number, number];
+  /** Additive blending for glow effect. */
+  glow: boolean;
+}
+
 /** Full scene state (data layer). */
 export interface SceneState {
   dimensions: SceneDimensions;
@@ -303,6 +383,10 @@ export interface SceneState {
   zoneTypes: ZoneTypeDef[];
   /** Painted zone grid (cell → zone type mapping). */
   zoneGrid: ZoneGrid;
+  /** Lighting configuration (ambient, directional, point lights). */
+  lighting: LightingState;
+  /** Particle emitters placed on the scene. */
+  particles: ParticleEmitterState[];
 }
 
 // ---------------------------------------------------------------------------
@@ -325,11 +409,14 @@ export type ZoneId = "signal" | "choreographer" | "theme";
  */
 export type InterfaceState = 0 | 1 | 2 | 3;
 
+/** Camera view mode for the scene canvas. */
+export type ViewMode = "top-down" | "isometric";
+
 /** Available canvas tools. */
-export type ToolId = "select" | "hand" | "background" | "place" | "position" | "route";
+export type ToolId = "select" | "hand" | "background" | "place" | "position" | "route" | "light" | "particle";
 
 /** Panel identifiers. */
-export type PanelId = "entity-palette" | "asset-manager" | "entity-editor" | "inspector" | "layers" | "settings" | "signal-timeline";
+export type PanelId = "entity-palette" | "asset-manager" | "entity-editor" | "inspector" | "layers" | "settings" | "signal-timeline" | "lighting" | "particles";
 
 /** Saved panel position and size. */
 export interface PanelLayout {
@@ -401,6 +488,12 @@ export interface EditorState {
   bindingDropHighlightId: string | null;
   /** Active zone type brush for painting (null = no painting). */
   activeZoneTypeId: string | null;
+  /** Camera view mode (top-down or isometric). */
+  viewMode: ViewMode;
+  /** Selected light source IDs (light tool). */
+  selectedLightIds: string[];
+  /** Selected particle emitter IDs (particle tool). */
+  selectedParticleIds: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -535,6 +628,12 @@ export interface EntityDefaults {
   zIndex?: number;
   /** Initial opacity (0-1). */
   opacity?: number;
+  /**
+   * Whether this entity stays flat on the ground in isometric view.
+   * true = entity lies flat (floors, walls, furniture).
+   * false/undefined = entity stands upright facing the camera (characters, NPCs).
+   */
+  flat?: boolean;
 }
 
 /**
@@ -801,7 +900,7 @@ export interface ChoreographyEditorState {
 export type ConnectionStatus = "disconnected" | "connecting" | "connected" | "error";
 
 /** Transport protocol for a signal source. */
-export type TransportProtocol = "websocket" | "sse" | "openai" | "anthropic";
+export type TransportProtocol = "websocket" | "sse" | "openai" | "anthropic" | "openclaw";
 
 /**
  * A single signal source in the V2 multi-source architecture.

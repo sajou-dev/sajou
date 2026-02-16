@@ -16,6 +16,7 @@ import { getEntityStore } from "../state/entity-store.js";
 import { isRunModeActive } from "../run-mode/run-mode-state.js";
 import { buildPathPoints } from "../tools/route-tool.js";
 import { flattenRoutePath } from "../tools/route-math.js";
+import { sceneToScreen, worldToScreen } from "./canvas.js";
 import type { EntityEntry } from "../types.js";
 
 // ---------------------------------------------------------------------------
@@ -57,6 +58,95 @@ function darkenColor(hex: string, factor: number): string {
 function getEntityDef(entityId: string): EntityEntry | null {
   const store = getEntityStore();
   return store.entities[entityId] ?? null;
+}
+
+/** Check if we're in isometric view mode. */
+function isIsoMode(): boolean {
+  return getEditorState().viewMode === "isometric";
+}
+
+/**
+ * Draw a label at a scene position, handling iso text projection.
+ *
+ * In top-down mode, text is drawn directly in scene coordinates (the affine
+ * transform is identity-scale, so text is not deformed).
+ * In iso mode, the affine transform would shear text, so we reset the
+ * transform and project the anchor to screen pixels.
+ *
+ * @param sceneX - Text anchor X in scene coordinates
+ * @param sceneY - Text anchor Y in scene coordinates
+ */
+function drawLabel(
+  ctx: CanvasRenderingContext2D,
+  sceneX: number,
+  sceneY: number,
+  text: string,
+  opts: {
+    font: string;
+    fillStyle: string;
+    textAlign: CanvasTextAlign;
+    textBaseline: CanvasTextBaseline;
+    pillBg?: string;
+    pillPad?: number;
+    pillRadius?: number;
+  },
+): void {
+  if (!isIsoMode()) {
+    // Top-down: draw directly in scene coords (transform already set)
+    if (opts.pillBg !== undefined && opts.pillPad !== undefined) {
+      ctx.font = opts.font;
+      const metrics = ctx.measureText(text);
+      const pad = opts.pillPad;
+      const pillW = metrics.width + pad * 2;
+      const fontSize = parseFloat(opts.font);
+      const pillH = fontSize + pad;
+      const pillX = opts.textAlign === "center" ? sceneX - pillW / 2 : sceneX;
+      const pillY = sceneY - pillH;
+
+      ctx.fillStyle = opts.pillBg;
+      roundRect(ctx, pillX, pillY, pillW, pillH, opts.pillRadius ?? 3);
+      ctx.fill();
+    }
+
+    ctx.font = opts.font;
+    ctx.textAlign = opts.textAlign;
+    ctx.textBaseline = opts.textBaseline;
+    ctx.fillStyle = opts.fillStyle;
+    ctx.fillText(text, sceneX, sceneY);
+    return;
+  }
+
+  // Iso: project to screen coords, reset transform, draw clean text
+  const screen = sceneToScreen(sceneX, sceneY);
+
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+  // Use a fixed screen-pixel font size for readability in iso
+  const isoFontSize = 10;
+  const fontStr = opts.font.replace(/^(bold\s+)?[\d.]+/, `$1${isoFontSize}`);
+
+  if (opts.pillBg !== undefined) {
+    ctx.font = fontStr;
+    const metrics = ctx.measureText(text);
+    const pad = 3;
+    const pillW = metrics.width + pad * 2;
+    const pillH = isoFontSize + pad;
+    const pillX = opts.textAlign === "center" ? screen.x - pillW / 2 : screen.x;
+    const pillY = screen.y - pillH;
+
+    ctx.fillStyle = opts.pillBg;
+    roundRect(ctx, pillX, pillY, pillW, pillH, 3);
+    ctx.fill();
+  }
+
+  ctx.font = fontStr;
+  ctx.textAlign = opts.textAlign;
+  ctx.textBaseline = opts.textBaseline;
+  ctx.fillStyle = opts.fillStyle;
+  ctx.fillText(text, screen.x, screen.y);
+
+  ctx.restore();
 }
 
 // ---------------------------------------------------------------------------
@@ -115,6 +205,49 @@ export function renderSelection(ctx: CanvasRenderingContext2D, zoom: number): vo
     const ax = def?.defaults.anchor?.[0] ?? 0.5;
     const ay = def?.defaults.anchor?.[1] ?? 0.5;
 
+    if (isIsoMode() && !def?.defaults.flat) {
+      // Billboard entity in iso: project the entity's world-space vertical
+      // extent to screen coordinates so the selection box wraps around the
+      // standing sprite, not flat on the ground.
+      // Use shifted Z so feet align with their top-down position.
+      const feetZ = placed.y + (1 - ay) * h;
+      const bottomPt = worldToScreen(placed.x, 0, feetZ);
+      const topPt = worldToScreen(placed.x, h, feetZ);
+
+      // Pixels per world unit (ortho: same horizontally and vertically)
+      const pxPerUnit = Math.abs(bottomPt.y - topPt.y) / h;
+      const screenW = w * pxPerUnit;
+      const screenH = Math.abs(bottomPt.y - topPt.y);
+
+      const selLeft = bottomPt.x - screenW * ax;
+      const selTop = topPt.y; // topPt has lower screen Y (screen Y grows downward)
+
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+      // Selection rectangle
+      ctx.strokeStyle = "#58a6ff";
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(selLeft - 2, selTop - 2, screenW + 4, screenH + 4);
+
+      // Corner handles
+      const hs = 5;
+      ctx.fillStyle = "#58a6ff";
+      const corners = [
+        { x: selLeft, y: selTop },
+        { x: selLeft + screenW, y: selTop },
+        { x: selLeft, y: selTop + screenH },
+        { x: selLeft + screenW, y: selTop + screenH },
+      ];
+      for (const c of corners) {
+        ctx.fillRect(c.x - hs / 2, c.y - hs / 2, hs, hs);
+      }
+
+      ctx.restore();
+      continue;
+    }
+
+    // Flat entity (top-down or non-billboard iso): selection on scene plane
     const left = placed.x - w * ax;
     const top = placed.y - h * ay;
 
@@ -148,6 +281,7 @@ export function renderBindingHighlight(ctx: CanvasRenderingContext2D, zoom: numb
   if (!bindingDragActive) return;
 
   const { entities } = getSceneState();
+  const iso = isIsoMode();
 
   for (const placed of entities) {
     if (!placed.visible) continue;
@@ -156,15 +290,34 @@ export function renderBindingHighlight(ctx: CanvasRenderingContext2D, zoom: numb
     const w = (def?.displayWidth ?? 32) * placed.scale;
     const h = (def?.displayHeight ?? 32) * placed.scale;
     const ax = def?.defaults.anchor?.[0] ?? 0.5;
-    const ay = def?.defaults.anchor?.[1] ?? 0.5;
-
-    const left = placed.x - w * ax;
-    const top = placed.y - h * ay;
     const isHovered = placed.id === bindingDropHighlightId;
 
-    ctx.strokeStyle = numAlpha(0xe8a851, isHovered ? 0.9 : 0.3);
-    ctx.lineWidth = (isHovered ? 2.5 : 1) / zoom;
-    ctx.strokeRect(left - 3, top - 3, w + 6, h + 6);
+    if (iso && !def?.defaults.flat) {
+      const ay = def?.defaults.anchor?.[1] ?? 0.5;
+      const feetZ = placed.y + (1 - ay) * h;
+      const bottomPt = worldToScreen(placed.x, 0, feetZ);
+      const topPt = worldToScreen(placed.x, h, feetZ);
+      const pxPerUnit = Math.abs(bottomPt.y - topPt.y) / h;
+      const screenW = w * pxPerUnit;
+      const screenH = Math.abs(bottomPt.y - topPt.y);
+      const selLeft = bottomPt.x - screenW * ax;
+      const selTop = topPt.y;
+
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.strokeStyle = numAlpha(0xe8a851, isHovered ? 0.9 : 0.3);
+      ctx.lineWidth = isHovered ? 2.5 : 1;
+      ctx.strokeRect(selLeft - 3, selTop - 3, screenW + 6, screenH + 6);
+      ctx.restore();
+    } else {
+      const ay = def?.defaults.anchor?.[1] ?? 0.5;
+      const left = placed.x - w * ax;
+      const top = placed.y - h * ay;
+
+      ctx.strokeStyle = numAlpha(0xe8a851, isHovered ? 0.9 : 0.3);
+      ctx.lineWidth = (isHovered ? 2.5 : 1) / zoom;
+      ctx.strokeRect(left - 3, top - 3, w + 6, h + 6);
+    }
   }
 }
 
@@ -216,35 +369,29 @@ export function renderPositions(ctx: CanvasRenderingContext2D, zoom: number): vo
     const badge = TYPE_HINT_BADGES[pos.typeHint];
     if (badge) {
       ctx.save();
-      ctx.font = `bold ${7 / zoom}px "JetBrains Mono", monospace`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillStyle = "#000000";
-      ctx.fillText(badge, pos.x, pos.y);
+      drawLabel(ctx, pos.x, pos.y, badge, {
+        font: `bold ${7 / zoom}px "JetBrains Mono", monospace`,
+        fillStyle: "#000000",
+        textAlign: "center",
+        textBaseline: "middle",
+      });
       ctx.restore();
     }
 
     // Name label above
     ctx.save();
     const fontSize = 10 / zoom;
-    ctx.font = `${fontSize}px "JetBrains Mono", monospace`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "bottom";
-
     const labelY = pos.y - size - 4 / zoom;
-    const metrics = ctx.measureText(pos.name);
-    const pad = 3 / zoom;
-    const pillW = metrics.width + pad * 2;
-    const pillH = fontSize + pad;
 
-    // Label pill background
-    ctx.fillStyle = numAlpha(isSelected ? 0x58a6ff : 0x0e0e16, 0.85);
-    roundRect(ctx, pos.x - pillW / 2, labelY - pillH, pillW, pillH, 3 / zoom);
-    ctx.fill();
-
-    // Label text
-    ctx.fillStyle = "#ffffff";
-    ctx.fillText(pos.name, pos.x, labelY);
+    drawLabel(ctx, pos.x, labelY, pos.name, {
+      font: `${fontSize}px "JetBrains Mono", monospace`,
+      fillStyle: "#ffffff",
+      textAlign: "center",
+      textBaseline: "bottom",
+      pillBg: numAlpha(isSelected ? 0x58a6ff : 0x0e0e16, 0.85),
+      pillPad: 3 / zoom,
+      pillRadius: 3 / zoom,
+    });
     ctx.restore();
   }
 
@@ -393,22 +540,17 @@ export function renderRoutes(ctx: CanvasRenderingContext2D, zoom: number): void 
         if (rp.name) {
           ctx.save();
           const fs = 8 / zoom;
-          ctx.font = `${fs}px "JetBrains Mono", monospace`;
-          ctx.textAlign = "center";
-          ctx.textBaseline = "top";
-
           const wpLabelY = rp.y + handleSize + 3 / zoom;
-          const wpMetrics = ctx.measureText(rp.name);
-          const wpPad = 2 / zoom;
-          const wpPillW = wpMetrics.width + wpPad * 2;
-          const wpPillH = fs + wpPad;
 
-          ctx.fillStyle = numAlpha(0x0e0e16, 0.85);
-          roundRect(ctx, rp.x - wpPillW / 2, wpLabelY - wpPad / 2, wpPillW, wpPillH, 2 / zoom);
-          ctx.fill();
-
-          ctx.fillStyle = "#ffffff";
-          ctx.fillText(rp.name, rp.x, wpLabelY);
+          drawLabel(ctx, rp.x, wpLabelY, rp.name, {
+            font: `${fs}px "JetBrains Mono", monospace`,
+            fillStyle: "#ffffff",
+            textAlign: "center",
+            textBaseline: "top",
+            pillBg: numAlpha(0x0e0e16, 0.85),
+            pillPad: 2 / zoom,
+            pillRadius: 2 / zoom,
+          });
           ctx.restore();
         }
       }
@@ -420,22 +562,17 @@ export function renderRoutes(ctx: CanvasRenderingContext2D, zoom: number): void 
       const midIdx = Math.floor(points.length / 2);
       const midPt = points[midIdx]!;
       const fs = 9 / zoom;
-      ctx.font = `${fs}px "JetBrains Mono", monospace`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "bottom";
-
       const nameLabelY = midPt.y - 8 / zoom;
-      const nameMetrics = ctx.measureText(route.name);
-      const pad = 3 / zoom;
-      const pillW = nameMetrics.width + pad * 2;
-      const pillH = fs + pad;
 
-      ctx.fillStyle = numAlpha(0x0e0e16, 0.85);
-      roundRect(ctx, midPt.x - pillW / 2, nameLabelY - pillH, pillW, pillH, 3 / zoom);
-      ctx.fill();
-
-      ctx.fillStyle = "#ffffff";
-      ctx.fillText(route.name, midPt.x, nameLabelY);
+      drawLabel(ctx, midPt.x, nameLabelY, route.name, {
+        font: `${fs}px "JetBrains Mono", monospace`,
+        fillStyle: "#ffffff",
+        textAlign: "center",
+        textBaseline: "bottom",
+        pillBg: numAlpha(0x0e0e16, 0.85),
+        pillPad: 3 / zoom,
+        pillRadius: 3 / zoom,
+      });
       ctx.restore();
     }
   }
@@ -522,6 +659,7 @@ export function renderActorBadges(ctx: CanvasRenderingContext2D, _zoom: number):
 
   const { entities } = getSceneState();
   const entityStore = getEntityStore();
+  const iso = isIsoMode();
 
   for (const placed of entities) {
     if (!placed.semanticId || !placed.visible) continue;
@@ -530,22 +668,44 @@ export function renderActorBadges(ctx: CanvasRenderingContext2D, _zoom: number):
     const w = (def?.displayWidth ?? 32) * placed.scale;
     const h = (def?.displayHeight ?? 32) * placed.scale;
     const ax = def?.defaults.anchor?.[0] ?? 0.5;
-    const ay = def?.defaults.anchor?.[1] ?? 0.5;
-
-    const right = placed.x + w * (1 - ax);
-    const top = placed.y - h * ay;
-    const bx = right - 2;
-    const by = top + 2;
     const bs = 4;
 
-    ctx.beginPath();
-    ctx.moveTo(bx, by - bs);
-    ctx.lineTo(bx + bs, by);
-    ctx.lineTo(bx, by + bs);
-    ctx.lineTo(bx - bs, by);
-    ctx.closePath();
-    ctx.fillStyle = numAlpha(0xe8a851, 0.9);
-    ctx.fill();
+    if (iso && !def?.defaults.flat) {
+      const ay = def?.defaults.anchor?.[1] ?? 0.5;
+      const feetZ = placed.y + (1 - ay) * h;
+      const topPt = worldToScreen(placed.x, h, feetZ);
+      const pxPerUnit = Math.abs(worldToScreen(placed.x, 0, feetZ).y - topPt.y) / h;
+      const screenW = w * pxPerUnit;
+      const bx = topPt.x + screenW * (1 - ax) - 2;
+      const by = topPt.y + 2;
+
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.beginPath();
+      ctx.moveTo(bx, by - bs);
+      ctx.lineTo(bx + bs, by);
+      ctx.lineTo(bx, by + bs);
+      ctx.lineTo(bx - bs, by);
+      ctx.closePath();
+      ctx.fillStyle = numAlpha(0xe8a851, 0.9);
+      ctx.fill();
+      ctx.restore();
+    } else {
+      const ay = def?.defaults.anchor?.[1] ?? 0.5;
+      const right = placed.x + w * (1 - ax);
+      const top = placed.y - h * ay;
+      const bx = right - 2;
+      const by = top + 2;
+
+      ctx.beginPath();
+      ctx.moveTo(bx, by - bs);
+      ctx.lineTo(bx + bs, by);
+      ctx.lineTo(bx, by + bs);
+      ctx.lineTo(bx - bs, by);
+      ctx.closePath();
+      ctx.fillStyle = numAlpha(0xe8a851, 0.9);
+      ctx.fill();
+    }
   }
 }
 
@@ -646,6 +806,206 @@ export function renderTopologyOverlay(ctx: CanvasRenderingContext2D, zoom: numbe
       );
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// Light markers
+// ---------------------------------------------------------------------------
+
+/** Render light source markers on the Canvas2D overlay. */
+export function renderLightMarkers(ctx: CanvasRenderingContext2D, zoom: number): void {
+  if (isRunModeActive()) return;
+
+  const { lighting } = getSceneState();
+  const { activeTool, selectedLightIds } = getEditorState();
+  const isLightTool = activeTool === "light";
+
+  // Draw all point light sources
+  ctx.globalAlpha = isLightTool ? 1 : 0.3;
+
+  for (const source of lighting.sources) {
+    const isSelected = selectedLightIds.includes(source.id);
+    const r = 6 / zoom;
+
+    // Radius circle (dashed, only when light tool active)
+    if (isLightTool) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(source.x, source.y, source.radius, 0, Math.PI * 2);
+      ctx.setLineDash([4 / zoom, 4 / zoom]);
+      ctx.strokeStyle = hexAlpha(source.color, 0.25);
+      ctx.lineWidth = 1 / zoom;
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
+
+    // Sun icon: filled circle + 4 short rays
+    ctx.beginPath();
+    ctx.arc(source.x, source.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = source.color;
+    ctx.fill();
+
+    if (isSelected) {
+      ctx.strokeStyle = "#58a6ff";
+      ctx.lineWidth = 2 / zoom;
+    } else {
+      ctx.strokeStyle = darkenColor(source.color, 0.3);
+      ctx.lineWidth = 1 / zoom;
+    }
+    ctx.stroke();
+
+    // 4 rays (N, E, S, W)
+    const rayLen = 4 / zoom;
+    const rayGap = r + 2 / zoom;
+    ctx.strokeStyle = source.color;
+    ctx.lineWidth = 1.5 / zoom;
+
+    ctx.beginPath();
+    for (const [dx, dy] of [[0, -1], [1, 0], [0, 1], [-1, 0]] as const) {
+      ctx.moveTo(source.x + dx * rayGap, source.y + dy * rayGap);
+      ctx.lineTo(source.x + dx * (rayGap + rayLen), source.y + dy * (rayGap + rayLen));
+    }
+    ctx.stroke();
+
+    // ID label (when selected)
+    if (isSelected && isLightTool) {
+      ctx.save();
+      const fontSize = 9 / zoom;
+      const labelY = source.y - r - 6 / zoom;
+
+      drawLabel(ctx, source.x, labelY, source.id, {
+        font: `${fontSize}px "JetBrains Mono", monospace`,
+        fillStyle: "#ffffff",
+        textAlign: "center",
+        textBaseline: "bottom",
+        pillBg: numAlpha(0x0e0e16, 0.85),
+        pillPad: 3 / zoom,
+        pillRadius: 3 / zoom,
+      });
+      ctx.restore();
+    }
+  }
+
+  ctx.globalAlpha = 1;
+}
+
+// ---------------------------------------------------------------------------
+// Particle markers
+// ---------------------------------------------------------------------------
+
+/** Render particle emitter markers on the Canvas2D overlay. */
+export function renderParticleMarkers(ctx: CanvasRenderingContext2D, zoom: number): void {
+  if (isRunModeActive()) return;
+
+  const { particles } = getSceneState();
+  const { activeTool, selectedParticleIds } = getEditorState();
+  const isParticleTool = activeTool === "particle";
+
+  ctx.globalAlpha = isParticleTool ? 1 : 0.3;
+
+  for (const emitter of particles) {
+    const isSelected = selectedParticleIds.includes(emitter.id);
+    const firstColor = emitter.colorOverLife[0] ?? "#FFA040";
+    const s = 7 / zoom;
+
+    // Diamond marker (filled with first color stop)
+    ctx.beginPath();
+    ctx.moveTo(emitter.x, emitter.y - s);
+    ctx.lineTo(emitter.x + s, emitter.y);
+    ctx.lineTo(emitter.x, emitter.y + s);
+    ctx.lineTo(emitter.x - s, emitter.y);
+    ctx.closePath();
+
+    ctx.fillStyle = firstColor;
+    ctx.fill();
+
+    if (isSelected) {
+      ctx.strokeStyle = "#58a6ff";
+      ctx.lineWidth = 2 / zoom;
+    } else {
+      ctx.strokeStyle = darkenColor(firstColor, 0.3);
+      ctx.lineWidth = 1 / zoom;
+    }
+    ctx.stroke();
+
+    // Extent circle (dashed, only when particle tool active)
+    if (isParticleTool) {
+      // Approximate extent: max velocity * max lifetime
+      let maxVel: number;
+      if (emitter.type === "radial") {
+        const maxVx = Math.max(Math.abs(emitter.velocity.x[0]), Math.abs(emitter.velocity.x[1]));
+        const maxVy = Math.max(Math.abs(emitter.velocity.y[0]), Math.abs(emitter.velocity.y[1]));
+        maxVel = Math.hypot(maxVx, maxVy);
+      } else {
+        maxVel = Math.max(Math.abs(emitter.speed[0]), Math.abs(emitter.speed[1]));
+      }
+      const extent = maxVel * emitter.lifetime[1];
+
+      if (extent > 0) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(emitter.x, emitter.y, extent, 0, Math.PI * 2);
+        ctx.setLineDash([4 / zoom, 4 / zoom]);
+        ctx.strokeStyle = hexAlpha(firstColor, 0.2);
+        ctx.lineWidth = 1 / zoom;
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.restore();
+      }
+    }
+
+    // Direction arrow (directional emitters, when particle tool active)
+    if (isParticleTool && emitter.type === "directional") {
+      const len = Math.hypot(emitter.direction.x, emitter.direction.y);
+      if (len > 0) {
+        const nx = emitter.direction.x / len;
+        const ny = emitter.direction.y / len;
+        const arrowLen = 20 / zoom;
+
+        ctx.beginPath();
+        ctx.moveTo(emitter.x, emitter.y);
+        ctx.lineTo(emitter.x + nx * arrowLen, emitter.y + ny * arrowLen);
+        ctx.strokeStyle = firstColor;
+        ctx.lineWidth = 2 / zoom;
+        ctx.stroke();
+
+        // Arrowhead
+        const tipX = emitter.x + nx * arrowLen;
+        const tipY = emitter.y + ny * arrowLen;
+        const headSize = 5 / zoom;
+        const px = -ny;
+        const py = nx;
+        ctx.beginPath();
+        ctx.moveTo(tipX, tipY);
+        ctx.lineTo(tipX - nx * headSize + px * headSize * 0.5, tipY - ny * headSize + py * headSize * 0.5);
+        ctx.lineTo(tipX - nx * headSize - px * headSize * 0.5, tipY - ny * headSize - py * headSize * 0.5);
+        ctx.closePath();
+        ctx.fillStyle = firstColor;
+        ctx.fill();
+      }
+    }
+
+    // ID label (when selected)
+    if (isSelected && isParticleTool) {
+      ctx.save();
+      const fontSize = 9 / zoom;
+      const labelY = emitter.y - s - 6 / zoom;
+
+      drawLabel(ctx, emitter.x, labelY, emitter.id, {
+        font: `${fontSize}px "JetBrains Mono", monospace`,
+        fillStyle: "#ffffff",
+        textAlign: "center",
+        textBaseline: "bottom",
+        pillBg: numAlpha(0x0e0e16, 0.85),
+        pillPad: 3 / zoom,
+        pillRadius: 3 / zoom,
+      });
+      ctx.restore();
+    }
+  }
+
+  ctx.globalAlpha = 1;
 }
 
 // ---------------------------------------------------------------------------

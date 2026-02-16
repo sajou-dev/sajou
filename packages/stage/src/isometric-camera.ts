@@ -72,12 +72,17 @@ export function createTopDownCamera(
 
 /**
  * Compute the Y-axis billboard angle so sprites face the isometric camera.
- * Uses atan2(camera.x, camera.z) — rotation around Y to face the camera.
+ *
+ * Uses the camera's world direction (not position) so the angle is constant
+ * for orthographic cameras regardless of pan/target position.
  */
+const _billboardDir = new THREE.Vector3();
 export function computeBillboardAngle(
   camera: THREE.OrthographicCamera,
 ): number {
-  return Math.atan2(camera.position.x, camera.position.z);
+  camera.getWorldDirection(_billboardDir);
+  // Face toward the camera: negate the direction
+  return Math.atan2(-_billboardDir.x, -_billboardDir.z);
 }
 
 /** Update camera frustum for a new viewport size. */

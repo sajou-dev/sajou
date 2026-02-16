@@ -87,6 +87,7 @@ export function createSourceBlock(source: SignalSource): HTMLElement {
     sse: "SSE",
     openai: "OPENAI",
     anthropic: "ANTHROPIC",
+    openclaw: "CLAW",
   };
   const protoBadge = document.createElement("span");
   protoBadge.className = `source-block-proto source-block-proto--${source.protocol}`;

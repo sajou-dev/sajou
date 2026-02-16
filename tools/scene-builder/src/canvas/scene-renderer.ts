@@ -16,7 +16,8 @@ import { subscribeEditor } from "../state/editor-state.js";
 import { getEntityStore, subscribeEntities } from "../state/entity-store.js";
 import { getAssetStore, subscribeAssets } from "../state/asset-store.js";
 import { isRunModeActive } from "../run-mode/run-mode-state.js";
-import { getThreeScene, setOverlayDrawCallback, redrawOverlay } from "./canvas.js";
+import { getThreeScene, setOverlayDrawCallback, redrawOverlay, getController, onControllerChange } from "./canvas.js";
+import { computeBillboardAngle, type CameraController } from "./camera-controller.js";
 import {
   renderZoneGrid,
   renderSelection,
@@ -26,9 +27,23 @@ import {
   renderTopologyOverlay,
   renderBindingHighlight,
   renderActorBadges,
+  renderLightMarkers,
+  renderParticleMarkers,
 } from "./overlay-renderer.js";
 import { drawGuideLines } from "../tools/guide-lines.js";
 import type { PlacedEntity, EntityEntry, SceneLayer } from "../types.js";
+
+// ---------------------------------------------------------------------------
+// Depth helpers
+// ---------------------------------------------------------------------------
+
+/** Y-offset step per depth unit. Encodes (layerOrder, zIndex) into Y position. */
+const DEPTH_Y_STEP = 0.001;
+
+/** Convert layer order + zIndex to a Y offset for depth sorting. */
+function depthToY(layerOrder: number, zIndex: number): number {
+  return (layerOrder * 10000 + zIndex) * DEPTH_Y_STEP;
+}
 
 // ---------------------------------------------------------------------------
 // Entity mesh record
@@ -38,7 +53,7 @@ import type { PlacedEntity, EntityEntry, SceneLayer } from "../types.js";
 export interface EntityMeshRecord {
   readonly group: THREE.Group;
   readonly mesh: THREE.Mesh;
-  readonly material: THREE.MeshBasicMaterial;
+  readonly material: THREE.MeshStandardMaterial;
   readonly placedId: string;
   /** Dimensions at creation time — used to detect when geometry must be rebuilt. */
   readonly createdWidth: number;
@@ -131,13 +146,15 @@ function createEntityMesh(
   const offsetZ = (0.5 - ay) * h;
   geom.translate(offsetX, 0, offsetZ);
 
-  const material = new THREE.MeshBasicMaterial({
+  const material = new THREE.MeshStandardMaterial({
     color: def.fallbackColor || "#666666",
     transparent: true,
     alphaTest: 0.01,
     side: THREE.DoubleSide,
-    depthTest: false,
-    depthWrite: false,
+    depthTest: true,
+    depthWrite: true,
+    roughness: 1,
+    metalness: 0,
   });
 
   const mesh = new THREE.Mesh(geom, material);
@@ -168,28 +185,61 @@ function applyEntityTransform(
   _def: EntityEntry,
   layer: SceneLayer | undefined,
 ): void {
-  const { group, material } = record;
+  const { group, mesh, material } = record;
 
-  // Position: scene (x, y) → world (x, 0, z)
-  group.position.set(placed.x, 0, placed.y);
-
-  // Scale (includes flip)
-  const scaleX = placed.flipH ? -placed.scale : placed.scale;
-  const scaleY = placed.flipV ? -placed.scale : placed.scale;
-  group.scale.set(scaleX, 1, scaleY);
+  // Position: scene (x, y) → world (x, depthY, z)
+  const layerOrder = layer?.order ?? 0;
+  group.position.set(placed.x, depthToY(layerOrder, placed.zIndex), placed.y);
 
   // Rotation: 2D rotation → Y-axis rotation
   group.rotation.y = -(placed.rotation * Math.PI) / 180;
+
+  // Cylindrical billboard: stand the entity upright and face the camera.
+  // Only applies to entities with billboard=true (characters, NPCs).
+  // Flat entities (floors, walls, furniture) stay on the ground plane.
+  //
+  // The geometry was baked flat (rotateX -PI/2) → lies in XZ.
+  // To stand it up: Rx(PI/2), then rotate around Y to face camera: Ry(angle).
+  // Euler order 'YXZ' gives: Ry * Rx * Rz = Ry(angle) * Rx(PI/2).
+  //
+  // After standing up, the anchor Z-offset maps to -Y, so the mesh
+  // sinks below ground. Compensate with mesh.position.y = h * (1 - ay).
+  const ctrl = getController();
+  const shouldBillboard = ctrl?.mode === "isometric" && !_def.defaults.flat;
+  if (shouldBillboard) {
+    const angle = computeBillboardAngle(ctrl.camera);
+    mesh.rotation.set(Math.PI / 2, angle, 0, "YXZ");
+    const h = _def.displayHeight;
+    const ay = _def.defaults.anchor?.[1] ?? 0.5;
+    mesh.position.y = h * (1 - ay);
+
+    // Shift Z so feet align with their top-down position.
+    // In top-down, the anchor offset bakes into the geometry, placing the feet
+    // at placed.y + (1-ay)*h*scale. In billboard mode the feet are at
+    // group.position.z, so we shift Z to match.
+    group.position.z = placed.y + (1 - ay) * h * placed.scale;
+
+    // In iso, the billboard height is along Y, width is split across X/Z.
+    // Use uniform scale so width and height scale equally.
+    // flipH negates X+Z together; flipV negates Y.
+    const sx = placed.flipH ? -placed.scale : placed.scale;
+    const sy = placed.flipV ? -placed.scale : placed.scale;
+    group.scale.set(sx, sy, sx);
+  } else {
+    mesh.rotation.set(0, 0, 0, "YXZ");
+    mesh.position.y = 0;
+
+    // Top-down / flat: width = X, height = Z, depth = Y (always 1)
+    const sx = placed.flipH ? -placed.scale : placed.scale;
+    const sz = placed.flipV ? -placed.scale : placed.scale;
+    group.scale.set(sx, 1, sz);
+  }
 
   // Opacity
   material.opacity = placed.opacity;
 
   // Visibility
   group.visible = placed.visible;
-
-  // Depth ordering via renderOrder: layerOrder * 10000 + per-instance zIndex
-  const layerOrder = layer?.order ?? 0;
-  record.mesh.renderOrder = layerOrder * 10000 + placed.zIndex;
 }
 
 /** Remove an entity mesh from the scene. */
@@ -323,29 +373,79 @@ async function renderEntities(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Billboarding
+// ---------------------------------------------------------------------------
+
+/** Apply billboard rotation + Y-lift to all existing entity meshes for a given controller. */
+function applyBillboard(ctrl: CameraController): void {
+  const { entities } = getSceneState();
+  const placedMap = new Map(entities.map((e) => [e.id, e]));
+
+  if (ctrl.mode === "isometric") {
+    const angle = computeBillboardAngle(ctrl.camera);
+    for (const [, record] of entityRecords) {
+      const placed = placedMap.get(record.placedId);
+      const def = placed ? getEntityDef(placed.entityId) : null;
+
+      if (!def?.defaults.flat) {
+        record.mesh.rotation.set(Math.PI / 2, angle, 0, "YXZ");
+        const h = def.displayHeight;
+        const ay = def.defaults.anchor?.[1] ?? 0.5;
+        record.mesh.position.y = h * (1 - ay);
+        // Shift Z so feet match top-down position
+        if (placed) {
+          record.group.position.z = placed.y + (1 - ay) * h * placed.scale;
+        }
+      } else {
+        record.mesh.rotation.set(0, 0, 0, "YXZ");
+        record.mesh.position.y = 0;
+      }
+    }
+  } else {
+    for (const [, record] of entityRecords) {
+      const placed = placedMap.get(record.placedId);
+      record.mesh.rotation.set(0, 0, 0, "YXZ");
+      record.mesh.position.y = 0;
+      // Reset Z to placed.y (no feet offset in top-down)
+      if (placed) {
+        record.group.position.z = placed.y;
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Overlay drawing orchestration
 // ---------------------------------------------------------------------------
 
 /** Draw all scene overlays on the Canvas2D context. */
 function drawSceneOverlays(
   ctx: CanvasRenderingContext2D,
-  currentZoom: number,
-  px: number,
-  py: number,
+  _currentZoom: number,
+  _px: number,
+  _py: number,
 ): void {
-  // Scene-coordinate overlays
-  ctx.save();
-  ctx.setTransform(currentZoom, 0, 0, currentZoom, px, py);
+  const ctrl = getController();
+  if (!ctrl) return;
 
-  renderZoneGrid(ctx, currentZoom);
-  renderPositions(ctx, currentZoom);
-  renderRoutes(ctx, currentZoom);
-  renderRouteCreationPreview(ctx, currentZoom);
-  renderTopologyOverlay(ctx, currentZoom);
-  renderSelection(ctx, currentZoom);
-  renderBindingHighlight(ctx, currentZoom);
-  renderActorBadges(ctx, currentZoom);
-  drawGuideLines(ctx, currentZoom);
+  const t = ctrl.getOverlayTransform();
+  const effectiveZoom = ctrl.getEffectiveZoom();
+
+  // Scene-coordinate overlays (use full affine transform for iso support)
+  ctx.save();
+  ctx.setTransform(t.a, t.b, t.c, t.d, t.e, t.f);
+
+  renderZoneGrid(ctx, effectiveZoom);
+  renderPositions(ctx, effectiveZoom);
+  renderRoutes(ctx, effectiveZoom);
+  renderRouteCreationPreview(ctx, effectiveZoom);
+  renderTopologyOverlay(ctx, effectiveZoom);
+  renderSelection(ctx, effectiveZoom);
+  renderBindingHighlight(ctx, effectiveZoom);
+  renderActorBadges(ctx, effectiveZoom);
+  renderLightMarkers(ctx, effectiveZoom);
+  renderParticleMarkers(ctx, effectiveZoom);
+  drawGuideLines(ctx, effectiveZoom);
 
   ctx.restore();
 }
@@ -375,6 +475,12 @@ function scheduleRender(): void {
 export function initSceneRenderer(): void {
   // Register overlay draw callback with canvas
   setOverlayDrawCallback(drawSceneOverlays);
+
+  // Billboard all meshes when camera controller changes (top-down ↔ iso)
+  onControllerChange((ctrl) => {
+    applyBillboard(ctrl);
+    scheduleRender();
+  });
 
   subscribeScene(scheduleRender);
   subscribeEditor(scheduleRender);

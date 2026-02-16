@@ -21,6 +21,7 @@ import {
   parseMessage,
   parseOpenAIChunk,
   parseAnthropicEvent,
+  parseOpenClawEvent,
 } from "../simulator/signal-parser.js";
 
 // ---------------------------------------------------------------------------
@@ -31,7 +32,7 @@ import {
 export type ConnectionStatus = "disconnected" | "connecting" | "connected" | "error";
 
 /** Transport protocol. */
-export type TransportProtocol = "websocket" | "sse" | "openai" | "anthropic";
+export type TransportProtocol = "websocket" | "sse" | "openai" | "anthropic" | "openclaw";
 
 /** A parsed signal event received from a source. */
 export interface ReceivedSignal {
@@ -72,6 +73,12 @@ interface SourceConnection {
 
 /** Map of sourceId → connection handle. */
 const connections = new Map<string, SourceConnection>();
+
+/** Map of sourceId → OpenClaw keepalive interval timer. */
+const openClawKeepaliveTimers = new Map<string, ReturnType<typeof setInterval>>();
+
+/** Map of sourceId → OpenClaw reconnect state. */
+const openClawReconnectState = new Map<string, { attempts: number; timer: ReturnType<typeof setTimeout> | null }>();
 
 // ---------------------------------------------------------------------------
 // Global listeners (aggregate across all sources)
@@ -203,7 +210,9 @@ export async function connectSource(
   setSourceState(sourceId, { status: "connecting", error: null, protocol });
   debug(`[${sourceId}] Connecting to ${url} (${protocol})…`, "info", sourceId);
 
-  if (protocol === "websocket") {
+  if (protocol === "openclaw") {
+    connectOpenClaw(conn, url, apiKey);
+  } else if (protocol === "websocket") {
     connectWebSocket(conn, url);
   } else if (protocol === "anthropic") {
     debug(`[${sourceId}] Probing for Anthropic API…`, "info", sourceId);
@@ -261,6 +270,9 @@ export function disconnectSource(sourceId: string): void {
     conn.sseAbort.abort();
     conn.sseAbort = null;
   }
+
+  // Clean up OpenClaw keepalive + reconnect state
+  clearOpenClawTimers(sourceId);
 
   connections.delete(sourceId);
   debug(`[${sourceId}] Disconnected.`, "info", sourceId);
@@ -416,6 +428,7 @@ export function getConnectionState(): {
 /** Detect protocol from URL scheme (initial guess — probes refine it). */
 function detectProtocol(url: string): TransportProtocol {
   const lower = url.trim().toLowerCase();
+  if (lower.includes("18789") || lower.includes("openclaw")) return "openclaw";
   if (lower.startsWith("ws://") || lower.startsWith("wss://")) return "websocket";
   if (lower.includes("anthropic")) return "anthropic";
   return "sse";
@@ -526,6 +539,204 @@ function connectWebSocket(conn: SourceConnection, url: string): void {
     }
     connections.delete(conn.sourceId);
   });
+}
+
+// ---------------------------------------------------------------------------
+// OpenClaw WebSocket transport
+// ---------------------------------------------------------------------------
+
+/** Maximum reconnect attempts before giving up. */
+const OPENCLAW_MAX_RECONNECT = 10;
+
+/** Maximum backoff delay in ms (30s). */
+const OPENCLAW_MAX_BACKOFF_MS = 30_000;
+
+
+/**
+ * Connect to an OpenClaw gateway via WebSocket.
+ *
+ * Implements the full OpenClaw handshake:
+ * 1. Open WebSocket
+ * 2. Receive `connect.challenge` with `{nonce, ts}`
+ * 3. Send `connect` request with auth token
+ * 4. Receive `{type:"res", ok:true}` → connected
+ *
+ * After connection: keepalive pings, signal parsing, exponential backoff reconnect.
+ */
+function connectOpenClaw(conn: SourceConnection, url: string, apiKey: string): void {
+  // Clear any pending reconnect timer
+  const reconnState = openClawReconnectState.get(conn.sourceId);
+  if (reconnState?.timer) {
+    clearTimeout(reconnState.timer);
+    reconnState.timer = null;
+  }
+
+  try {
+    conn.ws = new WebSocket(url);
+  } catch (e) {
+    const msg = `WebSocket creation failed: ${e instanceof Error ? e.message : String(e)}`;
+    debug(`[${conn.sourceId}] ${msg}`, "error", conn.sourceId);
+    setSourceState(conn.sourceId, { status: "error", error: msg });
+    return;
+  }
+
+  let handshakeComplete = false;
+
+  conn.ws.addEventListener("open", () => {
+    debug(`[${conn.sourceId}] OpenClaw WebSocket opened — waiting for challenge…`, "info", conn.sourceId);
+  });
+
+  conn.ws.addEventListener("message", (event) => {
+    let msg: Record<string, unknown>;
+    try {
+      msg = JSON.parse(String(event.data)) as Record<string, unknown>;
+    } catch {
+      debug(`[${conn.sourceId}] [openclaw] Unparseable message: ${String(event.data).slice(0, 100)}`, "warn", conn.sourceId);
+      return;
+    }
+
+    // --- Phase 1: Handshake ---
+    if (!handshakeComplete) {
+      // Step 2: Receive challenge — may arrive as {type:"connect.challenge"} or
+      // wrapped in envelope {type:"event", event:"connect.challenge", payload:{nonce,ts}}
+      if (msg["type"] === "connect.challenge" || msg["event"] === "connect.challenge") {
+        debug(`[${conn.sourceId}] Challenge received — sending auth…`, "info", conn.sourceId);
+        const connectReq = {
+          type: "req",
+          id: crypto.randomUUID(),
+          method: "connect",
+          params: {
+            minProtocol: 3,
+            maxProtocol: 3,
+            client: {
+              id: "gateway-client",
+              version: "0.1.0",
+              platform: "web",
+              mode: "backend",
+            },
+            role: "operator",
+            scopes: ["operator.read"],
+            caps: [],
+            commands: [],
+            permissions: {},
+            auth: { token: apiKey },
+            locale: "fr-CH",
+            userAgent: "sajou/0.1.0",
+          },
+        };
+        conn.ws?.send(JSON.stringify(connectReq));
+        return;
+      }
+
+      // Step 4: Receive connect response
+      if (msg["type"] === "res") {
+        if (msg["ok"] === true) {
+          handshakeComplete = true;
+
+          // Reset reconnect state on successful connection
+          openClawReconnectState.set(conn.sourceId, { attempts: 0, timer: null });
+
+          // No application-level keepalive — WebSocket transport handles it,
+          // and the gateway rejects health/ping without operator.admin scope.
+
+          setSourceState(conn.sourceId, { status: "connected", error: null });
+          debug(`[${conn.sourceId}] OpenClaw connected.`, "info", conn.sourceId);
+        } else {
+          const rawErr = msg["error"] ?? msg["message"] ?? "Authentication failed";
+          const errMsg = typeof rawErr === "object" && rawErr !== null
+            ? (rawErr as Record<string, unknown>)["message"] as string
+              ?? JSON.stringify(rawErr)
+            : String(rawErr);
+          debug(`[${conn.sourceId}] OpenClaw handshake rejected: ${errMsg}`, "error", conn.sourceId);
+          debug(`[${conn.sourceId}] [openclaw] Full response: ${JSON.stringify(msg).slice(0, 300)}`, "warn", conn.sourceId);
+          setSourceState(conn.sourceId, { status: "error", error: errMsg });
+          conn.ws?.close();
+        }
+        return;
+      }
+
+      // Unexpected message during handshake — log and ignore
+      debug(`[${conn.sourceId}] [openclaw] Unexpected handshake message: ${JSON.stringify(msg).slice(0, 120)}`, "warn", conn.sourceId);
+      return;
+    }
+
+    // --- Phase 2: Normal operation — parse events ---
+
+    // Ignore responses to our keepalive pings/health checks
+    if (msg["type"] === "pong" || msg["type"] === "res") {
+      return;
+    }
+
+    const signal = parseOpenClawEvent(msg);
+    if (signal) {
+      dispatchSignal(
+        { ...signal, type: signal.type as SignalType, raw: String(event.data) },
+        conn.sourceId,
+      );
+    }
+    // null = internal event (already logged in parser if needed)
+  });
+
+  conn.ws.addEventListener("error", () => {
+    debug(`[${conn.sourceId}] OpenClaw WebSocket error.`, "error", conn.sourceId);
+  });
+
+  conn.ws.addEventListener("close", (event) => {
+    conn.ws = null;
+
+    const existing = connections.get(conn.sourceId);
+    if (!existing) return; // Already cleaned up by disconnectSource
+
+    if (event.wasClean) {
+      debug(`[${conn.sourceId}] OpenClaw disconnected cleanly.`, "info", conn.sourceId);
+      setSourceState(conn.sourceId, { status: "disconnected", error: null });
+      connections.delete(conn.sourceId);
+    } else {
+      // Attempt reconnect with exponential backoff
+      const state = openClawReconnectState.get(conn.sourceId) ?? { attempts: 0, timer: null };
+      state.attempts++;
+
+      if (state.attempts > OPENCLAW_MAX_RECONNECT) {
+        const msg = `Connection lost after ${OPENCLAW_MAX_RECONNECT} reconnect attempts.`;
+        debug(`[${conn.sourceId}] ${msg}`, "error", conn.sourceId);
+        setSourceState(conn.sourceId, { status: "error", error: msg });
+        connections.delete(conn.sourceId);
+        openClawReconnectState.delete(conn.sourceId);
+        return;
+      }
+
+      const delay = Math.min(1000 * Math.pow(2, state.attempts - 1), OPENCLAW_MAX_BACKOFF_MS);
+      debug(
+        `[${conn.sourceId}] OpenClaw connection lost — reconnecting in ${delay}ms (attempt ${state.attempts}/${OPENCLAW_MAX_RECONNECT})…`,
+        "warn",
+        conn.sourceId,
+      );
+      setSourceState(conn.sourceId, { status: "connecting", error: `Reconnecting (attempt ${state.attempts})…` });
+
+      state.timer = setTimeout(() => {
+        state.timer = null;
+        openClawReconnectState.set(conn.sourceId, state);
+        // Re-establish connection using same conn handle
+        connectOpenClaw(conn, url, apiKey);
+      }, delay);
+
+      openClawReconnectState.set(conn.sourceId, state);
+    }
+  });
+}
+
+/** Clear all OpenClaw timers (reconnect) for a source. */
+function clearOpenClawTimers(sourceId: string): void {
+  const keepalive = openClawKeepaliveTimers.get(sourceId);
+  if (keepalive) {
+    clearInterval(keepalive);
+    openClawKeepaliveTimers.delete(sourceId);
+  }
+  const reconnState = openClawReconnectState.get(sourceId);
+  if (reconnState?.timer) {
+    clearTimeout(reconnState.timer);
+  }
+  openClawReconnectState.delete(sourceId);
 }
 
 // ---------------------------------------------------------------------------

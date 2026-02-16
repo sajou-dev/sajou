@@ -40,6 +40,9 @@ export type AnthropicEventResult =
   | { skip: true }
   | null;
 
+/** Result of parsing an OpenClaw event. */
+export type OpenClawEventResult = ParsedSignal | null;
+
 // ---------------------------------------------------------------------------
 // Known signal types
 // ---------------------------------------------------------------------------
@@ -415,6 +418,272 @@ export function parseAnthropicEvent(
             code: err ? String(err["type"] ?? "ANTHROPIC_ERROR") : "ANTHROPIC_ERROR",
             severity: "error",
           },
+        },
+      };
+    }
+
+    default:
+      return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// OpenClaw event parsing
+// ---------------------------------------------------------------------------
+
+/**
+ * Parse a single OpenClaw WebSocket event into a sajou signal.
+ *
+ * OpenClaw events have the shape:
+ * ```
+ * { type: "event", event: "<category>", payload: { stream: "<stream>", data: {...} } }
+ * ```
+ *
+ * Internal events (challenge, presence, pong, keepalive pings) return `null`.
+ *
+ * Heartbeat and cron events are emitted as generic `event` signals with
+ * `_meta.heartbeat` or `_meta.cron` flags for UI filtering.
+ */
+export function parseOpenClawEvent(
+  event: Record<string, unknown>,
+): OpenClawEventResult {
+  const type = event["type"] as string | undefined;
+  const eventCategory = event["event"] as string | undefined;
+  const payload = (event["payload"] as Record<string, unknown>) ?? {};
+  const stream = payload["stream"] as string | undefined;
+  const data = (payload["data"] as Record<string, unknown>) ?? {};
+
+  // --- Internal events: skip silently ---
+  if (type === "connect.challenge" || eventCategory === "connect.challenge") return null;
+  if (type === "res" || type === "pong") return null;
+  if (eventCategory === "system-presence") return null;
+  if (type === "ping") return null;
+
+  // Extract channel metadata from payload
+  const channel = (payload["provider"] ?? data["provider"] ?? "") as string;
+  const channelLabel = (payload["label"] ?? data["label"] ?? "") as string;
+  const sessionKey = (payload["sessionKey"] ?? data["sessionKey"] ?? "") as string;
+  const agentId = (data["agentId"] ?? "openclaw") as string;
+
+  // --- Heartbeat events ---
+  if (eventCategory === "heartbeat" || type === "heartbeat") {
+    return {
+      id: generateId(),
+      type: "event",
+      timestamp: Date.now(),
+      source: "openclaw",
+      payload: {
+        ...data,
+        _meta: { heartbeat: true },
+      },
+    };
+  }
+
+  // --- Cron events ---
+  if (eventCategory === "cron" || type === "cron") {
+    return {
+      id: generateId(),
+      type: "event",
+      timestamp: Date.now(),
+      source: "openclaw",
+      payload: {
+        ...data,
+        _meta: { cron: true, cronJobId: data["cronJobId"] ?? data["jobId"] },
+      },
+    };
+  }
+
+  // --- exec.approval.requested → agent_state_change (acting → waiting) ---
+  if (type === "exec.approval.requested" || eventCategory === "exec.approval.requested") {
+    return {
+      id: generateId(),
+      type: "agent_state_change",
+      timestamp: Date.now(),
+      source: "openclaw",
+      payload: {
+        agentId,
+        from: "acting",
+        to: "waiting",
+        reason: "approval",
+        channel,
+        channelLabel,
+        sessionKey,
+      },
+    };
+  }
+
+  // --- Agent events ---
+  if (eventCategory === "agent") {
+    return parseOpenClawAgentEvent(stream, data, agentId, channel, channelLabel, sessionKey);
+  }
+
+  // --- Session events (token usage) ---
+  if (eventCategory === "session") {
+    const promptTokens = data["promptTokens"] ?? data["input_tokens"] ?? 0;
+    const completionTokens = data["completionTokens"] ?? data["output_tokens"] ?? 0;
+    const model = (data["model"] ?? "unknown") as string;
+    if (typeof promptTokens === "number" || typeof completionTokens === "number") {
+      return {
+        id: generateId(),
+        type: "token_usage",
+        timestamp: Date.now(),
+        source: "openclaw",
+        payload: {
+          agentId,
+          promptTokens: Number(promptTokens),
+          completionTokens: Number(completionTokens),
+          model,
+          channel,
+          sessionKey,
+        },
+      };
+    }
+  }
+
+  // --- Fallback: generic event ---
+  if (type === "event" || eventCategory) {
+    return {
+      id: generateId(),
+      type: "event",
+      timestamp: Date.now(),
+      source: "openclaw",
+      payload: { ...payload, eventCategory },
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Parse an OpenClaw `event:"agent"` sub-event by stream type.
+ */
+function parseOpenClawAgentEvent(
+  stream: string | undefined,
+  data: Record<string, unknown>,
+  agentId: string,
+  channel: string,
+  channelLabel: string,
+  sessionKey: string,
+): OpenClawEventResult {
+  const phase = (data["phase"] ?? data["status"] ?? "") as string;
+
+  switch (stream) {
+    case "lifecycle": {
+      if (phase === "start" || phase === "started") {
+        return {
+          id: generateId(),
+          type: "agent_state_change",
+          timestamp: Date.now(),
+          source: "openclaw",
+          payload: {
+            agentId,
+            from: "idle",
+            to: "acting",
+            channel,
+            channelLabel,
+            sessionKey,
+          },
+        };
+      }
+      if (phase === "end" || phase === "completed" || phase === "done") {
+        return {
+          id: generateId(),
+          type: "completion",
+          timestamp: Date.now(),
+          source: "openclaw",
+          payload: {
+            agentId,
+            success: true,
+            channel,
+            channelLabel,
+            sessionKey,
+          },
+        };
+      }
+      if (phase === "error" || phase === "failed") {
+        return {
+          id: generateId(),
+          type: "error",
+          timestamp: Date.now(),
+          source: "openclaw",
+          payload: {
+            agentId,
+            message: String(data["message"] ?? data["error"] ?? "Agent error"),
+            severity: "error",
+            channel,
+            channelLabel,
+            sessionKey,
+          },
+        };
+      }
+      return null;
+    }
+
+    case "tool": {
+      if (phase === "start" || phase === "started") {
+        return {
+          id: generateId(),
+          type: "tool_call",
+          timestamp: Date.now(),
+          source: "openclaw",
+          payload: {
+            toolName: String(data["toolName"] ?? data["tool"] ?? "unknown"),
+            agentId,
+            callId: String(data["callId"] ?? data["id"] ?? generateId()),
+            channel,
+            sessionKey,
+          },
+        };
+      }
+      if (phase === "end" || phase === "completed" || phase === "done") {
+        return {
+          id: generateId(),
+          type: "tool_result",
+          timestamp: Date.now(),
+          source: "openclaw",
+          payload: {
+            toolName: String(data["toolName"] ?? data["tool"] ?? "unknown"),
+            agentId,
+            success: data["success"] !== false,
+            output: data["output"] ?? data["result"],
+            channel,
+            sessionKey,
+          },
+        };
+      }
+      return null;
+    }
+
+    case "assistant": {
+      // Prefer `delta` (incremental chunk) over `text` (accumulated full text)
+      const textContent = data["delta"] ?? data["content"] ?? data["text"] ?? "";
+      if (!textContent) return null; // Skip empty deltas
+      return {
+        id: generateId(),
+        type: "text_delta",
+        timestamp: Date.now(),
+        source: "openclaw",
+        payload: {
+          agentId,
+          content: String(textContent),
+          channel,
+          channelLabel,
+          sessionKey,
+        },
+      };
+    }
+
+    case "thinking": {
+      const thinkContent = data["delta"] ?? data["content"] ?? data["text"] ?? "";
+      if (!thinkContent) return null;
+      return {
+        id: generateId(),
+        type: "thinking",
+        timestamp: Date.now(),
+        source: "openclaw",
+        payload: {
+          agentId,
+          content: String(thinkContent),
         },
       };
     }

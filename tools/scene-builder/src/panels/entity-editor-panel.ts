@@ -308,6 +308,18 @@ export function initEntityEditorPanel(contentEl: HTMLElement): void {
       setEntity(entity.id, { ...entity, defaults: { ...entity.defaults, opacity: v } }), 0.1));
     form.appendChild(createField("Defaults", defaultsRow));
 
+    // Flat toggle (isometric view)
+    const flatLabel = document.createElement("label");
+    flatLabel.className = "ee-checkbox-label";
+    const flatCheck = document.createElement("input");
+    flatCheck.type = "checkbox";
+    flatCheck.checked = entity.defaults.flat === true;
+    flatCheck.addEventListener("change", () =>
+      setEntity(entity.id, { ...entity, defaults: { ...entity.defaults, flat: flatCheck.checked } }));
+    flatLabel.appendChild(flatCheck);
+    flatLabel.appendChild(document.createTextNode(" Flat on ground in iso view"));
+    form.appendChild(createField("Iso", flatLabel));
+
     // Visual type selector
     const typeRow = document.createElement("div");
     typeRow.className = "ee-type-row";
