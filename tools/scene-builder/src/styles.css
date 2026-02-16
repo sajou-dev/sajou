@@ -5522,22 +5522,22 @@ button {
 }
 
 /* ============================================================================
- * Block chain — horizontal Blockly-style block strip
+ * Block chain — vertical stack of sentence-blocks
  * ============================================================================ */
 
 .nc-chain {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  gap: 4px;
   padding: 5px 8px;
-  overflow-x: auto;
-  gap: 6px;
+  overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--color-border) transparent;
   min-height: 42px;
 }
 
 .nc-chain::-webkit-scrollbar {
-  height: 4px;
+  width: 4px;
 }
 .nc-chain::-webkit-scrollbar-thumb {
   background: var(--color-border);
@@ -5545,26 +5545,26 @@ button {
 }
 
 /* ============================================================================
- * Action block — dark elevated surface with colored left accent
+ * Action block — sentence-block with inline editable params
  *
- * Follows sajou Ember palette: elevated dark bg, subtle border,
- * colored left edge for action type. Text in --color-text.
+ * Each block reads like a sentence: icon + action + [input fields].
+ * Blocks contain their own controls — no separate form.
+ * Follows sajou Ember palette: elevated bg, colored left accent.
  * ============================================================================ */
 
 .nc-block {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 5px;
-  height: 30px;
-  padding: 0 10px 0 10px;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  min-height: 30px;
+  padding: 5px 8px 5px 8px;
   background: var(--color-elevated);
   color: var(--color-text);
   font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 400;
-  white-space: nowrap;
   cursor: pointer;
-  flex-shrink: 0;
   border: 1px solid var(--color-border);
   border-left: 2.5px solid var(--block-color, #6E6E8A);
   border-radius: var(--radius-sm);
@@ -5575,7 +5575,7 @@ button {
 .nc-block:hover {
   border-color: var(--color-border-hover);
   border-left-color: var(--block-color, #6E6E8A);
-  background: color-mix(in srgb, var(--color-elevated) 85%, var(--block-color, #6E6E8A));
+  background: color-mix(in srgb, var(--color-elevated) 90%, var(--block-color, #6E6E8A));
 }
 
 .nc-block--selected {
@@ -5584,23 +5584,7 @@ button {
   z-index: 2;
 }
 
-.nc-block--incomplete {
-  opacity: 0.4;
-  border-style: dashed;
-  border-left-style: solid;
-}
-.nc-block--incomplete:hover {
-  opacity: 0.7;
-}
-
-/* When filter sub-block — muted, italic */
-.nc-block--when {
-  border-left-color: var(--color-text-dim);
-  color: var(--color-text-muted);
-  font-style: italic;
-  cursor: default;
-  background: var(--color-surface);
-}
+/* -- Block elements -- */
 
 .nc-block-icon {
   font-size: 11px;
@@ -5609,28 +5593,143 @@ button {
   color: var(--block-color, #6E6E8A);
 }
 
-.nc-block-label {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 180px;
+.nc-block-action {
+  font-weight: 500;
+  color: var(--color-text);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.nc-block-count {
+  color: var(--color-text-muted);
+  font-size: 10px;
+}
+
+.nc-block-delete {
+  margin-left: auto;
+  color: var(--color-text-dim);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 0 2px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+}
+
+.nc-block:hover .nc-block-delete {
+  opacity: 1;
+}
+
+.nc-block-delete:hover {
+  color: var(--color-error);
+}
+
+/* -- Inline field (label + control pair inside a block) -- */
+
+.nc-inline-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.nc-inline-label {
+  font-size: 9px;
+  color: var(--color-text-dim);
+  white-space: nowrap;
+}
+
+.nc-inline-unit {
+  font-size: 9px;
+  color: var(--color-text-dim);
+}
+
+/* Inline text input — dark "hole" in the block */
+.nc-inline-input {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 1px 5px;
+  height: 20px;
+  min-width: 48px;
+  max-width: 120px;
+}
+.nc-inline-input:focus {
+  border-color: var(--color-accent-dim);
+  outline: none;
+}
+.nc-inline-input::placeholder {
+  color: var(--color-text-dim);
+  font-style: italic;
+}
+
+/* Inline number input */
+.nc-inline-num {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 1px 4px;
+  height: 20px;
+  width: 52px;
+}
+.nc-inline-num:focus {
+  border-color: var(--color-accent-dim);
+  outline: none;
+}
+
+/* Inline select dropdown */
+.nc-inline-select {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 1px 4px;
+  height: 20px;
+  cursor: pointer;
+}
+.nc-inline-select:focus {
+  border-color: var(--color-accent-dim);
+  outline: none;
+}
+
+/* Inline color swatch */
+.nc-inline-color {
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  padding: 0;
+  cursor: pointer;
+}
+
+/* Inline checkbox */
+.nc-inline-check {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--color-accent);
 }
 
 /* -- Drop hint at end of chain -- */
 
 .nc-chain-drop-hint {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 30px;
-  height: 30px;
-  padding: 0 8px;
+  min-height: 28px;
+  padding: 4px 8px;
   border: 1px dashed var(--color-border);
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--color-text-dim);
   font-family: var(--font-mono);
   font-size: 10px;
-  flex-shrink: 0;
   transition: border-color 0.15s, color 0.15s, background 0.15s;
 }
 
@@ -5803,29 +5902,6 @@ button {
   gap: 4px;
 }
 
-/* Step params section — visually separated from dock params */
-.nc-step-params {
-  padding-bottom: 8px;
-  margin-bottom: 4px;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.nc-detail-textarea {
-  width: 100%;
-  min-height: 60px;
-  padding: 6px 8px;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--color-text);
-  background: var(--color-bg);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  resize: vertical;
-}
-
-.nc-detail-delete--step {
-  margin-top: 4px;
-}
 
 .nc-detail-separator {
   height: 1px;
