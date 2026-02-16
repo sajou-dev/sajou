@@ -160,7 +160,13 @@ function createActionBadge(
   const color = ACTION_COLORS[step.action] ?? "#6E6E8A";
   const signalColor = SIGNAL_TYPE_COLORS[choreoOn] ?? "#6E6E8A";
 
-  // Action icon
+  // Label first (faces choreo zone on left)
+  const label = document.createElement("span");
+  label.className = "pl-rail-badge-label";
+  label.textContent = step.action;
+  badge.appendChild(label);
+
+  // Action icon/dot second (faces visual zone on right)
   const icon = document.createElement("span");
   icon.className = "pl-rail-badge-dot";
   icon.style.background = wired ? color : "#6E6E8A";
@@ -170,16 +176,10 @@ function createActionBadge(
   icon.style.textAlign = "center";
   badge.appendChild(icon);
 
-  // Label: "action" (compact)
-  const label = document.createElement("span");
-  label.className = "pl-rail-badge-label";
-  label.textContent = step.action;
-  badge.appendChild(label);
-
-  // Thin colored stripe on the left edge to indicate signal type origin
-  badge.style.borderLeftColor = signalColor;
-  badge.style.borderLeftWidth = "2px";
-  badge.style.borderLeftStyle = "solid";
+  // Thin colored stripe on the right edge to indicate flow toward visual
+  badge.style.borderRightColor = signalColor;
+  badge.style.borderRightWidth = "2px";
+  badge.style.borderRightStyle = "solid";
 
   badge.title = `${step.action} (${choreoOn})${wired ? " — wired" : " — drag to entity"}`;
 
