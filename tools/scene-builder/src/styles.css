@@ -500,6 +500,17 @@ button {
   pointer-events: none;
 }
 
+/* Unbound action badges — draggable, visually distinct from wired */
+.pl-rail-badge--unbound {
+  opacity: 0.65;
+  border-style: dashed;
+  cursor: grab;
+}
+.pl-rail-badge--unbound:hover {
+  opacity: 1;
+  border-style: solid;
+}
+
 .pl-rail-badge--selected {
   border-color: currentColor;
   box-shadow: 0 0 8px currentColor;

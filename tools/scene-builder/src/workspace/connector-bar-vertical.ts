@@ -154,7 +154,7 @@ function createActionBadge(
   if (wired) {
     badge.classList.add("pl-rail-badge--active");
   } else {
-    badge.classList.add("pl-rail-badge--inactive");
+    badge.classList.add("pl-rail-badge--unbound");
   }
 
   const color = ACTION_COLORS[step.action] ?? "#6E6E8A";
