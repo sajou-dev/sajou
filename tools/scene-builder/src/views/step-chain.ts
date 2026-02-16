@@ -1,22 +1,35 @@
 /**
- * Step chain — vertical block chain with inline editable params.
+ * Step chain — interlocking block chain with inline editable params.
  *
- * Each action block contains its parameters as inline inputs,
- * reading like a sentence (Scratch/Unitree model). No separate
- * form — the block IS the editor.
+ * Blocks stack vertically and interlock (puzzle-piece pattern):
+ *   hat block (when) → action blocks → drop zone
  *
- * Blocks stack vertically in the dock groove. Each block stretches
- * to fit its inline controls.
+ * Each block contains its parameters as inline inputs, reading like
+ * a sentence (Scratch/Unitree model). The block IS the editor.
+ *
+ * The hat block replaces the old rack head — it handles the trigger
+ * config (signal type) plus collapse/delete controls.
  */
 
 import type { ChoreographyDef, ChoreographyStepDef } from "../types.js";
 import { STRUCTURAL_ACTIONS } from "../types.js";
-import { getChoreographyState } from "../state/choreography-state.js";
+import {
+  getChoreographyState,
+  selectChoreography,
+  toggleNodeCollapsed,
+} from "../state/choreography-state.js";
+import { removeChoreography } from "../state/choreography-state.js";
+import { getSourcesForChoreo } from "../state/wiring-queries.js";
+import { getSignalSourcesState } from "../state/signal-source-state.js";
 import { getActionSchema } from "../choreography/action-inputs.js";
 import type { InputDeclaration } from "../choreography/input-types.js";
 import {
   ACTION_COLORS,
+  SIGNAL_TYPES,
+  SIGNAL_TYPE_COLORS,
+  SIGNAL_TYPE_LABELS,
   flattenSteps,
+  updateChoreographyCmd,
   updateStepCmd,
   removeStepCmd,
 } from "./step-commands.js";
@@ -61,9 +74,6 @@ const INLINE_LABELS: Record<string, string> = {
   reverse: "rev",
 };
 
-/** Common field keys (read from step root, not params). */
-const COMMON_KEYS = new Set(["entity", "target", "delay", "duration", "easing"]);
-
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -76,8 +86,10 @@ export interface StepChainCallbacks {
 }
 
 /**
- * Render a vertical block chain for a choreography.
- * Each block contains inline editable params.
+ * Render an interlocking block chain for a choreography.
+ *
+ * Structure: hat (when) → action blocks → drop zone.
+ * When collapsed, only the hat block is visible.
  */
 export function renderStepChain(
   choreo: ChoreographyDef,
@@ -90,20 +102,151 @@ export function renderStepChain(
   chain.addEventListener("mousedown", (e) => e.stopPropagation());
 
   const { selectedStepId } = getChoreographyState();
+  const hasSteps = choreo.steps.length > 0;
+  const hatIsTail = choreo.collapsed || !hasSteps;
 
-  for (const step of choreo.steps) {
-    const block = renderBlock(step, step.id === selectedStepId, callbacks.onStepClick, choreo.id);
-    chain.appendChild(block);
+  // ── Hat block: "when <signal_type>" — always first ──
+  chain.appendChild(renderHatBlock(choreo, hatIsTail));
+
+  // ── Action blocks + drop zone (only when expanded) ──
+  if (!choreo.collapsed) {
+    for (let i = 0; i < choreo.steps.length; i++) {
+      const step = choreo.steps[i]!;
+      const isTail = i === choreo.steps.length - 1;
+      const block = renderBlock(
+        step, step.id === selectedStepId, callbacks.onStepClick,
+        choreo.id, isTail,
+      );
+      chain.appendChild(block);
+    }
+
+    // Drop zone hint
+    const dropHint = document.createElement("div");
+    dropHint.className = "nc-chain-drop-hint";
+    dropHint.textContent = hasSteps ? "+" : "drop actions here";
+    dropHint.title = "Drag an action from the palette";
+    chain.appendChild(dropHint);
   }
 
-  // Drop zone hint
-  const dropHint = document.createElement("div");
-  dropHint.className = "nc-chain-drop-hint";
-  dropHint.textContent = choreo.steps.length === 0 ? "drop actions here" : "+";
-  dropHint.title = "Drag an action from the palette";
-  chain.appendChild(dropHint);
-
   return chain;
+}
+
+// ---------------------------------------------------------------------------
+// Hat block — "when <signal_type>" (trigger, always first)
+// ---------------------------------------------------------------------------
+
+/** Render the trigger hat block with signal type selector + controls. */
+function renderHatBlock(choreo: ChoreographyDef, isTail: boolean): HTMLElement {
+  const block = document.createElement("div");
+  let cls = "nc-block nc-block--hat";
+  if (isTail) cls += " nc-block--tail";
+  block.className = cls;
+
+  const color = SIGNAL_TYPE_COLORS[choreo.on] ?? "#6E6E8A";
+  block.style.setProperty("--block-color", color);
+
+  // Trigger icon
+  const icon = document.createElement("span");
+  icon.className = "nc-block-icon";
+  icon.textContent = "\u25B8"; // ▸
+  block.appendChild(icon);
+
+  // "when" keyword
+  const kw = document.createElement("span");
+  kw.className = "nc-block-action";
+  kw.textContent = "when";
+  block.appendChild(kw);
+
+  // Signal type dropdown
+  const select = document.createElement("select");
+  select.className = "nc-inline-select";
+  for (const st of SIGNAL_TYPES) {
+    const opt = document.createElement("option");
+    opt.value = st;
+    opt.textContent = SIGNAL_TYPE_LABELS[st] ?? st;
+    if (st === choreo.on) opt.selected = true;
+    select.appendChild(opt);
+  }
+  select.addEventListener("change", () => {
+    updateChoreographyCmd(choreo.id, { on: select.value });
+  });
+  block.appendChild(select);
+
+  // Source provenance badges
+  const provenance = getSourcesForChoreo(choreo.id);
+  if (provenance.length > 0) {
+    const { sources } = getSignalSourcesState();
+    for (const p of provenance) {
+      const src = sources.find((s) => s.id === p.sourceId);
+      if (!src) continue;
+      const srcBadge = document.createElement("span");
+      srcBadge.className = "nc-hat-source";
+      srcBadge.title = `Source: ${src.name}`;
+      const dot = document.createElement("span");
+      dot.className = "nc-hat-source-dot";
+      dot.style.background = src.color;
+      srcBadge.appendChild(dot);
+      const srcName = document.createElement("span");
+      srcName.textContent = src.name;
+      srcBadge.appendChild(srcName);
+      block.appendChild(srcBadge);
+    }
+  }
+
+  // Filter indicator (when conditions exist)
+  if (choreo.when) {
+    const tag = document.createElement("span");
+    tag.className = "nc-inline-label";
+    tag.textContent = "\u2630"; // ☰
+    tag.title = "Has filter conditions";
+    tag.style.color = color;
+    block.appendChild(tag);
+  }
+
+  // Collapsed step count
+  if (choreo.collapsed) {
+    const ct = document.createElement("span");
+    ct.className = "nc-block-count";
+    ct.textContent = `${choreo.steps.length} step${choreo.steps.length !== 1 ? "s" : ""}`;
+    block.appendChild(ct);
+  }
+
+  // Controls: collapse + delete
+  const controls = document.createElement("span");
+  controls.className = "nc-block-controls";
+
+  const collapseBtn = document.createElement("button");
+  collapseBtn.className = "nc-block-ctrl";
+  collapseBtn.textContent = choreo.collapsed ? "\u25B6" : "\u25BC"; // ▶ or ▼
+  collapseBtn.title = choreo.collapsed ? "Expand" : "Collapse";
+  collapseBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    toggleNodeCollapsed(choreo.id);
+  });
+  controls.appendChild(collapseBtn);
+
+  const delBtn = document.createElement("button");
+  delBtn.className = "nc-block-ctrl nc-block-ctrl--delete";
+  delBtn.textContent = "\u2716"; // ✖
+  delBtn.title = "Delete choreography";
+  delBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    removeChoreography(choreo.id);
+  });
+  controls.appendChild(delBtn);
+
+  block.appendChild(controls);
+
+  // Click → select/deselect choreography
+  block.addEventListener("click", (e) => {
+    const tag = (e.target as HTMLElement).tagName;
+    if (tag === "SELECT" || tag === "BUTTON") return;
+    e.stopPropagation();
+    const { selectedChoreographyId } = getChoreographyState();
+    selectChoreography(selectedChoreographyId === choreo.id ? null : choreo.id);
+  });
+
+  return block;
 }
 
 // ---------------------------------------------------------------------------
@@ -119,18 +262,22 @@ function getFreshStep(choreoId: string, stepId: string): ChoreographyStepDef | n
 }
 
 // ---------------------------------------------------------------------------
-// Block renderer — the block IS the editor
+// Action block — sentence-block with inline params
 // ---------------------------------------------------------------------------
 
-/** Render a single step block with inline param controls. */
+/** Render a single action block with inline param controls. */
 function renderBlock(
   step: ChoreographyStepDef,
   isSelected: boolean,
   onClick: (stepId: string) => void,
   choreoId: string,
+  isTail: boolean,
 ): HTMLElement {
   const block = document.createElement("div");
-  block.className = "nc-block" + (isSelected ? " nc-block--selected" : "");
+  let cls = "nc-block";
+  if (isSelected) cls += " nc-block--selected";
+  if (isTail) cls += " nc-block--tail";
+  block.className = cls;
   block.dataset.stepId = step.id;
 
   const color = ACTION_COLORS[step.action] ?? "#888899";
