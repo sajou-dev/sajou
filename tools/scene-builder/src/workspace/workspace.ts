@@ -23,6 +23,7 @@ import {
   setParticleSelection,
 } from "../state/editor-state.js";
 import { createPanel } from "./panel.js";
+import { initPipelineLayout } from "./pipeline-layout.js";
 import { initViewTabs } from "./view-tabs.js";
 import { initRideau } from "./rideau.js";
 import { initConnectorBarH } from "./connector-bar-horizontal.js";
@@ -137,14 +138,17 @@ export async function initWorkspace(): Promise<void> {
   // Header buttons
   initHeader();
 
-  // View tabs (zone focus indicators in V2)
+  // Pipeline layout — creates DOM zones BEFORE views mount into them
+  initPipelineLayout();
+
+  // View tabs (no-op — replaced by pipeline layout)
   initViewTabs();
 
-  // V2: All views init eagerly — zones are always visible in the spatial layout
+  // V3: All views init eagerly — mounted inside pipeline nodes
   initSignalView();
   initChoreographyView();
 
-  // Rideau (curtain slider between zone-left and Theme)
+  // Rideau (no-op — replaced by pipeline layout)
   initRideau();
 
   // Connector bars (badges showing wired connections between zones)

@@ -8,8 +8,14 @@
  * and handles ResizeObserver for recalculation.
  */
 
-import type { PipelineNodeId } from "../types.js";
-import { getEditorState, subscribeEditor } from "../state/editor-state.js";
+import type { PipelineNodeId, ViewId } from "../types.js";
+import {
+  getEditorState,
+  subscribeEditor,
+  togglePipelineNode,
+  focusPipelineNode,
+  setActiveView,
+} from "../state/editor-state.js";
 
 // ---------------------------------------------------------------------------
 // Brand SVG icons (inlined, matching view-tabs.ts style)
@@ -171,6 +177,9 @@ export function initPipelineLayout(): void {
   // Recalculate on resize
   const ro = new ResizeObserver(applyPipelineLayout);
   ro.observe(pipelineEl);
+
+  // Interactions
+  initPipelineInteractions();
 }
 
 /** Get the pipeline node DOM element for a given node ID. */
@@ -192,6 +201,72 @@ function applyPipelineLayout(): void {
     el.classList.toggle("pl-node--mini", !isExtended);
     el.classList.toggle("pl-node--extended", isExtended);
   }
+}
+
+// ---------------------------------------------------------------------------
+// Interactions
+// ---------------------------------------------------------------------------
+
+/** Map pipeline node IDs to ViewId for setActiveView. */
+const NODE_TO_VIEW: Partial<Record<PipelineNodeId, ViewId>> = {
+  signal: "signal",
+  choreographer: "orchestrator",
+  visual: "visual",
+  shader: "shader",
+};
+
+/** Map keyboard keys to pipeline nodes. */
+const KEY_TO_NODE: Record<string, PipelineNodeId> = {
+  "1": "signal",
+  "2": "choreographer",
+  "3": "visual",
+  "4": "shader",
+};
+
+/** Initialize click, double-click, and keyboard interactions. */
+function initPipelineInteractions(): void {
+  // Click on mini node → extend it
+  for (const [id, el] of nodeEls) {
+    el.addEventListener("click", (e: MouseEvent) => {
+      if (!el.classList.contains("pl-node--mini")) return;
+      // Don't trigger if clicking a button/link inside the node
+      if ((e.target as HTMLElement).closest("button, a")) return;
+      togglePipelineNode(id);
+    });
+
+    // Double-click header → solo focus
+    const header = el.querySelector(".pl-node-header");
+    if (header) {
+      header.addEventListener("dblclick", (e: Event) => {
+        e.preventDefault();
+        focusPipelineNode(id);
+      });
+    }
+
+    // Pointer down on content → set active view (keyboard focus)
+    const content = el.querySelector(".pl-node-content");
+    if (content) {
+      content.addEventListener("pointerdown", () => {
+        const viewId = NODE_TO_VIEW[id];
+        if (viewId) setActiveView(viewId);
+      });
+    }
+  }
+
+  // Keyboard: 1/2/3/4 to extend nodes
+  document.addEventListener("keydown", (e: KeyboardEvent) => {
+    // Guard: skip if typing in inputs, textareas, selects, or CodeMirror
+    const tag = (e.target as HTMLElement).tagName;
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+    if ((e.target as HTMLElement).closest(".cm-editor")) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+    const nodeId = KEY_TO_NODE[e.key];
+    if (nodeId) {
+      e.preventDefault();
+      togglePipelineNode(nodeId);
+    }
+  });
 }
 
 // ---------------------------------------------------------------------------
