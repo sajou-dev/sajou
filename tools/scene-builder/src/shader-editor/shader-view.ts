@@ -4,6 +4,7 @@
  * Creates the shader editor DOM container inside #zone-theme.
  * Subscribes to editor state to toggle visibility between
  * the visual canvas and the shader editor.
+ * Lazily initializes CodeMirror and preview canvas on first show.
  */
 
 import { getEditorState, subscribeEditor } from "../state/editor-state.js";
@@ -13,6 +14,7 @@ import { getEditorState, subscribeEditor } from "../state/editor-state.js";
 // ---------------------------------------------------------------------------
 
 let editorEl: HTMLDivElement | null = null;
+let initialized = false;
 
 /** Initialize the shader editor view inside #zone-theme. */
 export function initShaderView(): void {
@@ -54,6 +56,28 @@ export function initShaderView(): void {
 }
 
 // ---------------------------------------------------------------------------
+// Lazy initialization
+// ---------------------------------------------------------------------------
+
+/** Initialize CodeMirror and uniforms panel on first switch to shader view. */
+async function lazyInit(): Promise<void> {
+  if (initialized) return;
+  initialized = true;
+
+  const codeEl = document.getElementById("shader-code-panel");
+  if (codeEl) {
+    const { initShaderCodePanel } = await import("./shader-code-panel.js");
+    initShaderCodePanel(codeEl);
+  }
+
+  const uniformsEl = document.getElementById("shader-uniforms-panel");
+  if (uniformsEl) {
+    const { initShaderUniformsPanel } = await import("./shader-uniforms-panel.js");
+    initShaderUniformsPanel(uniformsEl);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // View switching
 // ---------------------------------------------------------------------------
 
@@ -75,4 +99,9 @@ function syncVisibility(): void {
   if (toolbar) toolbar.style.display = isShader ? "none" : "";
   if (canvasContainer) canvasContainer.style.display = isShader ? "none" : "";
   if (zoomBar) zoomBar.style.display = isShader ? "none" : "";
+
+  // Lazy init on first show
+  if (isShader && !initialized) {
+    void lazyInit();
+  }
 }
