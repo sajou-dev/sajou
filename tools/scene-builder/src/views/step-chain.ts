@@ -19,8 +19,6 @@ import {
   toggleNodeCollapsed,
 } from "../state/choreography-state.js";
 import { removeChoreography } from "../state/choreography-state.js";
-import { getSourcesForChoreo } from "../state/wiring-queries.js";
-import { getSignalSourcesState } from "../state/signal-source-state.js";
 import { getActionSchema } from "../choreography/action-inputs.js";
 import type { InputDeclaration } from "../choreography/input-types.js";
 import {
@@ -132,25 +130,6 @@ export function renderStepChain(
 }
 
 // ---------------------------------------------------------------------------
-// Source badge helper
-// ---------------------------------------------------------------------------
-
-/** Create a small source identity badge (dot + name) for the hat block. */
-function createSourceBadge(src: { name: string; color: string }): HTMLElement {
-  const badge = document.createElement("span");
-  badge.className = "nc-hat-source";
-  badge.title = `Source: ${src.name}`;
-  const dot = document.createElement("span");
-  dot.className = "nc-hat-source-dot";
-  dot.style.background = src.color;
-  badge.appendChild(dot);
-  const name = document.createElement("span");
-  name.textContent = src.name;
-  badge.appendChild(name);
-  return badge;
-}
-
-// ---------------------------------------------------------------------------
 // Hat block — "when <signal_type>" (trigger, always first)
 // ---------------------------------------------------------------------------
 
@@ -191,26 +170,9 @@ function renderHatBlock(choreo: ChoreographyDef, isTail: boolean): HTMLElement {
   });
   block.appendChild(select);
 
-  // Source badges — wire-based provenance, or fallback to connected sources
-  const { sources } = getSignalSourcesState();
-  const provenance = getSourcesForChoreo(choreo.id);
-  const shownSourceIds = new Set<string>();
-
-  // First: show wire-based provenance (explicit signal→signal-type wires)
-  for (const p of provenance) {
-    const src = sources.find((s) => s.id === p.sourceId);
-    if (!src) continue;
-    shownSourceIds.add(src.id);
-    block.appendChild(createSourceBadge(src));
-  }
-
-  // Fallback: if no wire-based provenance, show all connected sources
-  if (shownSourceIds.size === 0) {
-    const connected = sources.filter((s) => s.status === "connected");
-    for (const src of connected) {
-      block.appendChild(createSourceBadge(src));
-    }
-  }
+  // Wire endpoint data attributes for wiring overlay (source→choreo lines)
+  block.dataset.wireZone = "choreographer";
+  block.dataset.wireId = choreo.id;
 
   // Filter indicator (when conditions exist)
   if (choreo.when) {

@@ -5382,6 +5382,7 @@ button {
   flex-direction: column;
   gap: 8px;
   padding: 8px;
+  padding-left: 40px; /* lane space for source→choreo connection lines */
   overflow-y: auto;
   flex: 1;
   scrollbar-width: thin;
@@ -5612,28 +5613,6 @@ button {
 .nc-block-ctrl--delete:hover {
   color: var(--color-error);
   background: rgba(196, 64, 64, 0.12);
-}
-
-/* -- Source provenance badge in hat block -- */
-
-.nc-hat-source {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  padding: 1px 6px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  font-size: 9px;
-  color: var(--color-text-muted);
-  white-space: nowrap;
-}
-
-.nc-hat-source-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  flex-shrink: 0;
 }
 
 /* -- Inline field (label + control pair inside a block) -- */

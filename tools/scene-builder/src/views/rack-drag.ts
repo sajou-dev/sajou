@@ -16,6 +16,9 @@ import {
   getChoreographyState,
   updateChoreographyState,
 } from "../state/choreography-state.js";
+import { addWire, hasWire, removeWire } from "../state/wiring-state.js";
+import { getSignalSourcesState } from "../state/signal-source-state.js";
+import { getActiveBarHSource } from "../workspace/connector-bar-horizontal.js";
 import { executeCommand } from "../state/undo.js";
 
 // ---------------------------------------------------------------------------
@@ -111,7 +114,13 @@ function initDragFromRail(): void {
 
     if (!isOverZone) return;
 
-    // Create a new rack (choreography) — no wires, implicit via on
+    // Resolve which source to bind: active source, or sole connected source
+    const activeSource = getActiveBarHSource();
+    const { sources } = getSignalSourcesState();
+    const connected = sources.filter((s) => s.status === "connected");
+    const bindSourceId = activeSource ?? (connected.length === 1 ? connected[0]!.id : null);
+
+    // Create a new rack (choreography) + auto-wire source→signal-type
     const newChoreo: ChoreographyDef = {
       id: generateId(),
       on: signalType,
@@ -122,6 +131,8 @@ function initDragFromRail(): void {
       collapsed: false,
     };
 
+    let createdWireId: string | null = null;
+
     const cmd: UndoableCommand = {
       execute() {
         const { choreographies } = getChoreographyState();
@@ -130,8 +141,24 @@ function initDragFromRail(): void {
           selectedChoreographyId: newChoreo.id,
           selectedStepId: null,
         });
+
+        // Auto-create signal→signal-type wire for provenance
+        if (bindSourceId && !hasWire("signal", bindSourceId, "signal-type", signalType)) {
+          const wire = addWire({
+            fromZone: "signal",
+            fromId: bindSourceId,
+            toZone: "signal-type",
+            toId: signalType,
+          });
+          createdWireId = wire.id;
+        }
       },
       undo() {
+        // Remove auto-created wire first
+        if (createdWireId) {
+          removeWire(createdWireId);
+          createdWireId = null;
+        }
         const { choreographies } = getChoreographyState();
         updateChoreographyState({
           choreographies: choreographies.filter((c) => c.id !== newChoreo.id),

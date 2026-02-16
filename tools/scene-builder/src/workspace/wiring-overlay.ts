@@ -1,21 +1,21 @@
 /**
- * Wiring overlay — SVG bezier curves between connected zone endpoints.
+ * Wiring overlay — SVG wires between connected zone endpoints.
  *
  * Renders an absolutely positioned `<svg>` covering the entire `#workspace`.
- * Each WireConnection produces a solid cubic bezier curve. A preview wire
- * (dashed, accent-colored) is drawn during drag-to-connect interactions.
  *
- * Three wire layers (TouchDesigner-style):
- *   1. signal → signal-type : intra bar-H horizontal S-curve
- *   2. signal-type → choreographer : vertical S-curve (bar-H down to node)
- *   3. choreographer → theme : horizontal S-curve (across the rideau)
+ * Wire layers:
+ *   1. source → choreography : orthogonal 90° elbows (source identity color)
+ *   2. choreographer → theme  : horizontal bezier S-curve
+ *
+ * Source→choreography lines are computed from provenance (two-hop wire
+ * resolution), falling back to all connected sources when no explicit
+ * signal→signal-type wires exist.
  *
  * Wire endpoints are resolved from DOM badge positions using
  * `getBoundingClientRect()`. The overlay recalculates on:
  *   - window resize
- *   - rideau drag (editor state change)
- *   - wiring state change
- *   - choreography state change (node moved/added/removed)
+ *   - editor state change
+ *   - wiring / choreography / signal source state change
  */
 
 import {
@@ -26,8 +26,15 @@ import {
   type WireZone,
 } from "../state/wiring-state.js";
 import { subscribeEditor } from "../state/editor-state.js";
-import { subscribeChoreography } from "../state/choreography-state.js";
-import { getSource } from "../state/signal-source-state.js";
+import {
+  getChoreographyState,
+  subscribeChoreography,
+} from "../state/choreography-state.js";
+import {
+  getSource,
+  getSignalSourcesState,
+  subscribeSignalSources,
+} from "../state/signal-source-state.js";
 import { getSourcesForChoreo } from "../state/wiring-queries.js";
 import {
   getActiveBarHSource,
@@ -84,6 +91,7 @@ export function initWiringOverlay(): void {
   subscribeWiring(renderWires);
   subscribeEditor(renderWires);
   subscribeChoreography(renderWires);
+  subscribeSignalSources(renderWires);
   subscribeActiveSource(renderWires);
   window.addEventListener("resize", renderWires);
 
@@ -121,14 +129,19 @@ function renderWires(): void {
 
   const { wires } = getWiringState();
 
-  // Render established wires (skip signal→signal-type: color-coding suffices)
+  // Render established wires (skip signal→signal-type and signal-type→choreo:
+  // replaced by computed source→choreo orthogonal lines below)
   for (const wire of wires) {
     if (wire.fromZone === "signal" && wire.toZone === "signal-type") continue;
+    if (wire.fromZone === "signal-type" && wire.toZone === "choreographer") continue;
     const path = createWirePath(wire, wsRect);
     if (path) {
       svgEl.appendChild(path);
     }
   }
+
+  // Computed source→choreography orthogonal lines
+  renderSourceChoreoLines(wsRect);
 
   // Render preview wire
   if (previewWire) {
@@ -292,6 +305,139 @@ function createPreviewPath(preview: PreviewWire, wsRect: DOMRect): SVGPathElemen
   path.classList.add("wire-path", "wire-path--preview");
 
   return path;
+}
+
+// ---------------------------------------------------------------------------
+// Source → choreography orthogonal lines
+// ---------------------------------------------------------------------------
+
+/** Corner radius for orthogonal elbows. */
+const ELBOW_RADIUS = 5;
+
+/** Number of routing lanes for source→choreo lines. */
+const LANE_COUNT = 4;
+
+/** Width of the lane area (matches rack-list padding-left). */
+const LANE_AREA_WIDTH = 32;
+
+/**
+ * Build an orthogonal (90°-elbow) SVG path from (x1,y1) to (x2,y2).
+ *
+ * Shape: horizontal → 90° bend → vertical → 90° bend → horizontal.
+ * Uses quadratic bezier arcs for rounded corners at each bend.
+ *
+ * @param laneX - X position of the vertical segment (lane routing).
+ *                If omitted, defaults to 40% of the horizontal distance.
+ */
+function buildOrthogonalD(
+  x1: number, y1: number,
+  x2: number, y2: number,
+  laneX?: number,
+): string {
+  const dy = y2 - y1;
+
+  // Nearly same Y — straight horizontal line
+  if (Math.abs(dy) < 2) {
+    return `M ${x1} ${y1} L ${x2} ${y2}`;
+  }
+
+  const midX = laneX ?? x1 + (x2 - x1) * 0.4;
+  const r = Math.min(ELBOW_RADIUS, Math.abs(dy) / 2, Math.abs(midX - x1) - 1, Math.abs(x2 - midX) - 1);
+
+  if (r < 1) {
+    // Too tight for rounded corners — use sharp elbows
+    return `M ${x1} ${y1} H ${midX} V ${y2} H ${x2}`;
+  }
+
+  const dySign = dy > 0 ? 1 : -1;
+
+  return [
+    `M ${x1} ${y1}`,
+    `H ${midX - r}`,
+    `Q ${midX} ${y1}, ${midX} ${y1 + dySign * r}`,
+    `V ${y2 - dySign * r}`,
+    `Q ${midX} ${y2}, ${midX + r} ${y2}`,
+    `H ${x2}`,
+  ].join(" ");
+}
+
+/**
+ * Render computed source→choreography orthogonal lines.
+ *
+ * Uses two-hop provenance resolution: signal→signal-type wires determine
+ * which source feeds which choreography (via its effective signal types).
+ * Only draws lines when explicit provenance exists.
+ *
+ * Each source is assigned a routing lane (0–3) so vertical segments
+ * don't overlap when multiple sources connect to the same zone.
+ */
+function renderSourceChoreoLines(wsRect: DOMRect): void {
+  if (!svgEl) return;
+
+  const { choreographies } = getChoreographyState();
+  const { sources } = getSignalSourcesState();
+  const activeSource = getActiveBarHSource();
+
+  // Assign a lane index to each source (stable order by source array position)
+  const sourceLaneMap = new Map<string, number>();
+  const connectedSources = sources.filter((s) => s.status === "connected");
+  for (let i = 0; i < connectedSources.length; i++) {
+    sourceLaneMap.set(connectedSources[i]!.id, i % LANE_COUNT);
+  }
+
+  // Resolve the lane area X range: from the right edge of the rail to
+  // the rack-list left padding area. We compute it from the first
+  // choreography badge position (toX - LANE_AREA_WIDTH .. toX).
+  let laneAreaRight = 0;
+
+  for (const choreo of choreographies) {
+    const provenance = getSourcesForChoreo(choreo.id);
+    if (provenance.length === 0) continue;
+
+    // Deduplicate source→choreo pairs
+    const seen = new Set<string>();
+    for (const p of provenance) {
+      if (seen.has(p.sourceId)) continue;
+      seen.add(p.sourceId);
+
+      const src = sources.find((s) => s.id === p.sourceId);
+      if (!src) continue;
+
+      const fromBadge = findBadge("signal", src.id);
+      const toBadge = findBadge("choreographer", choreo.id);
+      if (!fromBadge || !toBadge) continue;
+
+      const fromRect = fromBadge.getBoundingClientRect();
+      const toRect = toBadge.getBoundingClientRect();
+      if (fromRect.width === 0 || toRect.width === 0) continue;
+
+      const fromX = fromRect.right - wsRect.left;
+      const fromY = fromRect.top + fromRect.height / 2 - wsRect.top;
+      const toX = toRect.left - wsRect.left;
+      const toY = toRect.top + toRect.height / 2 - wsRect.top;
+
+      // Compute lane X for this source's vertical segment
+      if (laneAreaRight === 0) laneAreaRight = toX;
+      const laneIdx = sourceLaneMap.get(src.id) ?? 0;
+      const laneSpacing = LANE_AREA_WIDTH / (LANE_COUNT + 1);
+      const laneX = laneAreaRight - LANE_AREA_WIDTH + laneSpacing * (laneIdx + 1);
+
+      const d = buildOrthogonalD(fromX, fromY, toX, toY, laneX);
+      const isDimmed = activeSource ? src.id !== activeSource : false;
+
+      const path = document.createElementNS(SVG_NS, "path");
+      path.setAttribute("d", d);
+      path.setAttribute("fill", "none");
+      path.setAttribute("stroke", src.color);
+      path.setAttribute("stroke-width", String(WIRE_WIDTH));
+      path.setAttribute("stroke-linecap", "round");
+      path.setAttribute("stroke-linejoin", "round");
+      if (isDimmed) path.setAttribute("opacity", "0.15");
+      path.classList.add("wire-path", "wire-path--source-choreo");
+
+      svgEl.appendChild(path);
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------

@@ -159,6 +159,10 @@ function createSourceBadge(source: { id: string; name: string; color: string; se
   if (isSelected) badge.classList.add("pl-rail-badge--selected");
   if (inactive) badge.classList.add("pl-rail-badge--inactive");
 
+  // Wire endpoint data attributes for wiring overlay (source→choreo lines)
+  badge.dataset.wireZone = "signal";
+  badge.dataset.wireId = source.id;
+
   // Identity color tint (muted for inactive)
   badge.style.borderColor = isSelected ? source.color : `${source.color}44`;
   badge.style.color = source.color;
