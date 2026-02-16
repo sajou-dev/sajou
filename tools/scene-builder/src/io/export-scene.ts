@@ -18,6 +18,8 @@ import { getAssetStore } from "../state/asset-store.js";
 import { getChoreographyState } from "../state/choreography-state.js";
 import { getWiringState, type WireConnection } from "../state/wiring-state.js";
 import { getBindingState } from "../state/binding-store.js";
+import { getShaderState } from "../shader-editor/shader-state.js";
+import type { ShaderEditorState } from "../shader-editor/shader-types.js";
 import type {
   SceneState,
   EntityEntry,
@@ -55,6 +57,11 @@ interface ChoreographyExportJson {
   choreographies: ChoreographyDef[];
   wires: WireConnection[];
   bindings: EntityBinding[];
+}
+
+interface ShaderExportJson {
+  version: 1;
+  shaders: ShaderEditorState["shaders"];
 }
 
 // ---------------------------------------------------------------------------
@@ -264,6 +271,16 @@ export async function exportScene(): Promise<void> {
     "entities.json": strToU8(JSON.stringify(entitiesJson, null, 2)),
     "choreographies.json": strToU8(JSON.stringify(choreoJson, null, 2)),
   };
+
+  // 7b. Include shaders if any exist
+  const shaderState = getShaderState();
+  if (shaderState.shaders.length > 0) {
+    const shaderJson: ShaderExportJson = {
+      version: 1,
+      shaders: shaderState.shaders,
+    };
+    zipData["shaders.json"] = strToU8(JSON.stringify(shaderJson, null, 2));
+  }
 
   // 8. Read referenced asset files into the ZIP
   for (const [originalPath, zipPath] of pathMapping) {
