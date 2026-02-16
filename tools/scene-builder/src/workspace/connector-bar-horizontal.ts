@@ -1,18 +1,12 @@
 /**
  * Horizontal connector bar — signal ↔ choreographer hub.
  *
- * Sits between `#zone-signal` and `#zone-choreographer` inside `#zone-left`.
- * TouchDesigner-style hub: shows **signal types** (token_usage, tool_call, …)
- * as connection endpoints that link the signal stream to choreographies.
+ * In the pipeline layout, sits inside the Signal node's .pl-node-content.
+ * When the Signal node is extended, shows full source/type badge rows.
  *
  * Each signal type badge = a channel on the bus.
  * Active badges glow with their signal-type color.
  * Source badges show which sources feed into this bus.
- *
- * Also supports drag-resize: dragging the bar up/down adjusts the
- * signal/choreographer split ratio within the left column.
- *
- * Bézier wires from signal-view source blocks converge onto this bar.
  */
 
 import {
@@ -87,74 +81,29 @@ let barEl: HTMLElement | null = null;
 let containerEl: HTMLElement | null = null;
 let initialized = false;
 
-/** Initialize the horizontal connector bar. */
+/** Initialize the horizontal connector bar inside the signal pipeline node. */
 export function initConnectorBarH(): void {
   if (initialized) return;
   initialized = true;
 
-  containerEl = document.getElementById("connector-bar-h");
-  if (!containerEl) return;
+  // Mount inside the signal pipeline node's content area
+  const signalContent = document.getElementById("zone-signal");
+  if (!signalContent) return;
+
+  containerEl = document.createElement("div");
+  containerEl.id = "connector-bar-h";
+  containerEl.className = "connector-bar-h";
+  signalContent.appendChild(containerEl);
 
   barEl = document.createElement("div");
   barEl.className = "connector-bar-h-inner";
   containerEl.appendChild(barEl);
-
-  // Drag-to-resize signal/choreo split
-  initDragResize(containerEl);
 
   // React to source, choreography, and wiring changes
   subscribeSignalSources(render);
   subscribeChoreography(render);
   subscribeWiring(render);
   render();
-}
-
-// ---------------------------------------------------------------------------
-// Drag resize — adjust signal/choreographer split
-// ---------------------------------------------------------------------------
-
-function initDragResize(bar: HTMLElement): void {
-  let dragging = false;
-  let startY = 0;
-  let startSignalHeight = 0;
-
-  bar.addEventListener("mousedown", (e: MouseEvent) => {
-    // Only respond to direct bar clicks (not badge clicks)
-    if ((e.target as HTMLElement).closest("button")) return;
-
-    const zoneSignal = document.getElementById("zone-signal");
-    if (!zoneSignal) return;
-
-    dragging = true;
-    startY = e.clientY;
-    startSignalHeight = zoneSignal.getBoundingClientRect().height;
-
-    document.body.style.cursor = "row-resize";
-    document.body.style.userSelect = "none";
-    e.preventDefault();
-  });
-
-  document.addEventListener("mousemove", (e: MouseEvent) => {
-    if (!dragging) return;
-
-    const zoneSignal = document.getElementById("zone-signal");
-    if (!zoneSignal) return;
-
-    const delta = e.clientY - startY;
-    const newHeight = Math.max(60, startSignalHeight + delta);
-    zoneSignal.style.height = `${newHeight}px`;
-    zoneSignal.style.flex = "none";
-
-    // Redraw signal wires on resize
-    window.dispatchEvent(new Event("resize"));
-  });
-
-  document.addEventListener("mouseup", () => {
-    if (!dragging) return;
-    dragging = false;
-    document.body.style.cursor = "";
-    document.body.style.userSelect = "";
-  });
 }
 
 // ---------------------------------------------------------------------------

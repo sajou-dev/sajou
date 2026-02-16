@@ -1,11 +1,10 @@
 /**
  * Vertical connector bar — choreographer ↔ theme.
  *
- * Renders badges on the rideau (vertical slider) showing choreographer→theme connections.
- * Each badge represents a choreography that is wired to a theme slot.
- * For now (Phase 3), shows a badge per choreography as potential connection points.
+ * In the pipeline layout, renders badges inside the choreographer node.
+ * Each badge represents a choreography as a potential connection point
+ * to the visual/theme stage.
  *
- * Badges are vertically stacked, anchored to the rideau's center line.
  * Clicking a badge focuses the choreography in the editor.
  */
 
@@ -27,17 +26,18 @@ import { SIGNAL_TYPE_COLORS } from "../views/step-commands.js";
 let containerEl: HTMLElement | null = null;
 let initialized = false;
 
-/** Initialize the vertical connector bar on the rideau. */
+/** Initialize the vertical connector bar inside the choreographer pipeline node. */
 export function initConnectorBarV(): void {
   if (initialized) return;
   initialized = true;
 
-  const rideau = document.getElementById("rideau");
-  if (!rideau) return;
+  // Mount inside the choreographer pipeline node's content area
+  const choreoContent = document.getElementById("zone-choreographer");
+  if (!choreoContent) return;
 
   containerEl = document.createElement("div");
   containerEl.className = "connector-bar-v";
-  rideau.appendChild(containerEl);
+  choreoContent.appendChild(containerEl);
 
   subscribeChoreography(render);
   subscribeWiring(render);

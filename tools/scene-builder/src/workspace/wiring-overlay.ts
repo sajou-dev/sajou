@@ -311,10 +311,10 @@ interface WireEndpoints {
 /**
  * Resolve from/to pixel positions and curve direction for a wire connection.
  *
- * Three wire types:
- *   - signal → signal-type : intra bar-H, right→left, horizontal S-curve
- *   - signal-type → choreographer : bar-H → node, bottom→top, vertical S-curve
- *   - choreographer → theme : node → theme, right→left, horizontal S-curve
+ * Pipeline layout: all wires are horizontal left-to-right between adjacent nodes.
+ *   - signal → signal-type : intra signal node, right→left, horizontal S-curve
+ *   - signal-type → choreographer : signal→choreo node, horizontal S-curve
+ *   - choreographer → theme : choreo→visual node, horizontal S-curve
  */
 function resolveEndpoints(
   fromZone: WireZone,
@@ -323,32 +323,23 @@ function resolveEndpoints(
   toRect: DOMRect,
   wsRect: DOMRect,
 ): WireEndpoints | null {
+  // All wire types now use horizontal S-curves in the pipeline layout
+  const fromX = fromRect.right - wsRect.left;
+  const fromY = fromRect.top + fromRect.height / 2 - wsRect.top;
+  const toX = toRect.left - wsRect.left;
+  const toY = toRect.top + toRect.height / 2 - wsRect.top;
+
   if (fromZone === "signal" && toZone === "signal-type") {
-    // Intra bar-H: right-center of source badge → left-center of signal-type badge
-    const fromX = fromRect.right - wsRect.left;
-    const fromY = fromRect.top + fromRect.height / 2 - wsRect.top;
-    const toX = toRect.left - wsRect.left;
-    const toY = toRect.top + toRect.height / 2 - wsRect.top;
     const cpOffset = Math.max(CONTROL_POINT_OFFSET * 0.5, Math.abs(toX - fromX) * 0.4);
     return { fromX, fromY, toX, toY, curveDirection: "horizontal", cpOffset };
   }
 
   if (fromZone === "signal-type" && toZone === "choreographer") {
-    // Bar-H → choreo node: bottom-center of signal-type badge → top-center of node port
-    const fromX = fromRect.left + fromRect.width / 2 - wsRect.left;
-    const fromY = fromRect.bottom - wsRect.top;
-    const toX = toRect.left + toRect.width / 2 - wsRect.left;
-    const toY = toRect.top - wsRect.top;
-    const cpOffset = Math.max(CONTROL_POINT_OFFSET, Math.abs(toY - fromY) * 0.4);
-    return { fromX, fromY, toX, toY, curveDirection: "vertical", cpOffset };
+    const cpOffset = Math.max(CONTROL_POINT_OFFSET, Math.abs(toX - fromX) * 0.4);
+    return { fromX, fromY, toX, toY, curveDirection: "horizontal", cpOffset };
   }
 
   if (fromZone === "choreographer" && toZone === "theme") {
-    // Choreo → theme: right-center of choreo badge → left-center of theme badge
-    const fromX = fromRect.right - wsRect.left;
-    const fromY = fromRect.top + fromRect.height / 2 - wsRect.top;
-    const toX = toRect.left - wsRect.left;
-    const toY = toRect.top + toRect.height / 2 - wsRect.top;
     const cpOffset = Math.max(CONTROL_POINT_OFFSET, Math.abs(toX - fromX) * 0.4);
     return { fromX, fromY, toX, toY, curveDirection: "horizontal", cpOffset };
   }
