@@ -67,7 +67,7 @@ function render(): void {
     // Name
     const nameSpan = document.createElement("span");
     nameSpan.className = "connector-badge-name";
-    const protoPrefix = source.protocol === "websocket" ? "ws" : source.protocol === "openai" ? "ai" : "sse";
+    const protoPrefix = source.protocol === "midi" ? "midi" : source.protocol === "websocket" ? "ws" : source.protocol === "openai" ? "ai" : source.protocol === "openclaw" ? "claw" : "sse";
     nameSpan.textContent = `${protoPrefix}:${source.name}`;
     badge.appendChild(nameSpan);
 
