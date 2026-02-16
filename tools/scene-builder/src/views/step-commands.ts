@@ -45,8 +45,8 @@ export const SIGNAL_TYPE_COLORS: Record<string, string> = {
 /** Short display labels for signal types. */
 export const SIGNAL_TYPE_LABELS: Record<string, string> = {
   task_dispatch: "task",
-  tool_call: "tool\u2197",
-  tool_result: "tool\u2199",
+  tool_call: "t.call",
+  tool_result: "t.result",
   token_usage: "tokens",
   agent_state_change: "state",
   error: "error",

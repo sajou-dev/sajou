@@ -69,30 +69,44 @@ export function subscribeActiveSource(fn: () => void): () => void {
 // Init
 // ---------------------------------------------------------------------------
 
-/** Element inside rail for connected-model badges. */
-let modelsEl: HTMLElement | null = null;
-/** Element inside rail for signal-type badges. */
+/** Element for connected-source badges (above signal-types). */
+let connectedEl: HTMLElement | null = null;
+/** Element for signal-type badges (centered). */
 let typesEl: HTMLElement | null = null;
+/** Element for inactive (disconnected) source badges (below signal-types). */
+let inactiveEl: HTMLElement | null = null;
 let initialized = false;
 
-/** Initialize the connector bar — models and signal-types in rail. */
+/** Initialize the connector bar — sources and signal-types in rail. */
 export function initConnectorBarH(): void {
   if (initialized) return;
   initialized = true;
 
-  // Both sections mount inside the signal→choreo rail separator
+  // All sections mount inside the signal→choreo rail separator
   const rail = document.getElementById("rail-signal-choreographer");
   if (rail) {
     const badgesContainer = rail.querySelector(".pl-rail-badges");
 
-    // Model badges container — inserted before signal-type badges
-    modelsEl = document.createElement("div");
-    modelsEl.className = "pl-rail-models";
+    // Connected sources — above signal-types
+    connectedEl = document.createElement("div");
+    connectedEl.className = "pl-rail-sources";
+
+    // Inactive sources — below signal-types
+    inactiveEl = document.createElement("div");
+    inactiveEl.className = "pl-rail-sources pl-rail-sources--inactive";
+
     if (badgesContainer) {
-      rail.insertBefore(modelsEl, badgesContainer);
+      rail.insertBefore(connectedEl, badgesContainer);
       typesEl = badgesContainer as HTMLElement;
+      // Insert inactive section after signal-types
+      if (badgesContainer.nextSibling) {
+        rail.insertBefore(inactiveEl, badgesContainer.nextSibling);
+      } else {
+        rail.appendChild(inactiveEl);
+      }
     } else {
-      rail.appendChild(modelsEl);
+      rail.appendChild(connectedEl);
+      rail.appendChild(inactiveEl);
     }
   }
 
@@ -108,55 +122,70 @@ export function initConnectorBarH(): void {
 // ---------------------------------------------------------------------------
 
 function render(): void {
-  renderModels();
+  renderSources();
   renderTypes();
 }
 
-/** Render connected-source badges in the rail separator. */
-function renderModels(): void {
-  if (!modelsEl) return;
-  modelsEl.innerHTML = "";
-
+/** Render source badges — connected above signal-types, inactive below. */
+function renderSources(): void {
   const { sources } = getSignalSourcesState();
-
-  // Show all connected sources — model name when available, source name otherwise
   const connected = sources.filter((s) => s.status === "connected");
+  const inactive = sources.filter((s) => s.status !== "connected");
 
-  // Hide the container entirely when there are no connected sources
-  modelsEl.style.display = connected.length === 0 ? "none" : "";
+  // Connected sources (above)
+  if (connectedEl) {
+    connectedEl.innerHTML = "";
+    connectedEl.style.display = connected.length === 0 ? "none" : "";
+    for (const source of connected) {
+      connectedEl.appendChild(createSourceBadge(source, false));
+    }
+  }
 
-  for (const source of connected) {
-    const isSelected = activeSourceId === source.id;
-    const badge = document.createElement("button");
-    badge.className = "pl-rail-badge";
-    if (isSelected) badge.classList.add("pl-rail-badge--selected");
+  // Inactive sources (below)
+  if (inactiveEl) {
+    inactiveEl.innerHTML = "";
+    inactiveEl.style.display = inactive.length === 0 ? "none" : "";
+    for (const source of inactive) {
+      inactiveEl.appendChild(createSourceBadge(source, true));
+    }
+  }
+}
 
-    // Identity color tint
-    badge.style.borderColor = isSelected ? source.color : `${source.color}44`;
-    badge.style.color = source.color;
+/** Create a source badge element. */
+function createSourceBadge(source: { id: string; name: string; color: string; selectedModel: string }, inactive: boolean): HTMLButtonElement {
+  const isSelected = !inactive && activeSourceId === source.id;
+  const badge = document.createElement("button");
+  badge.className = "pl-rail-badge";
+  if (isSelected) badge.classList.add("pl-rail-badge--selected");
+  if (inactive) badge.classList.add("pl-rail-badge--inactive");
 
-    // Colored dot (source identity color)
-    const dot = document.createElement("span");
-    dot.className = "pl-rail-badge-dot";
-    dot.style.background = source.color;
-    badge.appendChild(dot);
+  // Identity color tint (muted for inactive)
+  badge.style.borderColor = isSelected ? source.color : `${source.color}44`;
+  badge.style.color = source.color;
 
-    // Model name if available, otherwise source name
-    const displayName = source.selectedModel || source.name;
-    const label = document.createElement("span");
-    label.className = "pl-rail-badge-label";
-    label.textContent = displayName;
-    label.title = displayName;
-    badge.appendChild(label);
+  // Colored dot
+  const dot = document.createElement("span");
+  dot.className = "pl-rail-badge-dot";
+  dot.style.background = source.color;
+  badge.appendChild(dot);
 
-    // Click to toggle active source
+  // Model name if available, otherwise source name
+  const displayName = source.selectedModel || source.name;
+  const label = document.createElement("span");
+  label.className = "pl-rail-badge-label";
+  label.textContent = displayName;
+  label.title = displayName;
+  badge.appendChild(label);
+
+  // Click to toggle active source (only for connected)
+  if (!inactive) {
     badge.addEventListener("click", (e: MouseEvent) => {
       e.stopPropagation();
       setActiveBarHSource(isSelected ? null : source.id);
     });
-
-    modelsEl.appendChild(badge);
   }
+
+  return badge;
 }
 
 /** Render signal-type badges in the rail separator. */

@@ -398,13 +398,15 @@ button {
   height: 12px;
 }
 
-/* Rail badge — compact vertical button in the rail separator */
+/* Rail badge — compact vertical button in the rail separator.
+   margin: auto centers this block between connected (top) and inactive (bottom) sources. */
 .pl-rail-badges {
   display: flex;
   flex-direction: column;
   gap: 2px;
   align-items: center;
   width: 100%;
+  margin: auto 0;
 }
 
 .pl-rail-badge {
@@ -471,19 +473,29 @@ button {
 
 /* ---------------------------------------------------------------------------
  * Horizontal connector bar (signal → choreographer)
- * Source badges — inside the signal pipeline node
+ * Source badges + signal-type badges in the rail
  * --------------------------------------------------------------------------- */
 
-/* Connected-model badges in the signal→choreo rail */
-.pl-rail-models {
+/* Source badges section (connected above, inactive below signal-types) */
+.pl-rail-sources {
   display: flex;
   flex-direction: column;
   gap: 2px;
   align-items: center;
   width: 100%;
-  padding-bottom: 4px;
-  border-bottom: 1px solid var(--color-border);
-  margin-bottom: 2px;
+  padding: 2px 0;
+}
+
+/* Inactive sources: grayed out, non-interactive (matches signal view) */
+.pl-rail-sources--inactive {
+  border-top: 1px solid var(--color-border);
+  margin-top: 2px;
+  padding-top: 4px;
+}
+
+.pl-rail-badge--inactive {
+  opacity: 0.35;
+  pointer-events: none;
 }
 
 .pl-rail-badge--selected {
