@@ -5274,12 +5274,14 @@ button {
 
 /* -- Canvas surface -- */
 
-/* -- Action palette (top of choreographer zone) -- */
+/* ============================================================================
+ * Action palette (top of choreographer zone)
+ * ============================================================================ */
 
 .action-palette {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 5px;
   padding: 6px 8px;
   border-bottom: 1px solid var(--color-border);
   background: var(--color-elevated);
@@ -5289,33 +5291,38 @@ button {
 .action-palette-block {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  height: 22px;
-  padding: 0 7px;
-  border-radius: 4px 4px 4px 0;
-  background: color-mix(in srgb, var(--block-color, #888899) 18%, var(--color-surface));
-  border: 1px solid color-mix(in srgb, var(--block-color, #888899) 35%, transparent);
-  color: var(--block-color, #888899);
+  gap: 4px;
+  height: 26px;
+  padding: 0 9px;
+  border-radius: 6px;
+  background: var(--block-color, #888899);
+  border: none;
+  color: #fff;
   font-family: var(--font-mono);
   font-size: 9px;
-  font-weight: 500;
+  font-weight: 600;
   white-space: nowrap;
   cursor: grab;
   user-select: none;
-  transition: background 0.12s, border-color 0.12s;
+  transition: filter 0.12s, transform 0.1s;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.3);
 }
 
 .action-palette-block:hover {
-  background: color-mix(in srgb, var(--block-color, #888899) 28%, var(--color-surface));
-  border-color: color-mix(in srgb, var(--block-color, #888899) 55%, transparent);
+  filter: brightness(1.15);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.15);
 }
 
 .action-palette-block:active {
   cursor: grabbing;
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 .action-palette-icon {
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1;
 }
 
@@ -5327,23 +5334,27 @@ button {
   position: fixed;
   z-index: 10000;
   pointer-events: none;
-  padding: 4px 10px;
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--block-color, #888899) 25%, var(--color-elevated));
-  border: 1px solid var(--block-color, #888899);
+  padding: 5px 12px;
+  border-radius: 6px;
+  background: var(--block-color, #888899);
   font-family: var(--font-mono);
   font-size: 10px;
-  color: var(--block-color, #888899);
-  box-shadow: var(--shadow-lg);
-  opacity: 0.9;
+  font-weight: 600;
+  color: #fff;
+  border: none;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+  opacity: 0.92;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.3);
 }
 
-/* -- Rack list (choreographer zone) -- */
+/* ============================================================================
+ * Rack list (choreographer zone)
+ * ============================================================================ */
 
 .rack-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   padding: 8px;
   overflow-y: auto;
   flex: 1;
@@ -5351,30 +5362,37 @@ button {
   scrollbar-color: var(--color-border) transparent;
 }
 
-/* -- Clamp (single choreography) -- */
+/* ============================================================================
+ * Clamp — C-shaped choreography container (the "pince")
+ *
+ * Structure:  [bracket] [content: chain + detail]
+ * The bracket wraps top+left+bottom via border and background.
+ * ============================================================================ */
 
 .rack {
   display: flex;
   flex-direction: row;
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  transition: box-shadow 0.15s, border-color 0.15s;
-  min-height: 40px;
+  border-radius: 10px;
+  overflow: hidden;
+  transition: box-shadow 0.15s;
+  min-height: 48px;
+  /* The C-shape: border in clamp color, filled by bracket bg */
+  border: 2.5px solid color-mix(in srgb, var(--clamp-color, #6E6E8A) 50%, #1a1a2e);
+  background: var(--color-bg);
 }
 
 .rack:hover {
-  border-color: var(--color-border-hover);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
 }
 
 .rack--selected {
-  border-color: var(--color-accent-dim);
-  box-shadow: 0 0 12px rgba(232, 168, 81, 0.15);
+  border-color: var(--clamp-color, #6E6E8A);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--clamp-color, #6E6E8A) 25%, transparent);
 }
 
 .rack--drop-target {
   border-color: var(--color-accent);
-  box-shadow: 0 0 16px rgba(232, 168, 81, 0.25);
+  box-shadow: 0 0 20px rgba(232, 168, 81, 0.3);
 }
 
 .rack--reordering {
@@ -5384,13 +5402,13 @@ button {
 }
 
 .rack-reorder-placeholder {
-  border: 2px dashed var(--color-accent-dim);
-  border-radius: var(--radius-lg);
-  background: rgba(232, 168, 81, 0.05);
-  min-height: 40px;
+  border: 2.5px dashed var(--color-accent-dim);
+  border-radius: 10px;
+  background: rgba(232, 168, 81, 0.04);
+  min-height: 48px;
 }
 
-/* -- Left bracket (signal type "pince") -- */
+/* -- Bracket (left C-arm with signal type label) -- */
 
 .rack-bracket {
   display: flex;
@@ -5398,13 +5416,12 @@ button {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 6px 4px;
-  min-width: 36px;
-  background: color-mix(in srgb, var(--clamp-color, #6E6E8A) 15%, var(--color-surface));
-  border-right: 2px solid var(--clamp-color, #6E6E8A);
-  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+  padding: 8px 5px;
+  min-width: 34px;
+  background: color-mix(in srgb, var(--clamp-color, #6E6E8A) 30%, #14141F);
   cursor: pointer;
   user-select: none;
+  position: relative;
 }
 
 .rack-bracket-label {
@@ -5414,39 +5431,42 @@ button {
   font-family: var(--font-mono);
   font-size: 9px;
   font-weight: 700;
-  color: var(--clamp-color, #6E6E8A);
-  letter-spacing: 0.5px;
+  color: color-mix(in srgb, var(--clamp-color, #6E6E8A) 80%, #fff);
+  letter-spacing: 1px;
   text-transform: uppercase;
   white-space: nowrap;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
 }
 
 .rack-bracket-controls {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
 }
 
 .rack-bracket-btn {
   background: none;
   border: none;
-  color: var(--color-text-dim);
+  color: color-mix(in srgb, var(--clamp-color, #6E6E8A) 60%, #aaa);
   cursor: pointer;
-  font-size: 8px;
-  padding: 2px;
-  border-radius: var(--radius-sm);
+  font-size: 9px;
+  padding: 2px 3px;
+  border-radius: 3px;
   line-height: 1;
+  transition: background 0.1s, color 0.1s;
 }
 
 .rack-bracket-btn:hover {
-  color: var(--color-text);
-  background: var(--color-border);
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .rack-bracket-btn--delete:hover {
   color: #F44747;
+  background: rgba(244, 71, 71, 0.15);
 }
 
-/* -- Clamp content area -- */
+/* -- Clamp content area (right of bracket) -- */
 
 .rack-content {
   flex: 1;
@@ -5454,33 +5474,37 @@ button {
   flex-direction: column;
   min-width: 0;
   overflow: hidden;
+  background: var(--color-bg);
 }
 
 .rack-detail {
   border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
 }
 
 .rack-collapsed {
   display: flex;
   align-items: center;
-  padding: 8px 10px;
+  padding: 12px 14px;
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: 10px;
   color: var(--color-text-dim);
   font-style: italic;
 }
 
-/* -- Block chain (horizontal Blockly blocks) -- */
+/* ============================================================================
+ * Block chain — horizontal Blockly-style block strip
+ * ============================================================================ */
 
 .nc-chain {
   display: flex;
-  align-items: stretch;
-  padding: 4px 4px;
+  align-items: center;
+  padding: 6px 6px;
   overflow-x: auto;
-  gap: 0;
+  gap: 3px;
   scrollbar-width: thin;
   scrollbar-color: var(--color-border) transparent;
-  min-height: 34px;
+  min-height: 44px;
 }
 
 .nc-chain::-webkit-scrollbar {
@@ -5491,109 +5515,154 @@ button {
   border-radius: 2px;
 }
 
-/* -- Single block -- */
+/* ============================================================================
+ * Single block — solid Blockly block with puzzle connectors
+ *
+ * Solid colored background, white text, subtle depth via shadows,
+ * puzzle-piece shape via ::after pseudo-element (notch connector).
+ * ============================================================================ */
 
 .nc-block {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  height: 28px;
-  padding: 0 10px 0 8px;
-  background: color-mix(in srgb, var(--block-color, #888899) 18%, var(--color-surface));
-  color: var(--block-color, #888899);
+  gap: 5px;
+  height: 34px;
+  padding: 0 12px 0 10px;
+  background: var(--block-color, #888899);
+  color: #fff;
   font-family: var(--font-mono);
-  font-size: 9px;
-  font-weight: 500;
+  font-size: 10px;
+  font-weight: 600;
   white-space: nowrap;
   cursor: pointer;
   flex-shrink: 0;
   border: none;
   position: relative;
-  transition: background 0.12s;
-  /* Puzzle connector: tab on right via box-shadow, notch on left via border */
-  border-left: 2px solid color-mix(in srgb, var(--block-color, #888899) 40%, transparent);
-  border-radius: 0;
+  border-radius: 6px;
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.15);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.3);
+  transition: filter 0.1s, transform 0.1s;
+  /* Space for the puzzle connector */
+  margin-right: 0;
 }
 
-/* First block in chain — rounded left */
-.nc-block:first-child,
-.nc-block--when {
-  border-left: none;
-  border-radius: 4px 0 0 4px;
-}
-
-/* Last block before drop hint */
-.nc-block:last-of-type {
-  border-radius: 0 4px 4px 0;
-}
-
-/* Only block — rounded both sides */
-.nc-block:first-child:last-of-type {
-  border-radius: 4px;
-}
-
-.nc-block:hover {
-  background: color-mix(in srgb, var(--block-color, #888899) 28%, var(--color-surface));
-}
-
-.nc-block--selected {
-  background: color-mix(in srgb, var(--block-color, #888899) 30%, var(--color-surface));
-  box-shadow: 0 0 0 1.5px var(--block-color, #888899);
+/* Puzzle connector — small protruding tab on the right of each block */
+.nc-block::after {
+  content: "";
+  position: absolute;
+  right: -5px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 5px;
+  height: 12px;
+  background: var(--block-color, #888899);
+  border-radius: 0 3px 3px 0;
+  box-shadow: 1px 0 2px rgba(0, 0, 0, 0.2);
   z-index: 1;
 }
 
-.nc-block--incomplete {
-  opacity: 0.5;
-  border-left-style: dashed;
-}
-.nc-block--incomplete:hover {
-  opacity: 0.8;
+/* Last block in chain: no tab (or before drop hint) */
+.nc-block:last-of-type::after,
+.nc-block:has(+ .nc-chain-drop-hint)::after {
+  display: none;
 }
 
-/* When filter block */
+/* Notch on left side of subsequent blocks (matches the tab) */
+.nc-block + .nc-block {
+  margin-left: 5px;
+  padding-left: 12px;
+}
+
+.nc-block + .nc-block::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 12px;
+  background: var(--color-bg);
+  border-radius: 0 3px 3px 0;
+}
+
+.nc-block:hover {
+  filter: brightness(1.15);
+  transform: translateY(-1px);
+}
+
+.nc-block--selected {
+  outline: 2px solid #fff;
+  outline-offset: 1px;
+  z-index: 2;
+  filter: brightness(1.1);
+}
+
+.nc-block--incomplete {
+  opacity: 0.45;
+  background-image: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 3px,
+    rgba(255, 255, 255, 0.08) 3px,
+    rgba(255, 255, 255, 0.08) 6px
+  );
+}
+.nc-block--incomplete:hover {
+  opacity: 0.75;
+}
+
+/* When filter block — muted, distinct */
 .nc-block--when {
-  --block-color: #8E8EA0;
-  background: color-mix(in srgb, #8E8EA0 12%, var(--color-surface));
-  color: #8E8EA0;
+  --block-color: #5A5A72;
+  background: #5A5A72;
   font-style: italic;
+  font-weight: 500;
   cursor: default;
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .nc-block-icon {
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1;
   flex-shrink: 0;
+  opacity: 0.9;
 }
 
 .nc-block-label {
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 160px;
+  max-width: 180px;
 }
 
-/* Drop hint at end of chain */
+/* -- Drop hint at end of chain -- */
+
 .nc-chain-drop-hint {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 28px;
-  height: 28px;
-  padding: 0 8px;
-  border: 1.5px dashed var(--color-border);
-  border-radius: 4px;
+  min-width: 34px;
+  height: 34px;
+  padding: 0 10px;
+  border: 2px dashed var(--color-border);
+  border-radius: 6px;
   background: transparent;
   color: var(--color-text-dim);
   font-family: var(--font-mono);
-  font-size: 9px;
-  margin-left: 2px;
+  font-size: 10px;
+  margin-left: 6px;
   flex-shrink: 0;
-  transition: border-color 0.15s, color 0.15s;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
 }
 
 .rack--drop-target .nc-chain-drop-hint {
   border-color: var(--color-accent);
   color: var(--color-accent);
-  background: rgba(232, 168, 81, 0.06);
+  background: rgba(232, 168, 81, 0.08);
 }
 
 /* Ghost block during step-drag */
@@ -5601,8 +5670,8 @@ button {
   position: fixed;
   z-index: 10000;
   pointer-events: none;
-  opacity: 0.85;
-  transform: scale(1.1);
+  opacity: 0.9;
+  transform: scale(1.08);
   transition: none;
 }
 

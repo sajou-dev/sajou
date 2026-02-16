@@ -20,6 +20,7 @@ import {
 } from "../state/choreography-state.js";
 import { subscribeWiring } from "../state/wiring-state.js";
 import { ACTION_COLORS, SIGNAL_TYPE_COLORS } from "../views/step-commands.js";
+import { attachPillDragBehavior, DRAGGABLE_ACTIONS } from "./step-drag.js";
 
 // ---------------------------------------------------------------------------
 // Action icons (same as step-chain.ts)
@@ -181,6 +182,11 @@ function createActionBadge(
   badge.style.borderLeftStyle = "solid";
 
   badge.title = `${step.action} (${choreoOn})${wired ? " — wired" : " — drag to entity"}`;
+
+  // Drag-to-entity for draggable actions
+  if (DRAGGABLE_ACTIONS.has(step.action)) {
+    attachPillDragBehavior(badge, step, choreoId);
+  }
 
   badge.addEventListener("click", () => {
     selectChoreography(choreoId);
