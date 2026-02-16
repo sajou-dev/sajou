@@ -394,7 +394,7 @@ export interface SceneState {
 // ---------------------------------------------------------------------------
 
 /** Workspace view identifiers (top-level tab navigation — V1 compat). */
-export type ViewId = "signal" | "orchestrator" | "visual";
+export type ViewId = "signal" | "orchestrator" | "visual" | "shader";
 
 /** Zone identifiers for the V2 spatial layout. */
 export type ZoneId = "signal" | "choreographer" | "theme";

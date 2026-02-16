@@ -16,7 +16,7 @@
 // ---------------------------------------------------------------------------
 
 /** A zone that can be a wire endpoint. */
-export type WireZone = "signal" | "signal-type" | "choreographer" | "theme";
+export type WireZone = "signal" | "signal-type" | "choreographer" | "theme" | "shader";
 
 /** A single wire connection between two zone endpoints. */
 export interface WireConnection {

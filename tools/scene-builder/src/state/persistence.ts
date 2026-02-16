@@ -31,6 +31,12 @@ import {
   subscribeSignalTimeline,
 } from "./signal-timeline-state.js";
 import {
+  getShaderState,
+  setShaderState,
+  resetShaderState,
+  subscribeShaders,
+} from "../shader-editor/shader-state.js";
+import {
   getSignalSourcesState,
   updateSignalSourcesState,
   resetSignalSources,
@@ -55,6 +61,7 @@ import type {
 } from "../types.js";
 import type { WiringState } from "./wiring-state.js";
 import type { BindingState } from "./binding-store.js";
+import type { ShaderEditorState } from "../shader-editor/shader-types.js";
 
 // ---------------------------------------------------------------------------
 // Versioned envelope
@@ -314,6 +321,9 @@ export function initAutoSave(): void {
   subscribeSignalTimeline(() =>
     debouncedSave("timeline", () => getSignalTimelineState()),
   );
+  subscribeShaders(() =>
+    debouncedSave("shaders", () => getShaderState()),
+  );
 
   // Assets — incremental, debounced
   subscribeAssets(() => {
@@ -413,7 +423,17 @@ export async function restoreState(): Promise<boolean> {
       });
     }
 
-    // 8. Restore assets (ArrayBuffer → File → objectUrl)
+    // 8. Restore shader state
+    const shaderRecord = await dbGet<VersionedData<ShaderEditorState>>("shaders", "current");
+    if (shaderRecord?.data) {
+      setShaderState({
+        ...shaderRecord.data,
+        selectedShaderId: null,
+        playing: true,
+      });
+    }
+
+    // 9. Restore assets (ArrayBuffer → File → objectUrl)
     const assetRecords = await dbGetAll<StoredAsset>("assets");
     if (assetRecords.length > 0) {
       const assetFiles: AssetFile[] = [];
@@ -480,6 +500,7 @@ export async function forcePersistAll(): Promise<void> {
     dbPut("wires", "current", wrap(getWiringState())),
     dbPut("bindings", "current", wrap(getBindingState())),
     dbPut("timeline", "current", wrap(getSignalTimelineState())),
+    dbPut("shaders", "current", wrap(getShaderState())),
   ]);
 
   // Assets: save all (force, not incremental)
@@ -530,6 +551,7 @@ export async function newScene(): Promise<void> {
   resetWiringState();
   resetBindingState();
   resetSignalTimeline();
+  resetShaderState();
   resetSignalSources();
   clearHistory();
 
@@ -558,6 +580,7 @@ function flushPendingSaves(): void {
     dbPut("wires", "current", wrap(getWiringState())).catch(() => {});
     dbPut("bindings", "current", wrap(getBindingState())).catch(() => {});
     dbPut("timeline", "current", wrap(getSignalTimelineState())).catch(() => {});
+    dbPut("shaders", "current", wrap(getShaderState())).catch(() => {});
   } catch {
     // Best effort — page is unloading
   }

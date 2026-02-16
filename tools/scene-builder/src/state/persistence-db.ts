@@ -6,7 +6,7 @@
  */
 
 const DB_NAME = "sajou-scene-builder";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 /** Object stores — one per persistent state domain. */
 const STORES = [
@@ -17,6 +17,7 @@ const STORES = [
   "bindings",
   "timeline",
   "assets",
+  "shaders",
 ] as const;
 
 export type StoreName = (typeof STORES)[number];
