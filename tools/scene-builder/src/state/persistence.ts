@@ -33,6 +33,7 @@ import {
 import {
   getSignalSourcesState,
   updateSignalSourcesState,
+  resetSignalSources,
   subscribeSignalSources,
 } from "./signal-source-state.js";
 import { getEditorState, updateEditorState, subscribeEditor } from "./editor-state.js";
@@ -529,6 +530,7 @@ export async function newScene(): Promise<void> {
   resetWiringState();
   resetBindingState();
   resetSignalTimeline();
+  resetSignalSources();
   clearHistory();
 
   // 4. Re-discover local sources
