@@ -53,6 +53,8 @@ interface DragSession {
   targetZone: WireZone;
   /** Active source at drag start (for auto-creating signal→signal-type wires). */
   sourceContext: string | null;
+  /** Parent choreography ID (when dragging an action badge from the V-bar). */
+  choreoId: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -101,8 +103,9 @@ function onMouseDown(e: MouseEvent): void {
     // Source badges no longer initiate drags — color-coding suffices
     return;
   } else if (zone === "signal-type") {
-    // Signal type badge (on bar-H) → drag down to a choreographer node input
-    targetZone = "choreographer";
+    // Signal-type → choreo binding is now implicit (rack model).
+    // Drag-from-rail to create racks is handled by rack-drag.ts.
+    return;
   } else if (zone === "choreographer") {
     // Could be on H-bar (not draggable) or a node output port / V-bar badge
     const isOnHBar = badge.closest(".connector-bar-h") !== null;
@@ -122,6 +125,7 @@ function onMouseDown(e: MouseEvent): void {
     fromId: id,
     targetZone,
     sourceContext: getActiveBarHSource(),
+    choreoId: badge.dataset.choreoId ?? null,
   };
 
   // Add dragging class to badge
@@ -231,6 +235,10 @@ function onMouseUp(e: MouseEvent): void {
 
   // Level 2: if no DOM badge hit and targeting theme, try entity hit-test
   if (targetZone === "theme" && fromZone === "choreographer") {
+    // Resolve the choreography ID: use choreoId from the badge (rack model),
+    // falling back to fromId for backward compat (legacy node model).
+    const effectiveChoreoId = session?.choreoId ?? fromId;
+
     const scenePos = screenToScene(e);
     const hit = hitTestAnyEntity(scenePos.x, scenePos.y);
     if (hit) {
@@ -262,13 +270,13 @@ function onMouseUp(e: MouseEvent): void {
       }
 
       // Assign this entity as the choreography's default target
-      updateChoreographyCmd(fromId, { defaultTargetEntityId: semanticId });
+      updateChoreographyCmd(effectiveChoreoId, { defaultTargetEntityId: semanticId });
 
       // Show contextual binding menu at drop point
       showBindingDropMenu({
         x: e.clientX,
         y: e.clientY,
-        choreographyId: fromId,
+        choreographyId: effectiveChoreoId,
         targetSemanticId: semanticId,
         hasTopology: hasTopo,
         animationStates,

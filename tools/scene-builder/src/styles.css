@@ -5274,139 +5274,118 @@ button {
 
 /* -- Canvas surface -- */
 
-.nc-canvas {
-  position: relative;
-  width: 100%;
+/* -- Rack list (choreographer zone) -- */
+
+.rack-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  overflow-y: auto;
   height: 100%;
-  overflow: hidden;
-  background: var(--color-bg);
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
 }
 
-.nc-grid {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
-
-.nc-nodes {
-  position: absolute;
-  top: 0;
-  left: 0;
-  transform-origin: 0 0;
-  /* transform set by JS: translate(panX, panY) scale(zoom) */
-}
-
-/* -- Nodes -- */
-
-.nc-node {
-  position: absolute;
-  min-width: 180px;
-  width: auto;
-  max-width: 550px;
+.rack {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow);
   display: flex;
   flex-direction: column;
-  cursor: default;
-  transition: box-shadow 0.15s;
+  transition: box-shadow 0.15s, border-color 0.15s;
 }
 
-.nc-node:hover {
+.rack:hover {
   border-color: var(--color-border-hover);
 }
 
-.nc-node--selected {
+.rack--selected {
   border-color: var(--color-accent-dim);
   box-shadow: 0 0 12px rgba(232, 168, 81, 0.15);
 }
 
-.nc-node--dragging {
-  opacity: 0.85;
+.rack--reordering {
+  opacity: 0.7;
   z-index: 100;
-}
-
-.nc-node--dimmed {
-  opacity: 0.2;
-  filter: grayscale(0.6);
   pointer-events: none;
-  transition: opacity 0.2s, filter 0.2s;
 }
 
-/* -- Node header -- */
+.rack-reorder-placeholder {
+  border: 2px dashed var(--color-accent-dim);
+  border-radius: var(--radius-lg);
+  background: rgba(232, 168, 81, 0.05);
+}
 
-.nc-node-header {
+/* -- Rack header -- */
+
+.rack-header {
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 6px 10px;
-  border-top: 3px solid var(--color-accent);
+  border-left: 3px solid var(--color-accent);
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-  cursor: grab;
+  cursor: pointer;
   user-select: none;
 }
 
-.nc-node-header:active {
-  cursor: grabbing;
+.rack-header-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
-.nc-node-badge {
+.rack-header-label {
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 600;
-  padding: 1px 5px;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.rack-header-count {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--color-text-dim);
+  flex-shrink: 0;
+}
+
+.rack-header-btn {
+  background: none;
+  border: none;
+  color: var(--color-text-dim);
+  cursor: pointer;
+  font-size: 10px;
+  padding: 2px 4px;
   border-radius: var(--radius-sm);
-  white-space: nowrap;
-  flex-shrink: 0;
+  line-height: 1;
 }
 
-.nc-node-title {
-  flex: 1;
-  font-family: var(--font-body);
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--color-text-muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.rack-header-btn:hover {
+  color: var(--color-text);
+  background: var(--color-border);
 }
 
-.nc-node-count {
-  font-family: var(--font-mono);
-  font-size: 9px;
-  color: var(--color-text-dim);
-  flex-shrink: 0;
+.rack-header-btn--delete:hover {
+  color: #F44747;
 }
 
-/* -- Node body (step preview) -- */
+/* -- Rack body -- */
 
-.nc-node-body {
-  padding: 4px 10px 6px;
+.rack-body {
   border-top: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
 }
 
-.nc-node-step {
-  font-family: var(--font-mono);
-  font-size: 9px;
-  color: var(--color-text-muted);
-  padding: 1px 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.rack-chain {
+  /* wrapper around renderStepChain */
 }
 
-.nc-node-step--more {
-  color: var(--color-text-dim);
-  font-style: italic;
-}
-
-.nc-node-empty {
-  font-family: var(--font-mono);
-  font-size: 9px;
-  color: var(--color-text-dim);
-  font-style: italic;
-  padding: 2px 0;
+.rack-detail {
+  border-top: 1px solid var(--color-border);
 }
 
 /* -- Step chain pills -- */
@@ -5715,62 +5694,7 @@ button {
   max-width: 100%;
 }
 
-/* -- Ports -- */
-
-.nc-ports {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 4px 0;
-}
-
-.nc-ports--input {
-  padding-left: 6px;
-}
-
-.nc-ports--output {
-  padding-right: 6px;
-  align-items: flex-end;
-}
-
-.nc-port {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
-  min-width: 20px;
-  min-height: 20px;
-  cursor: pointer;
-}
-
-.nc-port:hover .nc-port-dot {
-  transform: scale(1.4);
-}
-
-.nc-port-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--color-text-dim);
-  border: 1.5px solid transparent;
-  flex-shrink: 0;
-  transition: transform 0.12s;
-}
-
-.nc-port-label {
-  font-family: var(--font-mono);
-  font-size: 8px;
-  color: var(--color-text-dim);
-  white-space: nowrap;
-}
-
-/* Default port (no wire) — dashed outline dot */
-.nc-port[data-port-source="default"] .nc-port-dot {
-  background: transparent !important;
-  border: 1.5px dashed var(--color-text-dim);
-}
-
-/* -- Inline detail panel (under selected node) -- */
+/* -- Inline detail panel (under selected rack) -- */
 
 .nc-node-detail {
   border-top: 1px solid var(--color-border);
@@ -6243,16 +6167,6 @@ button {
   color: var(--color-accent);
   box-shadow: var(--shadow-lg);
   opacity: 0.9;
-}
-
-.nc-drop-preview {
-  position: absolute;
-  width: 200px;
-  height: 40px;
-  border: 2px dashed var(--color-accent-dim);
-  border-radius: var(--radius-lg);
-  background: rgba(232, 168, 81, 0.05);
-  pointer-events: none;
 }
 
 /* ============================================================================

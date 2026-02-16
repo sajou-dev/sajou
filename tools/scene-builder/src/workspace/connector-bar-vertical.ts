@@ -1,31 +1,52 @@
 /**
  * Vertical connector bar — choreographer ↔ visual.
  *
- * Mounts badges inside the rail separator (#rail-choreographer-visual).
- * Wired choreographies sit above the badge block (active),
- * unwired ones sit below (inactive / grayed out).
+ * Mounts action badges inside the rail separator (#rail-choreographer-visual).
+ * Each badge represents a non-structural action step from a populated rack.
  *
- * Clicking a badge focuses the choreography in the editor.
+ * Wired section (top): actions from choreographies that have a defaultTargetEntityId.
+ * Unwired section (bottom): actions from choreographies without a target entity.
+ *
+ * Badges are draggable toward visual entities (integrates with wiring-drag / step-drag).
  */
 
+import type { ChoreographyStepDef } from "../types.js";
+import { STRUCTURAL_ACTIONS } from "../types.js";
 import {
   getChoreographyState,
   selectChoreography,
+  selectChoreographyStep,
   subscribeChoreography,
 } from "../state/choreography-state.js";
-import {
-  getWiresBetween,
-  subscribeWiring,
-} from "../state/wiring-state.js";
-import { SIGNAL_TYPE_COLORS, SIGNAL_TYPE_LABELS } from "../views/step-commands.js";
+import { subscribeWiring } from "../state/wiring-state.js";
+import { ACTION_COLORS, SIGNAL_TYPE_COLORS } from "../views/step-commands.js";
+
+// ---------------------------------------------------------------------------
+// Action icons (same as step-chain.ts)
+// ---------------------------------------------------------------------------
+
+const ACTION_ICONS: Record<string, string> = {
+  move: "\u279C",       // ➜
+  spawn: "+",
+  destroy: "\u2716",    // ✖
+  fly: "\u2197",        // ↗
+  flash: "\u26A1",      // ⚡
+  wait: "\u23F1",       // ⏱
+  playSound: "\u266B",  // ♫
+  setAnimation: "\u25B6", // ▶
+  followRoute: "\u21DD", // ⇝
+  parallel: "\u2503",   // ┃
+  onArrive: "\u2691",   // ⚑
+  onInterrupt: "\u26A0", // ⚠
+};
 
 // ---------------------------------------------------------------------------
 // Init
 // ---------------------------------------------------------------------------
 
-/** Wired choreographies (above). */
+/** Wired actions (above). */
 let wiredEl: HTMLElement | null = null;
-/** Unwired choreographies (below). */
+/** Unwired actions (below). */
 let unwiredEl: HTMLElement | null = null;
 let initialized = false;
 
@@ -68,44 +89,66 @@ export function initConnectorBarV(): void {
 // Render
 // ---------------------------------------------------------------------------
 
+/** Collected action info for a badge. */
+interface ActionBadgeInfo {
+  choreoId: string;
+  choreoOn: string;
+  step: ChoreographyStepDef;
+}
+
 function render(): void {
   const { choreographies } = getChoreographyState();
-  const wires = getWiresBetween("choreographer", "theme");
-  const wiredSet = new Set(wires.map((w) => w.fromId));
 
-  const wiredChoreos = choreographies.filter((c) => wiredSet.has(c.id));
-  const unwiredChoreos = choreographies.filter((c) => !wiredSet.has(c.id));
+  const wiredActions: ActionBadgeInfo[] = [];
+  const unwiredActions: ActionBadgeInfo[] = [];
+
+  for (const choreo of choreographies) {
+    // Only show actions from racks that have steps
+    if (choreo.steps.length === 0) continue;
+
+    const hasTarget = !!choreo.defaultTargetEntityId;
+    const target = hasTarget ? wiredActions : unwiredActions;
+
+    for (const step of choreo.steps) {
+      // Skip structural actions (parallel, onArrive, onInterrupt)
+      if (STRUCTURAL_ACTIONS.includes(step.action)) continue;
+      target.push({ choreoId: choreo.id, choreoOn: choreo.on, step });
+    }
+  }
 
   // Wired (above, active)
   if (wiredEl) {
     wiredEl.innerHTML = "";
-    wiredEl.style.display = wiredChoreos.length === 0 ? "none" : "";
-    for (const choreo of wiredChoreos) {
-      wiredEl.appendChild(createChoreoBadge(choreo, true));
+    wiredEl.style.display = wiredActions.length === 0 ? "none" : "";
+    for (const info of wiredActions) {
+      wiredEl.appendChild(createActionBadge(info, true));
     }
   }
 
   // Unwired (below, inactive)
   if (unwiredEl) {
     unwiredEl.innerHTML = "";
-    unwiredEl.style.display = unwiredChoreos.length === 0 ? "none" : "";
-    for (const choreo of unwiredChoreos) {
-      unwiredEl.appendChild(createChoreoBadge(choreo, false));
+    unwiredEl.style.display = unwiredActions.length === 0 ? "none" : "";
+    for (const info of unwiredActions) {
+      unwiredEl.appendChild(createActionBadge(info, false));
     }
   }
 }
 
-/** Create a choreography badge element. */
-function createChoreoBadge(
-  choreo: { id: string; on: string },
+/** Create an action badge element. */
+function createActionBadge(
+  info: ActionBadgeInfo,
   wired: boolean,
 ): HTMLButtonElement {
+  const { choreoId, choreoOn, step } = info;
+
   const badge = document.createElement("button");
   badge.className = "pl-rail-badge";
 
-  // Wire endpoint data attributes for drag-connect system
+  // Data attributes for the drag-connect system
   badge.dataset.wireZone = "choreographer";
-  badge.dataset.wireId = choreo.id;
+  badge.dataset.wireId = step.id;
+  badge.dataset.choreoId = choreoId;
 
   if (wired) {
     badge.classList.add("pl-rail-badge--active");
@@ -113,25 +156,35 @@ function createChoreoBadge(
     badge.classList.add("pl-rail-badge--inactive");
   }
 
-  // Color by signal type
-  const color = SIGNAL_TYPE_COLORS[choreo.on] ?? "#6E6E8A";
+  const color = ACTION_COLORS[step.action] ?? "#6E6E8A";
+  const signalColor = SIGNAL_TYPE_COLORS[choreoOn] ?? "#6E6E8A";
 
-  // Dot
-  const dot = document.createElement("span");
-  dot.className = "pl-rail-badge-dot";
-  dot.style.background = wired ? color : "#6E6E8A";
-  badge.appendChild(dot);
+  // Action icon
+  const icon = document.createElement("span");
+  icon.className = "pl-rail-badge-dot";
+  icon.style.background = wired ? color : "#6E6E8A";
+  icon.textContent = ACTION_ICONS[step.action] ?? "";
+  icon.style.fontSize = "9px";
+  icon.style.lineHeight = "8px";
+  icon.style.textAlign = "center";
+  badge.appendChild(icon);
 
-  // Label (use short label like in signal→choreo rail)
+  // Label: "action" (compact)
   const label = document.createElement("span");
   label.className = "pl-rail-badge-label";
-  label.textContent = SIGNAL_TYPE_LABELS[choreo.on] ?? choreo.on;
+  label.textContent = step.action;
   badge.appendChild(label);
 
-  badge.title = `${choreo.on}${wired ? " (wired to visual)" : " (drag to connect)"}`;
+  // Thin colored stripe on the left edge to indicate signal type origin
+  badge.style.borderLeftColor = signalColor;
+  badge.style.borderLeftWidth = "2px";
+  badge.style.borderLeftStyle = "solid";
+
+  badge.title = `${step.action} (${choreoOn})${wired ? " — wired" : " — drag to entity"}`;
 
   badge.addEventListener("click", () => {
-    selectChoreography(choreo.id);
+    selectChoreography(choreoId);
+    selectChoreographyStep(step.id);
   });
 
   return badge;

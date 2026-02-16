@@ -887,9 +887,9 @@ export interface ChoreographyDef {
   interrupts: boolean;
   /** Ordered sequence of steps. */
   steps: ChoreographyStepDef[];
-  /** Editor-only: node X position on the choreographer canvas. */
+  /** Editor-only: node X position (legacy, unused by rack model). */
   nodeX: number;
-  /** Editor-only: node Y position on the choreographer canvas. */
+  /** Editor-only: node Y position (legacy, unused by rack model). */
   nodeY: number;
   /** Editor-only: whether the node is collapsed (header only). */
   collapsed: boolean;
