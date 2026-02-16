@@ -56,15 +56,21 @@ function renderRack(choreo: ChoreographyDef, isSelected: boolean): HTMLElement {
       // No-op — palette replaces the picker
     },
   });
-  rack.appendChild(chain);
-
-  // Detail panel (when selected, expanded)
+  // Insert detail panel right after the hat block (not at the bottom)
   if (isSelected && !choreo.collapsed) {
     const detail = document.createElement("div");
     detail.className = "rack-detail";
     detail.appendChild(renderNodeDetail(choreo));
-    rack.appendChild(detail);
+    // Hat is always the first child; insert detail right after it
+    const hatBlock = chain.children[0];
+    if (hatBlock && hatBlock.nextSibling) {
+      chain.insertBefore(detail, hatBlock.nextSibling);
+    } else {
+      chain.appendChild(detail);
+    }
   }
+
+  rack.appendChild(chain);
 
   return rack;
 }
