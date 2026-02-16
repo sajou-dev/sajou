@@ -371,16 +371,72 @@ Chaque preset est un `ShaderDef` complet avec source, uniforms, et valeurs par d
 
 ---
 
+## Décisions (résolu)
+
+### Multi-pass shaders — requis en V1
+
+Les effets comme la réaction-diffusion nécessitent un ping-pong entre deux framebuffers (l'output de la frame N−1 est l'input de la frame N). C'est un prérequis pour les presets fondamentaux.
+
+**Implémentation** : deux `WebGLRenderTarget` dans le même contexte Three.js. Chaque frame :
+1. Render pass A → target B (lecture de A comme `sampler2D`, écriture dans B)
+2. Swap A ↔ B
+3. Render le résultat final sur le quad de preview
+
+L'utilisateur contrôle le nombre de passes via la `ShaderDef` :
+
+```typescript
+interface ShaderDef {
+  // ... champs existants ...
+  /** Number of feedback passes per frame (1 = single pass, 2+ = ping-pong). */
+  passes: number;
+  /** Buffer resolution (can differ from preview resolution for performance). */
+  bufferResolution: { width: number; height: number };
+}
+```
+
+Le buffer interne de feedback (`bufferResolution`) peut être inférieur à la résolution de preview pour des raisons de performance. Uniform auto-injecté : `iChannel0` = framebuffer précédent.
+
+### Audio reactivity — source locale + signal futur
+
+Deux vecteurs d'entrée audio :
+
+1. **V1 — fichier importé** : l'utilisateur importe un fichier audio (WAV/MP3/OGG) dans l'asset manager. Le shader editor crée un `AudioContext` + `AnalyserNode`, expose les données FFT comme uniform `iAudioSpectrum` (`sampler2D` 1D, 512 bins) et `iAudioLevel` (`float`, RMS normalisé 0–1). Le fichier audio est playable/pausable depuis le panneau uniforms.
+
+2. **V2 — connecteur audio** : un nouveau type de source signal `"audio"` dans le système de signal sources. L'audio capturé (microphone, système) ou streamé depuis un agent devient un signal routable dans le graphe. Le shader consomme l'audio via le wiring comme n'importe quel autre signal. Ceci nécessite un nouveau `SignalSource.protocol: "audio"` et un transport `AudioWorklet` → signal bus.
+
+### Sandbox — iframe sandbox pour le mode Script
+
+Le code JavaScript utilisateur (mode p5.js) tourne dans un **`<iframe>` sandbox** :
+
+- `sandbox="allow-scripts"` — exécute le JS mais bloque l'accès au DOM parent, cookies, localStorage
+- Communication via `postMessage` : le scene-builder envoie le code source + uniforms, l'iframe renvoie le canvas bitmap (`OffscreenCanvas.transferToImageBitmap()` ou `canvas.toDataURL()`)
+- Le p5.js est chargé dans l'iframe, pas dans le contexte principal
+- Crash isolation : une erreur dans le sketch ne casse pas le scene-builder
+- Le `srcdoc` de l'iframe est généré dynamiquement avec le runtime p5 + le code utilisateur
+
+**Trade-off** : la communication `postMessage` ajoute ~1ms de latence par frame. Acceptable pour du preview 30-60fps. La bitmap est transférée via `Transferable` (zero-copy si le browser supporte `ImageBitmap`).
+
+### Résolution adaptive — vectoriel
+
+Les shaders GLSL sont vectoriels par nature (le fragment shader est évalué par pixel). La résolution de sortie est simplement la taille du `WebGLRenderTarget` ou du viewport.
+
+**Stratégie** :
+- L'éditeur preview tourne à la résolution du viewport (remplissage du panneau droit)
+- Le resize est automatique (observer `ResizeObserver` sur le container)
+- L'export produit à une résolution configurable (défaut : 1920×1080, ou dimensions de la scène)
+- Les buffers de feedback (multi-pass) peuvent avoir une résolution indépendante (configurable dans `bufferResolution`)
+- Pas de slider de qualité — la résolution suit le viewport. Un shader trop lourd se manifeste par une baisse de FPS, visible dans un compteur FPS affiché dans le coin du preview
+
+### p5.js bundle size — non bloquant
+
+La taille de p5.js (~1MB) n'est pas un enjeu à ce stade. Le chargement est lazy (dynamic import au premier accès au tab), l'impact sur le startup est nul. À revisiter uniquement si le build de production impose un budget réseau strict.
+
+---
+
 ## Open questions
 
-1. **Multi-pass shaders** — Les effets comme la réaction-diffusion nécessitent un ping-pong entre deux framebuffers (l'output de la frame N−1 est l'input de la frame N). Faut-il exposer un système de multi-pass dans la V1, ou le garder comme extension ?
+1. **Wiring types V1** — Faut-il déclarer `WireZone: "shader"` dans les types dès la V1 du shader editor (sans implémentation du wiring), pour éviter une migration plus tard ? Ou attendre la V2 wiring ?
 
-2. **Audio reactivity** — Exposer un uniform `iAudioSpectrum` (FFT du signal audio) permettrait des effets réactifs au son. Pertinent pour Sajou (les signaux d'agent pourraient avoir une composante sonore). Scope V1 ou V2 ?
+2. **GLSL version** — WebGL2 est supporté par tous les browsers modernes (>97% coverage). Faut-il cibler GLSL ES 3.0 exclusivement, ou supporter aussi GLSL ES 1.0 (WebGL1) pour les vieux devices ?
 
-3. **Collaboration avec les chorégraphies** — Le wiring shader↔choreographer est décrit dans l'architecture mais pas implémenté en V1. Faut-il au moins préparer les types (`WireZone: "shader"`) dans la V1 pour éviter une migration ?
-
-4. **Sandbox sécurité (mode Script)** — Le code JavaScript de l'utilisateur tourne dans le même contexte que le scene-builder. Faut-il un `iframe` sandbox ou un `Worker` pour isoler l'exécution ? En dev local le risque est faible, mais pour un build hébergé c'est critique.
-
-5. **Résolution adaptive** — La preview peut tourner à une résolution réduite pendant l'édition (256×256) et passer en pleine résolution pour l'export. Implémentation automatique ou manuelle (slider de qualité) ?
-
-6. **p5.js bundle size** — p5.js fait ~1MB complet. En mode instance avec `noCanvas()` et `createGraphics(P2D)`, une bonne partie de la lib est inutile (WebGL renderer, DOM, son). Investiguer si un build custom ou `p5.min.js` + tree-shaking suffit pour descendre sous 400KB.
+3. **Shader library / community sharing** — À terme, les shader themes pourraient être partagés (import URL, galerie). Quel format de distribution : standalone JSON, ou intégré dans le ZIP de scène uniquement ?
