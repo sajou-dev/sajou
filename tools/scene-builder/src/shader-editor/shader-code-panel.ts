@@ -127,12 +127,29 @@ export function initShaderCodePanel(codeEl: HTMLElement): void {
   const spacer = document.createElement("span");
   spacer.style.flex = "1";
 
+  // Passes selector (multi-pass ping-pong)
+  const passesLabel = document.createElement("span");
+  passesLabel.style.cssText = "font-size: 10px; color: var(--color-text-muted);";
+  passesLabel.textContent = "Passes:";
+  const passesSelect = document.createElement("select");
+  passesSelect.title = "Render passes (multi-pass ping-pong)";
+  passesSelect.innerHTML = '<option value="1">1</option><option value="2">2</option>';
+  passesSelect.addEventListener("change", () => {
+    const shader = getSelectedShader();
+    if (shader) {
+      const passes = parseInt(passesSelect.value, 10);
+      updateShader(shader.id, { passes });
+      setPassCount(passes, shader.bufferResolution || undefined);
+      scheduleCompile();
+    }
+  });
+
   // Preset button placeholder (populated in commit 7)
   const presetContainer = document.createElement("span");
   presetContainer.id = "shader-preset-container";
   presetContainer.style.position = "relative";
 
-  header.append(nameInputEl, shaderSelectorEl, tabVertex, tabFragment, spacer, presetContainer, btnNew);
+  header.append(nameInputEl, shaderSelectorEl, tabVertex, tabFragment, spacer, passesLabel, passesSelect, presetContainer, btnNew);
   codeEl.appendChild(header);
 
   // CodeMirror editor

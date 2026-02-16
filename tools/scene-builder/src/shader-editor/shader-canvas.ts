@@ -9,7 +9,7 @@
  */
 
 import * as THREE from "three";
-import { UNIFORM_PREFIX, DEFAULT_VERTEX_SOURCE, DEFAULT_FRAGMENT_SOURCE } from "./shader-defaults.js";
+import { UNIFORM_PREFIX, MULTIPASS_PREFIX, DEFAULT_VERTEX_SOURCE, DEFAULT_FRAGMENT_SOURCE } from "./shader-defaults.js";
 import { getEditorState, subscribeEditor } from "../state/editor-state.js";
 import { getShaderState, subscribeShaders } from "./shader-state.js";
 
@@ -115,15 +115,19 @@ export function initShaderCanvas(el: HTMLElement): void {
 
 /** Build the final fragment source by prepending the uniform block. */
 function buildFragmentSource(userFragment: string): string {
+  const prefix = passCount >= 2
+    ? UNIFORM_PREFIX + MULTIPASS_PREFIX
+    : UNIFORM_PREFIX;
+
   // If user already has #version, inject uniforms after the #version line
   const versionMatch = userFragment.match(/^(#version\s+\d+\s+es\s*\n)/);
   if (versionMatch) {
     const versionLine = versionMatch[1];
     const rest = userFragment.slice(versionLine.length);
-    return versionLine + UNIFORM_PREFIX + rest;
+    return versionLine + prefix + rest;
   }
   // Otherwise prepend everything
-  return "#version 300 es\nprecision highp float;\n" + UNIFORM_PREFIX + userFragment;
+  return "#version 300 es\nprecision highp float;\n" + prefix + userFragment;
 }
 
 /** Create the standard uniform object. */

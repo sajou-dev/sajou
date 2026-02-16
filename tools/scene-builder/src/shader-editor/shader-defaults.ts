@@ -14,6 +14,11 @@ uniform vec4  iMouse;
 uniform int   iFrame;
 `;
 
+/** Additional uniform block for multi-pass shaders (ping-pong feedback). */
+export const MULTIPASS_PREFIX = `
+uniform sampler2D iChannel0;
+`;
+
 /** Auto-injected uniform names — excluded from the user uniforms panel. */
 export const AUTO_UNIFORMS = new Set([
   "iTime",
