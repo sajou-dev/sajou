@@ -267,61 +267,7 @@ button {
   flex-shrink: 0;
 }
 
-/* ---------------------------------------------------------------------------
- * Zone Tab Labels — floating in each zone's top-right corner
- * --------------------------------------------------------------------------- */
-
-.zone-tab {
-  position: absolute;
-  top: 4px;
-  right: 8px;
-  z-index: 10;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px 2px 6px;
-  border-radius: var(--radius-sm);
-  font-family: var(--font-mono);
-  font-size: 9px;
-  font-weight: 500;
-  letter-spacing: 0.5px;
-  color: var(--color-text-dim);
-  background: transparent;
-  border: 1px solid transparent;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
-  opacity: 0.6;
-  white-space: nowrap;
-}
-
-.zone-tab:hover {
-  opacity: 1;
-  background: rgba(14, 14, 22, 0.6);
-  color: var(--color-text-muted);
-  border-color: var(--color-border);
-}
-
-.zone-tab--active {
-  opacity: 1;
-  color: var(--color-accent);
-  border-color: var(--color-accent-dim);
-  background: rgba(14, 14, 22, 0.6);
-}
-
-.zone-tab--active:hover {
-  color: var(--color-accent-light);
-}
-
-.zone-tab svg {
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
-}
-
-/* Theme zone: shift tab left to avoid toolbar overlap */
-.zone-theme > .zone-tab {
-  right: 50px;
-}
+/* (Zone tab labels removed — replaced by pipeline node headers) */
 
 /* ---------------------------------------------------------------------------
  * Workspace — V3 pipeline rail layout
@@ -443,102 +389,22 @@ button {
   overflow: hidden;
 }
 
-/* Left column — Signal (top) + Connector bar + Choreographer (bottom) */
-.zone-left {
-  display: flex;
-  flex-direction: column;
-  width: 50%;
-  min-width: 280px;
-  overflow: hidden;
-  position: relative;
-}
-
-/* Signal zone — top of left column, source chips + raw log */
+/* Signal zone — inside pipeline signal node */
 .zone-signal {
-  flex: 1 1 25%;
   display: flex;
   flex-direction: column;
-  min-height: 80px;
-  border-bottom: none;
   position: relative;
   overflow: hidden;
-  background: var(--color-surface);
 }
 
-/* Old zone labels — replaced by .zone-tab buttons */
-
-/* Choreographer zone — bottom of left column, takes majority of space */
+/* Choreographer zone — inside pipeline choreographer node */
 .zone-choreographer {
   display: flex;
-  flex: 2 1 55%;
-  min-height: 120px;
   position: relative;
-  background: var(--color-surface);
   overflow: hidden;
 }
 
-/* .zone-choreographer::before — replaced by .zone-tab */
-
-/* Rideau — connection hub strip between left column and Theme (choreo→theme).
- * TouchDesigner style: wider than a simple divider, acts as a visible
- * connection bus with dot badges for wired choreographies. */
-.rideau {
-  width: 20px;
-  flex-shrink: 0;
-  cursor: col-resize;
-  background: var(--color-bg);
-  border-left: 1px solid var(--color-border);
-  border-right: 1px solid var(--color-border);
-  position: relative;
-  z-index: 50;
-  transition: background 0.15s, border-color 0.15s;
-}
-
-.rideau:hover,
-.rideau--dragging {
-  background: var(--color-elevated);
-  border-color: var(--color-accent-dim);
-}
-
-/* Center rail — visual guide line */
-.rideau::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 2px;
-  height: 100%;
-  background: var(--color-border);
-  opacity: 0.5;
-  transition: opacity 0.15s, background 0.15s;
-}
-
-.rideau:hover::before,
-.rideau--dragging::before {
-  background: var(--color-accent-dim);
-  opacity: 0.8;
-}
-
-/* Grip dots — drag affordance */
-.rideau::after {
-  content: "";
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 4px;
-  height: 32px;
-  border-radius: 2px;
-  background: var(--color-text-dim);
-  transition: background 0.15s, height 0.15s;
-}
-
-.rideau:hover::after,
-.rideau--dragging::after {
-  background: var(--color-accent);
-  height: 48px;
-}
+/* (Rideau removed — replaced by pipeline layout) */
 
 /* ---------------------------------------------------------------------------
  * Horizontal connector bar (signal → choreographer)
@@ -559,7 +425,6 @@ button {
   border-bottom: 1px solid var(--color-border);
   overflow: visible;
   z-index: 2;
-  cursor: row-resize;
 }
 
 /* Rail line on types row */
@@ -725,21 +590,19 @@ button {
 /* separator no longer needed — sources and types are on separate rows */
 
 /* ---------------------------------------------------------------------------
- * Vertical connector bar (choreographer → theme, on rideau hub)
- * TouchDesigner-style: connection dots stacked on the rideau rail.
+ * Vertical connector bar (choreographer → visual, inside choreo node)
  * --------------------------------------------------------------------------- */
 
 .connector-bar-v {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-  z-index: 51;
-  pointer-events: auto;
+  padding: 4px 8px;
+  flex-shrink: 0;
+  border-top: 1px solid var(--color-border);
+  z-index: 2;
 }
 
 .connector-bar-v-badge {
@@ -773,15 +636,12 @@ button {
   border-radius: 50%;
 }
 
-/* Theme zone — right side, full height for max canvas space */
+/* Theme zone — inside pipeline visual node */
 .zone-theme {
   display: flex;
-  flex: 1;
   position: relative;
   min-width: 0;
 }
-
-/* .zone-theme::before — replaced by .zone-tab */
 
 /* ---------------------------------------------------------------------------
  * Toolbar
