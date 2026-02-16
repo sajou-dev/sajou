@@ -1,10 +1,11 @@
 /**
  * Shader editor view.
  *
- * Creates the shader editor DOM container inside #zone-theme.
- * Subscribes to editor state to toggle visibility between
- * the visual canvas and the shader editor.
- * Lazily initializes CodeMirror and preview canvas on first show.
+ * Creates the shader editor DOM container inside the shader pipeline node
+ * (#shader-node-content). The shader editor is always rendered in its own
+ * pipeline node — no toggle with the visual canvas.
+ *
+ * Lazily initializes CodeMirror and preview canvas on first extension.
  */
 
 import { getEditorState, subscribeEditor } from "../state/editor-state.js";
@@ -16,15 +17,14 @@ import { getEditorState, subscribeEditor } from "../state/editor-state.js";
 let editorEl: HTMLDivElement | null = null;
 let initialized = false;
 
-/** Initialize the shader editor view inside #zone-theme. */
+/** Initialize the shader editor view inside the shader pipeline node. */
 export function initShaderView(): void {
-  const zoneTheme = document.getElementById("zone-theme");
-  if (!zoneTheme) return;
+  const container = document.getElementById("shader-node-content");
+  if (!container) return;
 
   editorEl = document.createElement("div");
   editorEl.id = "shader-editor";
   editorEl.className = "shader-editor";
-  editorEl.style.display = "none";
 
   // Left panel: code + uniforms (stacked)
   const leftPanel = document.createElement("div");
@@ -48,11 +48,10 @@ export function initShaderView(): void {
 
   editorEl.appendChild(leftPanel);
   editorEl.appendChild(previewPanel);
-  zoneTheme.appendChild(editorEl);
+  container.appendChild(editorEl);
 
-  // Subscribe to view changes
-  subscribeEditor(syncVisibility);
-  syncVisibility();
+  // Subscribe to pipeline layout changes for lazy init
+  subscribeEditor(onLayoutChange);
 }
 
 // ---------------------------------------------------------------------------
@@ -78,30 +77,15 @@ async function lazyInit(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// View switching
+// Layout sync — lazy init when shader node becomes extended
 // ---------------------------------------------------------------------------
 
-/** Toggle visibility between visual canvas and shader editor. */
-function syncVisibility(): void {
-  const { currentView } = getEditorState();
-  const isShader = currentView === "shader";
+/** Trigger lazy init when the shader pipeline node becomes extended. */
+function onLayoutChange(): void {
+  const { pipelineLayout } = getEditorState();
+  const isExtended = pipelineLayout.extended.includes("shader");
 
-  // Shader editor
-  if (editorEl) {
-    editorEl.style.display = isShader ? "flex" : "none";
-  }
-
-  // Visual canvas elements
-  const toolbar = document.getElementById("toolbar");
-  const canvasContainer = document.getElementById("canvas-container");
-  const zoomBar = document.getElementById("zoom-bar");
-
-  if (toolbar) toolbar.style.display = isShader ? "none" : "";
-  if (canvasContainer) canvasContainer.style.display = isShader ? "none" : "";
-  if (zoomBar) zoomBar.style.display = isShader ? "none" : "";
-
-  // Lazy init on first show
-  if (isShader && !initialized) {
+  if (isExtended && !initialized) {
     void lazyInit();
   }
 }

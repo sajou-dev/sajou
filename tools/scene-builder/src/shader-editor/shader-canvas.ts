@@ -361,9 +361,9 @@ function resetRenderTargets(): void {
 // ---------------------------------------------------------------------------
 
 function syncLoop(): void {
-  const { currentView } = getEditorState();
+  const { pipelineLayout } = getEditorState();
   const { playing } = getShaderState();
-  const shouldRun = currentView === "shader" && playing;
+  const shouldRun = pipelineLayout.extended.includes("shader") && playing;
 
   if (shouldRun && animFrameId === 0) {
     startTime = performance.now() / 1000;

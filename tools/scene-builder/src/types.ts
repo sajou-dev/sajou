@@ -393,8 +393,8 @@ export interface SceneState {
 // Editor state (UI layer)
 // ---------------------------------------------------------------------------
 
-/** Workspace view identifiers (top-level tab navigation — V1 compat). */
-export type ViewId = "signal" | "orchestrator" | "visual" | "shader";
+/** Workspace view identifiers (keyboard focus zone — V1 compat). */
+export type ViewId = "signal" | "orchestrator" | "visual";
 
 // ---------------------------------------------------------------------------
 // Pipeline layout (V3 — horizontal rail)

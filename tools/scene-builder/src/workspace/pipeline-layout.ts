@@ -207,12 +207,11 @@ function applyPipelineLayout(): void {
 // Interactions
 // ---------------------------------------------------------------------------
 
-/** Map pipeline node IDs to ViewId for setActiveView. */
+/** Map pipeline node IDs to ViewId for setActiveView (keyboard focus). */
 const NODE_TO_VIEW: Partial<Record<PipelineNodeId, ViewId>> = {
   signal: "signal",
   choreographer: "orchestrator",
   visual: "visual",
-  shader: "shader",
 };
 
 /** Map keyboard keys to pipeline nodes. */
