@@ -207,7 +207,10 @@ function restoreEditorPrefs(): void {
     const prefs = parsed as Partial<PersistedEditorPrefs>;
     const update: Partial<EditorState> = {};
 
-    if (prefs.panelLayouts) update.panelLayouts = prefs.panelLayouts;
+    if (prefs.panelLayouts) {
+      // Merge with current defaults so new panels added after persistence get their layout
+      update.panelLayouts = { ...getEditorState().panelLayouts, ...prefs.panelLayouts };
+    }
     if (typeof prefs.gridEnabled === "boolean") update.gridEnabled = prefs.gridEnabled;
     if (typeof prefs.gridSize === "number") update.gridSize = prefs.gridSize;
     if (typeof prefs.snapToGrid === "boolean") update.snapToGrid = prefs.snapToGrid;

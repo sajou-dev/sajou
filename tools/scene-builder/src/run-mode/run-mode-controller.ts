@@ -67,6 +67,7 @@ let signalUnsub: (() => void) | null = null;
 /** Guard against re-entrant start during async import. */
 let starting = false;
 
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
