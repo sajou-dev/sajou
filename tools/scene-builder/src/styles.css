@@ -2135,6 +2135,64 @@ button {
   }
 }
 
+/* -- MIDI field selector (pre-radial step) -- */
+
+.midi-field-selector {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: var(--radius-md, 8px);
+  border: 1.5px solid rgba(232, 168, 81, 0.35);
+  background: var(--color-surface);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+  opacity: 0;
+  transition: opacity 0.15s ease-out, transform 0.15s ease-out;
+}
+
+.midi-field-selector--open {
+  opacity: 1;
+}
+
+.midi-field-selector-title {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-dim, #6E6E8A);
+}
+
+.midi-field-selector-row {
+  display: flex;
+  gap: 4px;
+}
+
+.midi-field-btn {
+  padding: 4px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(232, 168, 81, 0.3);
+  background: var(--color-elevated, #1A1A2E);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s, box-shadow 0.12s;
+}
+
+.midi-field-btn:hover {
+  border-color: var(--color-accent);
+  background: var(--color-surface);
+  box-shadow: 0 0 10px rgba(232, 168, 81, 0.3);
+}
+
+.midi-field-btn:active {
+  background: var(--color-accent);
+  color: var(--color-bg);
+}
+
 /* -- Wiring toast (drop feedback) -- */
 
 .wiring-toast {

@@ -176,6 +176,8 @@ export interface EntityBinding {
   mapping?: BindingMapping;
   /** Optional action config (for event→action bindings). */
   action?: BindingAction;
+  /** Payload field to extract value from (e.g. "velocity", "value"). Auto-detect if absent. */
+  sourceField?: string;
 }
 
 /** Position type hints for choreography semantics. */
@@ -732,7 +734,12 @@ export type SignalType =
   | "completion"
   | "text_delta"
   | "thinking"
-  | "event";
+  | "event"
+  | "midi.note_on"
+  | "midi.note_off"
+  | "midi.control_change"
+  | "midi.pitch_bend"
+  | "midi.program_change";
 
 /** Agent lifecycle states (mirrors @sajou/schema AgentState). */
 export type AgentState = "idle" | "thinking" | "acting" | "waiting" | "done" | "error";

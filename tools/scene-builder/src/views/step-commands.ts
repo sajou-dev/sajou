@@ -26,6 +26,8 @@ export const SIGNAL_TYPES: SignalType[] = [
   "task_dispatch", "tool_call", "tool_result",
   "token_usage", "agent_state_change", "error", "completion",
   "text_delta", "thinking", "event",
+  "midi.note_on", "midi.note_off", "midi.control_change",
+  "midi.pitch_bend", "midi.program_change",
 ];
 
 /** Signal type badge colors. */
@@ -40,6 +42,11 @@ export const SIGNAL_TYPE_COLORS: Record<string, string> = {
   text_delta: "#4DC9F6",
   thinking: "#D4A0E0",
   event: "#8E8EA0",
+  "midi.note_on": "#FF6B9D",
+  "midi.note_off": "#C75B8F",
+  "midi.control_change": "#FFB347",
+  "midi.pitch_bend": "#87CEEB",
+  "midi.program_change": "#98D8C8",
 };
 
 /** Short display labels for signal types. */
@@ -54,6 +61,11 @@ export const SIGNAL_TYPE_LABELS: Record<string, string> = {
   text_delta: "text",
   thinking: "think",
   event: "event",
+  "midi.note_on": "note on",
+  "midi.note_off": "note off",
+  "midi.control_change": "CC",
+  "midi.pitch_bend": "bend",
+  "midi.program_change": "prog",
 };
 
 export const ACTION_COLORS: Record<string, string> = {

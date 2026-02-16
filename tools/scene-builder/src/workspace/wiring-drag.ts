@@ -36,6 +36,7 @@ import { screenToScene } from "../canvas/canvas.js";
 import { hitTestAnyEntity } from "../tools/hit-test.js";
 import { showBindingDropMenu } from "./binding-drop-menu.js";
 import { updateChoreographyCmd } from "../views/step-commands.js";
+import { getChoreoInputInfo } from "../state/wiring-queries.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -300,6 +301,10 @@ function onMouseUp(e: MouseEvent): void {
       // Assign this entity as the choreography's default target
       updateChoreographyCmd(effectiveChoreoId, { defaultTargetEntityId: semanticId });
 
+      // Resolve the trigger signal type for MIDI field selection
+      const choreoInput = getChoreoInputInfo(effectiveChoreoId);
+      const triggerSignalType = choreoInput.effectiveTypes[0];
+
       // Show contextual binding menu at drop point
       showBindingDropMenu({
         x: e.clientX,
@@ -308,6 +313,7 @@ function onMouseUp(e: MouseEvent): void {
         targetSemanticId: semanticId,
         hasTopology: hasTopo,
         animationStates,
+        triggerSignalType,
       });
     }
   }
