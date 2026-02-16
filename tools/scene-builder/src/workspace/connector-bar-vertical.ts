@@ -19,6 +19,8 @@ import {
   subscribeChoreography,
 } from "../state/choreography-state.js";
 import { subscribeWiring } from "../state/wiring-state.js";
+import { getSignalSourcesState } from "../state/signal-source-state.js";
+import { getSourcesForChoreo } from "../state/wiring-queries.js";
 import { ACTION_COLORS, SIGNAL_TYPE_COLORS } from "../views/step-commands.js";
 import { attachPillDragBehavior, DRAGGABLE_ACTIONS } from "./step-drag.js";
 
@@ -176,10 +178,22 @@ function createActionBadge(
   icon.style.textAlign = "center";
   badge.appendChild(icon);
 
-  // Thin colored stripe on the right edge to indicate flow toward visual
+  // Right stripe: signal type color (flow toward visual)
   badge.style.borderRightColor = signalColor;
   badge.style.borderRightWidth = "2px";
   badge.style.borderRightStyle = "solid";
+
+  // Left stripe: source identity color (provenance from signal zone)
+  const provenance = getSourcesForChoreo(choreoId);
+  if (provenance.length > 0) {
+    const { sources } = getSignalSourcesState();
+    const src = sources.find((s) => s.id === provenance[0]!.sourceId);
+    if (src) {
+      badge.style.borderLeftColor = src.color;
+      badge.style.borderLeftWidth = "2px";
+      badge.style.borderLeftStyle = "solid";
+    }
+  }
 
   badge.title = `${step.action} (${choreoOn})${wired ? " — wired" : " — drag to entity"}`;
 
