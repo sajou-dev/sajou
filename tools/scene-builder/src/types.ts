@@ -429,7 +429,7 @@ export type ViewMode = "top-down" | "isometric";
 export type ToolId = "select" | "hand" | "background" | "place" | "position" | "route" | "light" | "particle";
 
 /** Panel identifiers. */
-export type PanelId = "entity-palette" | "asset-manager" | "entity-editor" | "inspector" | "layers" | "settings" | "signal-timeline" | "lighting" | "particles";
+export type PanelId = "entity-palette" | "asset-manager" | "entity-editor" | "inspector" | "layers" | "settings" | "signal-timeline" | "lighting" | "particles" | "toolbar";
 
 /** Saved panel position and size. */
 export interface PanelLayout {

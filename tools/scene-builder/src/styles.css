@@ -536,33 +536,13 @@ button {
 }
 
 /* Theme zone — inside pipeline visual node.
-   flex-direction: row overrides the column default from .pl-node-content
-   so that toolbar | canvas-container | zoom-bar are laid out horizontally. */
+   Canvas + zoom-bar stacked vertically (toolbar is now a floating panel). */
 .zone-theme {
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   position: relative;
   min-width: 0;
   min-height: 0;
-}
-
-/* ---------------------------------------------------------------------------
- * Toolbar
- * --------------------------------------------------------------------------- */
-
-/* Toolbar pinned to right edge of theme zone — frees left side for
- * the rideau connection hub (choreo→theme wiring space). */
-#toolbar {
-  display: flex;
-  flex-direction: column;
-  width: 42px;
-  min-width: 42px;
-  background: var(--color-surface);
-  border-left: 1px solid var(--color-border);
-  padding: 6px 0;
-  z-index: 90;
-  user-select: none;
-  order: 3; /* push to right: canvas=0, zoom-bar=1, toolbar=3 */
 }
 
 .toolbar-section {
@@ -831,6 +811,14 @@ button {
   overflow-x: hidden;
   padding: 8px;
   border-radius: 0 0 var(--radius-xl) var(--radius-xl);
+}
+
+/* Toolbar panel: vertical flex to push help button to bottom */
+.panel[data-panel-id="toolbar"] .panel-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
 }
 
 .panel-placeholder {

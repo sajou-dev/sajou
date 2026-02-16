@@ -8,7 +8,7 @@
 import { initCanvas, setToolHandler } from "../canvas/canvas.js";
 import { initSceneRenderer } from "../canvas/scene-renderer.js";
 import { initCanvasDropHandler } from "../canvas/canvas-drop-handler.js";
-import { initToolbar } from "./toolbar.js";
+import { initToolbarPanel } from "./toolbar.js";
 import { initHeader } from "./header.js";
 import { restoreState, initAutoSave } from "../state/persistence.js";
 import { initHelpBar } from "./help-bar.js";
@@ -160,8 +160,9 @@ export async function initWorkspace(): Promise<void> {
   initWiringOverlay();
   initWiringDrag();
 
-  // Toolbar (tools + panel toggles — lives in Theme zone)
-  initToolbar();
+  // Toolbar as floating panel
+  const toolbarPanel = createPanel({ id: "toolbar", title: "Tools", minWidth: 54, minHeight: 200 });
+  initToolbarPanel(toolbarPanel.contentEl);
 
   // Help bar (contextual tool hints at bottom)
   initHelpBar();

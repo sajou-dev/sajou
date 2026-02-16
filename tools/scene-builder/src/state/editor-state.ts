@@ -11,8 +11,8 @@ import type { EditorState, InterfaceState, NodeCanvasViewport, PanelId, PanelLay
 // Default state
 // ---------------------------------------------------------------------------
 
-function defaultPanelLayout(x: number, y: number, w: number, h: number): PanelLayout {
-  return { x, y, width: w, height: h, visible: false };
+function defaultPanelLayout(x: number, y: number, w: number, h: number, visible = false): PanelLayout {
+  return { x, y, width: w, height: h, visible };
 }
 
 function createDefault(): EditorState {
@@ -33,6 +33,7 @@ function createDefault(): EditorState {
       "signal-timeline": defaultPanelLayout(40, 100, 480, 520),
       lighting: defaultPanelLayout(40, 100, 300, 400),
       particles: defaultPanelLayout(40, 100, 300, 450),
+      toolbar: defaultPanelLayout(20, 60, 60, 460, true),
     },
     gridEnabled: true,
     gridSize: 32,

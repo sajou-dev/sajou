@@ -152,9 +152,8 @@ function syncHelpBtn(): void {
 // Build DOM
 // ---------------------------------------------------------------------------
 
-/** Initialize the toolbar, zoom bar, and keyboard shortcuts. */
-export function initToolbar(): void {
-  const toolbar = document.getElementById("toolbar")!;
+/** Initialize the toolbar content inside a floating panel. */
+export function initToolbarPanel(toolbar: HTMLElement): void {
   toolbar.innerHTML = "";
 
   // Tool buttons

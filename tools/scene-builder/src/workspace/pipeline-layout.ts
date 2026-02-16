@@ -148,13 +148,9 @@ export function initPipelineLayout(): void {
     content.className = "pl-node-content";
     content.id = def.contentId;
 
-    // For the visual node, also create the toolbar/canvas/zoom-bar structure
+    // For the visual node, create canvas + zoom-bar (toolbar is now a floating panel)
     if (def.id === "visual") {
       content.classList.add("zone", "zone-theme");
-
-      const toolbar = document.createElement("aside");
-      toolbar.id = "toolbar";
-      content.appendChild(toolbar);
 
       const canvasContainer = document.createElement("div");
       canvasContainer.id = "canvas-container";
