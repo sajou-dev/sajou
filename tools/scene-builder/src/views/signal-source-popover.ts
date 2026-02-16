@@ -188,7 +188,7 @@ function buildPopoverContent(content: HTMLElement, source: SignalSource): void {
 
   const protoBadge = document.createElement("span");
   protoBadge.className = `sv-chip-proto source-block-proto--${source.protocol}`;
-  protoBadge.textContent = { websocket: "WS", sse: "SSE", openai: "AI" }[source.protocol] ?? source.protocol;
+  protoBadge.textContent = { websocket: "WS", sse: "SSE", openai: "AI", openclaw: "CLAW" }[source.protocol] ?? source.protocol;
   statusRow.appendChild(protoBadge);
 
   if (source.eventsPerSecond > 0) {

@@ -160,6 +160,7 @@ export function getSource(id: string): SignalSource | undefined {
 /** Detect protocol from URL. */
 export function detectProtocol(url: string): TransportProtocol {
   const lower = url.trim().toLowerCase();
+  if (lower.includes("18789") || lower.includes("openclaw")) return "openclaw";
   if (lower.startsWith("ws://") || lower.startsWith("wss://")) return "websocket";
   if (lower.includes("anthropic")) return "anthropic";
   return "sse";

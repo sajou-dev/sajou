@@ -865,7 +865,7 @@ export interface ChoreographyEditorState {
 export type ConnectionStatus = "disconnected" | "connecting" | "connected" | "error";
 
 /** Transport protocol for a signal source. */
-export type TransportProtocol = "websocket" | "sse" | "openai" | "anthropic";
+export type TransportProtocol = "websocket" | "sse" | "openai" | "anthropic" | "openclaw";
 
 /**
  * A single signal source in the V2 multi-source architecture.
