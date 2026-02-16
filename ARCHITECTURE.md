@@ -70,8 +70,10 @@ Visual scene editor — the main authoring tool for creating and testing choreog
 - Wiring system (patch bay), node canvas, step chain with popover editing
 - Zone painting for semantic regions on background
 - Export/import ZIP, run mode with live preview
-- Multi-source signal connections: WebSocket, SSE, OpenAI-compatible, Anthropic API
+- Multi-source signal connections: WebSocket, SSE, OpenAI-compatible, Anthropic API, OpenClaw
+- OpenClaw integration: challenge/response handshake (protocol v3), channel metadata extraction, delta-first text streaming, exponential backoff reconnect
 - HTTP POST ingestion (`POST /api/signal`) + SSE broadcast (`GET /__signals__/stream`)
+- Signal log: 10k entries in memory, 500 rendered, "Load older" button for virtual scrolling
 - Dependencies: `@sajou/core`, `pixi.js`, `fflate`, `gifuct-js`
 
 ### player (active)
