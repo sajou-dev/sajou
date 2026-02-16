@@ -324,7 +324,7 @@ button {
 }
 
 /* ---------------------------------------------------------------------------
- * Workspace — V2 spatial layout (3 zones)
+ * Workspace — V3 pipeline rail layout
  * --------------------------------------------------------------------------- */
 
 #workspace {
@@ -336,7 +336,107 @@ button {
 }
 
 /* ---------------------------------------------------------------------------
- * Zone containers
+ * Pipeline — horizontal rail with 4 nodes
+ * --------------------------------------------------------------------------- */
+
+.pipeline {
+  display: flex;
+  flex-direction: row;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  gap: 0;
+}
+
+.pl-node {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  transition: flex 0.25s ease;
+}
+
+.pl-node--mini {
+  flex: 0 0 140px;
+  cursor: pointer;
+}
+
+.pl-node--extended {
+  flex: 1 1 0%;
+  min-width: 200px;
+}
+
+/* Mini: show mini preview, hide content */
+.pl-node--mini > .pl-node-content {
+  display: none;
+}
+
+.pl-node--mini > .pl-node-mini {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  overflow: hidden;
+}
+
+/* Extended: show content, hide mini preview */
+.pl-node--extended > .pl-node-content {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.pl-node--extended > .pl-node-mini {
+  display: none;
+}
+
+/* Node header bar */
+.pl-node-header {
+  flex: 0 0 28px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font: 500 11px/1 var(--font-display);
+  user-select: none;
+}
+
+.pl-node-header svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+/* Extended node header — accent color */
+.pl-node--extended > .pl-node-header {
+  color: var(--color-accent);
+}
+
+/* Rail arrows between nodes */
+.pl-rail {
+  flex: 0 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pl-rail svg {
+  color: var(--color-text-dim);
+  width: 16px;
+  height: 16px;
+}
+
+/* ---------------------------------------------------------------------------
+ * Zone containers (legacy compat — applied on .pl-node-content)
  * --------------------------------------------------------------------------- */
 
 .zone {
