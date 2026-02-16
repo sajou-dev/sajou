@@ -23,6 +23,9 @@ import {
   parseAnthropicEvent,
   parseOpenClawEvent,
 } from "../simulator/signal-parser.js";
+import { parseMIDIMessage } from "../midi/midi-parser.js";
+import { extractPortId } from "../midi/midi-discovery.js";
+import { getMIDIInputs } from "../midi/midi-access.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -32,7 +35,7 @@ import {
 export type ConnectionStatus = "disconnected" | "connecting" | "connected" | "error" | "unavailable";
 
 /** Transport protocol. */
-export type TransportProtocol = "websocket" | "sse" | "openai" | "anthropic" | "openclaw";
+export type TransportProtocol = "websocket" | "sse" | "openai" | "anthropic" | "openclaw" | "midi";
 
 /** A parsed signal event received from a source. */
 export interface ReceivedSignal {
@@ -79,6 +82,9 @@ const openClawKeepaliveTimers = new Map<string, ReturnType<typeof setInterval>>(
 
 /** Map of sourceId → OpenClaw reconnect state. */
 const openClawReconnectState = new Map<string, { attempts: number; timer: ReturnType<typeof setTimeout> | null }>();
+
+/** Map of sourceId → connected MIDIInput (for cleanup on disconnect). */
+const midiConnections = new Map<string, MIDIInput>();
 
 // ---------------------------------------------------------------------------
 // Global listeners (aggregate across all sources)
@@ -210,7 +216,10 @@ export async function connectSource(
   setSourceState(sourceId, { status: "connecting", error: null, protocol });
   debug(`[${sourceId}] Connecting to ${url} (${protocol})…`, "info", sourceId);
 
-  if (protocol === "openclaw") {
+  if (protocol === "midi") {
+    connectMIDI(conn, url, sourceId);
+    return;
+  } else if (protocol === "openclaw") {
     connectOpenClaw(conn, url, apiKey);
   } else if (protocol === "websocket") {
     connectWebSocket(conn, url);
@@ -273,6 +282,13 @@ export function disconnectSource(sourceId: string): void {
 
   // Clean up OpenClaw keepalive + reconnect state
   clearOpenClawTimers(sourceId);
+
+  // Clean up MIDI connection
+  const midiInput = midiConnections.get(sourceId);
+  if (midiInput) {
+    midiInput.onmidimessage = null;
+    midiConnections.delete(sourceId);
+  }
 
   connections.delete(sourceId);
   debug(`[${sourceId}] Disconnected.`, "info", sourceId);
@@ -428,6 +444,7 @@ export function getConnectionState(): {
 /** Detect protocol from URL scheme (initial guess — probes refine it). */
 function detectProtocol(url: string): TransportProtocol {
   const lower = url.trim().toLowerCase();
+  if (lower.startsWith("midi://")) return "midi";
   if (lower.includes("18789") || lower.includes("openclaw")) return "openclaw";
   if (lower.startsWith("ws://") || lower.startsWith("wss://")) return "websocket";
   if (lower.includes("anthropic")) return "anthropic";
@@ -737,6 +754,50 @@ function clearOpenClawTimers(sourceId: string): void {
     clearTimeout(reconnState.timer);
   }
   openClawReconnectState.delete(sourceId);
+}
+
+// ---------------------------------------------------------------------------
+// MIDI transport
+// ---------------------------------------------------------------------------
+
+/**
+ * Connect to a MIDI input port by extracting its port ID from the
+ * pseudo-URL and attaching an `onmidimessage` handler.
+ */
+function connectMIDI(conn: SourceConnection, url: string, sourceId: string): void {
+  const portId = extractPortId(url);
+  if (!portId) {
+    const msg = "Invalid MIDI URL — cannot extract port ID.";
+    debug(`[${sourceId}] ${msg}`, "error", sourceId);
+    setSourceState(sourceId, { status: "error", error: msg });
+    return;
+  }
+
+  const inputs = getMIDIInputs();
+  const input = inputs.find((i) => i.id === portId);
+  if (!input) {
+    const msg = `MIDI port "${portId}" not found. Device may be disconnected.`;
+    debug(`[${sourceId}] ${msg}`, "error", sourceId);
+    setSourceState(sourceId, { status: "error", error: msg });
+    return;
+  }
+
+  const deviceName = input.name || "MIDI Device";
+
+  input.onmidimessage = (event: MIDIMessageEvent) => {
+    if (!event.data) return;
+    const signal = parseMIDIMessage(event.data, deviceName);
+    if (signal) {
+      dispatchSignal(
+        { ...signal, type: signal.type as SignalType, raw: JSON.stringify(signal.payload) },
+        sourceId,
+      );
+    }
+  };
+
+  midiConnections.set(sourceId, input);
+  setSourceState(sourceId, { status: "connected", error: null });
+  debug(`[${sourceId}] MIDI connected: ${deviceName}`, "info", sourceId);
 }
 
 // ---------------------------------------------------------------------------

@@ -12,6 +12,7 @@
 import type { TransportProtocol } from "../types.js";
 import type { DiscoveredService } from "./signal-source-state.js";
 import { upsertLocalSources, getSource, updateSource } from "./signal-source-state.js";
+import { discoverMIDIDevices, registerMIDIHotPlug } from "../midi/midi-discovery.js";
 
 /** Raw service descriptor from the discovery endpoint. */
 interface DiscoveryResponse {
@@ -68,9 +69,16 @@ export async function fetchOpenClawToken(): Promise<string | null> {
 /**
  * Run discovery, sync results into signal source state,
  * and auto-fill the OpenClaw token if available and not already set.
+ *
+ * Probes server-side services (Claude Code, OpenClaw, LM Studio, Ollama)
+ * and browser-side MIDI devices in parallel.
  */
 export async function scanAndSyncLocal(): Promise<void> {
-  const services = await discoverLocalServices();
+  const [serverServices, midiServices] = await Promise.all([
+    discoverLocalServices(),
+    discoverMIDIDevices(),
+  ]);
+  const services = [...serverServices, ...midiServices];
   upsertLocalSources(services);
 
   // Auto-fill OpenClaw token if the source exists, is available, and has no key yet
@@ -84,4 +92,20 @@ export async function scanAndSyncLocal(): Promise<void> {
       }
     }
   }
+}
+
+/**
+ * Wire up MIDI hot-plug events to trigger automatic rescans.
+ *
+ * When a MIDI device is plugged or unplugged, the browser fires a
+ * `statechange` event on the `MIDIAccess` object. This function
+ * connects that event to `scanAndSyncLocal()` so the source list
+ * stays up-to-date without manual intervention.
+ *
+ * Returns an unsubscribe function. Call this once at init time.
+ */
+export function initMIDIHotPlug(): () => void {
+  return registerMIDIHotPlug(() => {
+    void scanAndSyncLocal();
+  });
 }

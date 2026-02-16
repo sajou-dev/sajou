@@ -57,6 +57,11 @@ export const KNOWN_TYPES = new Set<string>([
   "completion",
   "text_delta",
   "thinking",
+  "midi.note_on",
+  "midi.note_off",
+  "midi.control_change",
+  "midi.pitch_bend",
+  "midi.program_change",
 ]);
 
 // ---------------------------------------------------------------------------

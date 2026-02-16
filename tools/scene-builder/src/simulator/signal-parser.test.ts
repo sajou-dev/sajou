@@ -539,14 +539,16 @@ describe("cross-format consistency", () => {
     }
   });
 
-  it("KNOWN_TYPES contains all 9 well-known types", () => {
+  it("KNOWN_TYPES contains all 14 well-known types (9 agent + 5 MIDI)", () => {
     const expected = [
       "task_dispatch", "tool_call", "tool_result", "token_usage",
       "agent_state_change", "error", "completion", "text_delta", "thinking",
+      "midi.note_on", "midi.note_off", "midi.control_change",
+      "midi.pitch_bend", "midi.program_change",
     ];
     for (const t of expected) {
       expect(KNOWN_TYPES.has(t)).toBe(true);
     }
-    expect(KNOWN_TYPES.size).toBe(9);
+    expect(KNOWN_TYPES.size).toBe(14);
   });
 });
