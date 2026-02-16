@@ -27,6 +27,7 @@ import {
   renderTopologyOverlay,
   renderBindingHighlight,
   renderActorBadges,
+  renderLightMarkers,
 } from "./overlay-renderer.js";
 import { drawGuideLines } from "../tools/guide-lines.js";
 import type { PlacedEntity, EntityEntry, SceneLayer } from "../types.js";
@@ -51,7 +52,7 @@ function depthToY(layerOrder: number, zIndex: number): number {
 export interface EntityMeshRecord {
   readonly group: THREE.Group;
   readonly mesh: THREE.Mesh;
-  readonly material: THREE.MeshBasicMaterial;
+  readonly material: THREE.MeshStandardMaterial;
   readonly placedId: string;
   /** Dimensions at creation time — used to detect when geometry must be rebuilt. */
   readonly createdWidth: number;
@@ -144,13 +145,15 @@ function createEntityMesh(
   const offsetZ = (0.5 - ay) * h;
   geom.translate(offsetX, 0, offsetZ);
 
-  const material = new THREE.MeshBasicMaterial({
+  const material = new THREE.MeshStandardMaterial({
     color: def.fallbackColor || "#666666",
     transparent: true,
     alphaTest: 0.01,
     side: THREE.DoubleSide,
     depthTest: true,
     depthWrite: true,
+    roughness: 1,
+    metalness: 0,
   });
 
   const mesh = new THREE.Mesh(geom, material);
@@ -439,6 +442,7 @@ function drawSceneOverlays(
   renderSelection(ctx, effectiveZoom);
   renderBindingHighlight(ctx, effectiveZoom);
   renderActorBadges(ctx, effectiveZoom);
+  renderLightMarkers(ctx, effectiveZoom);
   drawGuideLines(ctx, effectiveZoom);
 
   ctx.restore();

@@ -809,6 +809,88 @@ export function renderTopologyOverlay(ctx: CanvasRenderingContext2D, zoom: numbe
 }
 
 // ---------------------------------------------------------------------------
+// Light markers
+// ---------------------------------------------------------------------------
+
+/** Render light source markers on the Canvas2D overlay. */
+export function renderLightMarkers(ctx: CanvasRenderingContext2D, zoom: number): void {
+  if (isRunModeActive()) return;
+
+  const { lighting } = getSceneState();
+  const { activeTool, selectedLightIds } = getEditorState();
+  const isLightTool = activeTool === "light";
+
+  // Draw all point light sources
+  ctx.globalAlpha = isLightTool ? 1 : 0.3;
+
+  for (const source of lighting.sources) {
+    const isSelected = selectedLightIds.includes(source.id);
+    const r = 6 / zoom;
+
+    // Radius circle (dashed, only when light tool active)
+    if (isLightTool) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(source.x, source.y, source.radius, 0, Math.PI * 2);
+      ctx.setLineDash([4 / zoom, 4 / zoom]);
+      ctx.strokeStyle = hexAlpha(source.color, 0.25);
+      ctx.lineWidth = 1 / zoom;
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
+
+    // Sun icon: filled circle + 4 short rays
+    ctx.beginPath();
+    ctx.arc(source.x, source.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = source.color;
+    ctx.fill();
+
+    if (isSelected) {
+      ctx.strokeStyle = "#58a6ff";
+      ctx.lineWidth = 2 / zoom;
+    } else {
+      ctx.strokeStyle = darkenColor(source.color, 0.3);
+      ctx.lineWidth = 1 / zoom;
+    }
+    ctx.stroke();
+
+    // 4 rays (N, E, S, W)
+    const rayLen = 4 / zoom;
+    const rayGap = r + 2 / zoom;
+    ctx.strokeStyle = source.color;
+    ctx.lineWidth = 1.5 / zoom;
+
+    ctx.beginPath();
+    for (const [dx, dy] of [[0, -1], [1, 0], [0, 1], [-1, 0]] as const) {
+      ctx.moveTo(source.x + dx * rayGap, source.y + dy * rayGap);
+      ctx.lineTo(source.x + dx * (rayGap + rayLen), source.y + dy * (rayGap + rayLen));
+    }
+    ctx.stroke();
+
+    // ID label (when selected)
+    if (isSelected && isLightTool) {
+      ctx.save();
+      const fontSize = 9 / zoom;
+      const labelY = source.y - r - 6 / zoom;
+
+      drawLabel(ctx, source.x, labelY, source.id, {
+        font: `${fontSize}px "JetBrains Mono", monospace`,
+        fillStyle: "#ffffff",
+        textAlign: "center",
+        textBaseline: "bottom",
+        pillBg: numAlpha(0x0e0e16, 0.85),
+        pillPad: 3 / zoom,
+        pillRadius: 3 / zoom,
+      });
+      ctx.restore();
+    }
+  }
+
+  ctx.globalAlpha = 1;
+}
+
+// ---------------------------------------------------------------------------
 // Canvas2D round rect helper
 // ---------------------------------------------------------------------------
 

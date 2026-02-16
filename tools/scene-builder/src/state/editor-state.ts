@@ -31,6 +31,7 @@ function createDefault(): EditorState {
       layers: defaultPanelLayout(20, 430, 280, 300),
       settings: defaultPanelLayout(40, 100, 320, 250),
       "signal-timeline": defaultPanelLayout(40, 100, 480, 520),
+      lighting: defaultPanelLayout(40, 100, 300, 400),
     },
     gridEnabled: true,
     gridSize: 32,
@@ -45,6 +46,7 @@ function createDefault(): EditorState {
     bindingDropHighlightId: null,
     activeZoneTypeId: null,
     viewMode: "top-down",
+    selectedLightIds: [],
   };
 }
 
@@ -145,6 +147,12 @@ export function setPositionSelection(ids: string[]): void {
 /** Set selected route IDs (route tool). */
 export function setRouteSelection(ids: string[]): void {
   state = { ...state, selectedRouteIds: ids };
+  notify();
+}
+
+/** Set selected light source IDs (light tool). */
+export function setLightSelection(ids: string[]): void {
+  state = { ...state, selectedLightIds: ids };
   notify();
 }
 

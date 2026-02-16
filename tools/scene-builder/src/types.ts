@@ -290,6 +290,55 @@ export interface ZoneGrid {
   cells: (string | null)[];
 }
 
+// ---------------------------------------------------------------------------
+// Lighting
+// ---------------------------------------------------------------------------
+
+/** Ambient light configuration. */
+export interface LightingAmbient {
+  intensity: number;
+  color: string;
+}
+
+/** Directional light configuration. */
+export interface LightingDirectional {
+  enabled: boolean;
+  /** Compass angle in degrees (0 = north, 90 = east, 180 = south, 270 = west). */
+  angle: number;
+  /** Elevation angle in degrees (0 = horizon, 90 = directly above). */
+  elevation: number;
+  color: string;
+  intensity: number;
+}
+
+/** Flicker animation parameters for a point light. */
+export interface LightFlicker {
+  /** Flicker oscillation speed (0–10). */
+  speed: number;
+  /** Flicker intensity variation (0–1, fraction of base intensity). */
+  amount: number;
+}
+
+/** A point light source placed on the scene. */
+export interface LightSourceState {
+  id: string;
+  x: number;
+  y: number;
+  color: string;
+  intensity: number;
+  /** Light falloff radius in scene pixels. */
+  radius: number;
+  /** Optional flicker animation. */
+  flicker?: LightFlicker;
+}
+
+/** Full lighting configuration for the scene. */
+export interface LightingState {
+  ambient: LightingAmbient;
+  directional: LightingDirectional;
+  sources: LightSourceState[];
+}
+
 /** Full scene state (data layer). */
 export interface SceneState {
   dimensions: SceneDimensions;
@@ -303,6 +352,8 @@ export interface SceneState {
   zoneTypes: ZoneTypeDef[];
   /** Painted zone grid (cell → zone type mapping). */
   zoneGrid: ZoneGrid;
+  /** Lighting configuration (ambient, directional, point lights). */
+  lighting: LightingState;
 }
 
 // ---------------------------------------------------------------------------
@@ -329,10 +380,10 @@ export type InterfaceState = 0 | 1 | 2 | 3;
 export type ViewMode = "top-down" | "isometric";
 
 /** Available canvas tools. */
-export type ToolId = "select" | "hand" | "background" | "place" | "position" | "route";
+export type ToolId = "select" | "hand" | "background" | "place" | "position" | "route" | "light";
 
 /** Panel identifiers. */
-export type PanelId = "entity-palette" | "asset-manager" | "entity-editor" | "inspector" | "layers" | "settings" | "signal-timeline";
+export type PanelId = "entity-palette" | "asset-manager" | "entity-editor" | "inspector" | "layers" | "settings" | "signal-timeline" | "lighting";
 
 /** Saved panel position and size. */
 export interface PanelLayout {
@@ -406,6 +457,8 @@ export interface EditorState {
   activeZoneTypeId: string | null;
   /** Camera view mode (top-down or isometric). */
   viewMode: ViewMode;
+  /** Selected light source IDs (light tool). */
+  selectedLightIds: string[];
 }
 
 // ---------------------------------------------------------------------------

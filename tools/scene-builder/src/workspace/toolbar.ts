@@ -52,6 +52,17 @@ const ICON = {
     '<path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/>' +
     '<circle cx="18" cy="5" r="3"/>'
   ),
+  light: lucide(
+    '<circle cx="12" cy="12" r="4"/>' +
+    '<path d="M12 2v2"/>' +
+    '<path d="M12 20v2"/>' +
+    '<path d="m4.93 4.93 1.41 1.41"/>' +
+    '<path d="m17.66 17.66 1.41 1.41"/>' +
+    '<path d="M2 12h2"/>' +
+    '<path d="M20 12h2"/>' +
+    '<path d="m6.34 17.66-1.41 1.41"/>' +
+    '<path d="m19.07 4.93-1.41 1.41"/>'
+  ),
 
   // Panels
   assets: lucide(
@@ -105,6 +116,7 @@ const TOOLS: ToolDef[] = [
   { id: "background", label: "Background", iconKey: "background", shortcut: "B" },
   { id: "position", label: "Position", iconKey: "position", shortcut: "P" },
   { id: "route", label: "Route", iconKey: "route", shortcut: "R" },
+  { id: "light", label: "Light", iconKey: "light", shortcut: "J" },
 ];
 
 const PANEL_TOGGLES: PanelToggleDef[] = [
@@ -112,6 +124,7 @@ const PANEL_TOGGLES: PanelToggleDef[] = [
   { panelId: "entity-editor", label: "Entities", iconKey: "entities", shortcut: "E" },
   { panelId: "layers", label: "Layers", iconKey: "layers", shortcut: "L" },
   { panelId: "settings", label: "Settings", iconKey: "settings", shortcut: "" },
+  { panelId: "lighting", label: "Lighting", iconKey: "light", shortcut: "" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -280,6 +293,7 @@ function initShortcuts(): void {
       case "o": case "O": setActiveTool("place"); break;
       case "p": case "P": setActiveTool("position"); break;
       case "r": case "R": setActiveTool("route"); break;
+      case "j": case "J": setActiveTool("light"); break;
 
       // Panels
       case "a": case "A": togglePanel("asset-manager"); break;

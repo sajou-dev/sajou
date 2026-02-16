@@ -34,6 +34,14 @@ import type {
 // Active preview state
 // ---------------------------------------------------------------------------
 
+/** Tracked point light for flicker animation. */
+interface PreviewPointLight {
+  light: THREE.PointLight;
+  baseIntensity: number;
+  flickerSpeed: number;
+  flickerAmount: number;
+}
+
 let activePreview: {
   renderer: THREE.WebGLRenderer;
   scene: THREE.Scene;
@@ -43,6 +51,7 @@ let activePreview: {
   keyHandler: (e: KeyboardEvent) => void;
   animFrameId: number;
   animatedEntities: AnimatedPreviewEntity[];
+  pointLights: PreviewPointLight[];
 } | null = null;
 
 /** Tracked animation for a preview entity. */
@@ -127,7 +136,7 @@ function createPreviewMesh(
   const offsetZ = (0.5 - ay) * h;
   geom.translate(offsetX, 0, offsetZ);
 
-  const material = new THREE.MeshBasicMaterial({
+  const material = new THREE.MeshStandardMaterial({
     color: tex ? 0xffffff : (def.fallbackColor || "#666666"),
     map: tex ?? undefined,
     transparent: true,
@@ -135,6 +144,8 @@ function createPreviewMesh(
     side: THREE.DoubleSide,
     depthTest: true,
     depthWrite: true,
+    roughness: 1,
+    metalness: 0,
   });
 
   const mesh = new THREE.Mesh(geom, material);
@@ -472,10 +483,20 @@ function previewLoop(now: number, lastTime: { v: number }): void {
     }
   }
 
+  // Flicker point lights
+  const t2 = now / 1000;
+  for (const pl of activePreview.pointLights) {
+    if (pl.flickerAmount <= 0 || pl.flickerSpeed <= 0) continue;
+    const wave1 = Math.sin(t2 * pl.flickerSpeed * 2 * Math.PI);
+    const wave2 = Math.sin(t2 * pl.flickerSpeed * 1.7 * Math.PI + 0.5);
+    const combined = wave1 * 0.6 + wave2 * 0.4;
+    pl.light.intensity = pl.baseIntensity * (1 + combined * pl.flickerAmount);
+  }
+
   // Render Three.js
   activePreview.renderer.render(activePreview.scene, activePreview.camera);
 
-  activePreview.animFrameId = requestAnimationFrame((t) => previewLoop(t, lastTime));
+  activePreview.animFrameId = requestAnimationFrame((t3) => previewLoop(t3, lastTime));
 }
 
 // ---------------------------------------------------------------------------
@@ -543,8 +564,37 @@ export async function openPreview(): Promise<void> {
   camera.bottom = dimensions.height;
   camera.updateProjectionMatrix();
 
-  // Ambient light
-  threeScene.add(new THREE.AmbientLight(0xffffff, 1.0));
+  // Lighting from scene state
+  const { lighting } = sceneState;
+
+  threeScene.add(new THREE.AmbientLight(lighting.ambient.color, lighting.ambient.intensity));
+
+  if (lighting.directional.enabled) {
+    const dirLight = new THREE.DirectionalLight(lighting.directional.color, lighting.directional.intensity);
+    const cx = dimensions.width / 2;
+    const cz = dimensions.height / 2;
+    const dist = 20;
+    const angleRad = (lighting.directional.angle * Math.PI) / 180;
+    const elevRad = (lighting.directional.elevation * Math.PI) / 180;
+    const horizDist = dist * Math.cos(elevRad);
+    dirLight.position.set(
+      cx + Math.sin(angleRad) * horizDist,
+      dist * Math.sin(elevRad),
+      cz - Math.cos(angleRad) * horizDist,
+    );
+    dirLight.target.position.set(cx, 0, cz);
+    threeScene.add(dirLight);
+    threeScene.add(dirLight.target);
+  }
+
+  // Point lights from state
+  const previewPointLights: { light: THREE.PointLight; source: typeof lighting.sources[number] }[] = [];
+  for (const source of lighting.sources) {
+    const pl = new THREE.PointLight(source.color, source.intensity, source.radius);
+    pl.position.set(source.x, 1.5, source.y);
+    threeScene.add(pl);
+    previewPointLights.push({ light: pl, source });
+  }
 
   // Ground plane
   const groundGeom = new THREE.PlaneGeometry(dimensions.width, dimensions.height);
@@ -666,6 +716,14 @@ export async function openPreview(): Promise<void> {
   const lastTime = { v: performance.now() };
   const animFrameId = requestAnimationFrame((t) => previewLoop(t, lastTime));
 
+  // Build preview point light tracking
+  const trackedPointLights: PreviewPointLight[] = previewPointLights.map((pl) => ({
+    light: pl.light,
+    baseIntensity: pl.source.intensity,
+    flickerSpeed: pl.source.flicker?.speed ?? 0,
+    flickerAmount: pl.source.flicker?.amount ?? 0,
+  }));
+
   // Store active state
   activePreview = {
     renderer,
@@ -676,6 +734,7 @@ export async function openPreview(): Promise<void> {
     keyHandler: onKeyDown,
     animFrameId,
     animatedEntities,
+    pointLights: trackedPointLights,
   };
 
   setStatus("Ready");

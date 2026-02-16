@@ -28,7 +28,9 @@ import type {
   AssetFormat,
   ChoreographyDef,
   EntityBinding,
+  LightingState,
 } from "../types.js";
+import { createDefaultLighting } from "../state/scene-state.js";
 import type { WireConnection } from "../state/wiring-state.js";
 
 // ---------------------------------------------------------------------------
@@ -47,6 +49,8 @@ interface SceneExportJson {
   zoneTypes?: SceneState["zoneTypes"];
   /** Optional — older exports may lack zone data. */
   zoneGrid?: SceneState["zoneGrid"];
+  /** Optional — older exports may lack lighting data. */
+  lighting?: LightingState;
 }
 
 interface EntityExportJson {
@@ -289,6 +293,7 @@ export async function importScene(): Promise<void> {
     routes: sceneJson.routes ?? [],
     zoneTypes: sceneJson.zoneTypes ?? getSceneState().zoneTypes,
     zoneGrid: sceneJson.zoneGrid ?? getSceneState().zoneGrid,
+    lighting: sceneJson.lighting ?? createDefaultLighting(),
   });
 
   // 4. Choreographies + wires + bindings (optional — old ZIPs may lack this file)

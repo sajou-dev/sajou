@@ -21,6 +21,7 @@ import {
   createController,
   type CameraController,
 } from "./camera-controller.js";
+import { initLightRenderer, tickFlicker } from "./light-renderer.js";
 
 // ---------------------------------------------------------------------------
 // Interfaces
@@ -45,6 +46,7 @@ const TOOL_CURSORS: Record<ToolId, string> = {
   place: "crosshair",
   position: "crosshair",
   route: "crosshair",
+  light: "crosshair",
 };
 
 // ---------------------------------------------------------------------------
@@ -476,6 +478,7 @@ function startRenderLoop(): void {
   const loop = (): void => {
     animFrameId = requestAnimationFrame(loop);
     if (webGLRenderer && scene && controller) {
+      tickFlicker(performance.now());
       webGLRenderer.render(scene, controller.camera);
     }
   };
@@ -515,12 +518,11 @@ export function initCanvas(): void {
   controller = new TopDownController(canvasWidth, canvasHeight);
   currentViewMode = "top-down";
 
-  // Ambient light for flat 2D rendering
-  const ambient = new THREE.AmbientLight(0xffffff, 1.0);
-  scene.add(ambient);
-
   // Ground plane (scene area fill + background color)
   updateGroundPlane();
+
+  // Light renderer (ambient, directional, point lights from state)
+  initLightRenderer();
 
   // --- Canvas2D overlay (transparent, on top of WebGL) ---
   overlayCanvas = document.createElement("canvas");

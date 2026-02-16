@@ -5,7 +5,7 @@
  * Pub/sub pattern — subscribe to get notified on every change.
  */
 
-import type { SceneState, ZoneTypeDef, ZoneGrid } from "../types.js";
+import type { SceneState, ZoneTypeDef, ZoneGrid, LightingState, LightingAmbient, LightingDirectional, LightSourceState } from "../types.js";
 
 // ---------------------------------------------------------------------------
 // Default state
@@ -22,6 +22,15 @@ const DEFAULT_ZONE_TYPES: ZoneTypeDef[] = [
 
 /** Default cell size for the zone grid. */
 const DEFAULT_CELL_SIZE = 32;
+
+/** Create default lighting configuration. */
+export function createDefaultLighting(): LightingState {
+  return {
+    ambient: { intensity: 0.5, color: "#ffffff" },
+    directional: { enabled: true, angle: 225, elevation: 45, color: "#ffffff", intensity: 0.7 },
+    sources: [],
+  };
+}
 
 /** Create an empty zone grid for given dimensions. */
 function createZoneGrid(width: number, height: number, cellSize: number = DEFAULT_CELL_SIZE): ZoneGrid {
@@ -44,6 +53,7 @@ function createDefault(): SceneState {
     routes: [],
     zoneTypes: [...DEFAULT_ZONE_TYPES],
     zoneGrid: createZoneGrid(960, 640),
+    lighting: createDefaultLighting(),
   };
 }
 
@@ -149,6 +159,62 @@ export function resizeZoneGrid(): void {
   }
 
   state = { ...state, zoneGrid: { cellSize, cols: newCols, rows: newRows, cells: newCells } };
+  notify();
+}
+
+// ---------------------------------------------------------------------------
+// Lighting helpers
+// ---------------------------------------------------------------------------
+
+/** Update ambient lighting properties. */
+export function updateAmbientLighting(partial: Partial<LightingAmbient>): void {
+  state = {
+    ...state,
+    lighting: { ...state.lighting, ambient: { ...state.lighting.ambient, ...partial } },
+  };
+  notify();
+}
+
+/** Update directional lighting properties. */
+export function updateDirectionalLighting(partial: Partial<LightingDirectional>): void {
+  state = {
+    ...state,
+    lighting: { ...state.lighting, directional: { ...state.lighting.directional, ...partial } },
+  };
+  notify();
+}
+
+/** Add a new point light source. */
+export function addLightSource(source: LightSourceState): void {
+  state = {
+    ...state,
+    lighting: { ...state.lighting, sources: [...state.lighting.sources, source] },
+  };
+  notify();
+}
+
+/** Update an existing point light source by ID (shallow merge). */
+export function updateLightSource(id: string, partial: Partial<Omit<LightSourceState, "id">>): void {
+  state = {
+    ...state,
+    lighting: {
+      ...state.lighting,
+      sources: state.lighting.sources.map((s) => (s.id === id ? { ...s, ...partial } : s)),
+    },
+  };
+  notify();
+}
+
+/** Remove point light sources by IDs. */
+export function removeLightSource(ids: string[]): void {
+  const idSet = new Set(ids);
+  state = {
+    ...state,
+    lighting: {
+      ...state.lighting,
+      sources: state.lighting.sources.filter((s) => !idSet.has(s.id)),
+    },
+  };
   notify();
 }
 

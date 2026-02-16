@@ -18,6 +18,7 @@ import {
   setSelection,
   setPositionSelection,
   setRouteSelection,
+  setLightSelection,
 } from "../state/editor-state.js";
 import { createPanel } from "./panel.js";
 import { initViewTabs } from "./view-tabs.js";
@@ -35,6 +36,7 @@ import { initInspectorPanel } from "../panels/inspector-panel.js";
 import { initLayersPanel } from "../panels/layers-panel.js";
 import { initSettingsPanel } from "../panels/settings-panel.js";
 import { initSignalTimelinePanel } from "../panels/signal-timeline-panel.js";
+import { initLightingPanel } from "../panels/lighting-panel.js";
 
 // Views
 import { initSignalView } from "../views/signal-view.js";
@@ -46,6 +48,7 @@ import { createPlaceTool, initPlaceToolKeyboard } from "../tools/place-tool.js";
 import { createBackgroundTool, initBackgroundToolLifecycle } from "../tools/background-tool.js";
 import { createPositionTool, initPositionToolKeyboard } from "../tools/position-tool.js";
 import { createRouteTool, initRouteToolKeyboard } from "../tools/route-tool.js";
+import { createLightTool, initLightToolKeyboard } from "../tools/light-tool.js";
 
 // ---------------------------------------------------------------------------
 // Tool switching
@@ -58,15 +61,17 @@ function initToolSwitching(): void {
   const backgroundTool = createBackgroundTool();
   const positionTool = createPositionTool();
   const { handler: routeTool, cancelCreation: cancelRouteCreation, getHoveredPoint } = createRouteTool();
+  const lightTool = createLightTool();
 
   function syncTool(): void {
-    const { activeTool, selectedPositionIds, selectedRouteIds, selectedIds } = getEditorState();
+    const { activeTool, selectedPositionIds, selectedRouteIds, selectedIds, selectedLightIds } = getEditorState();
 
     // Clear cross-tool selections on tool switch to avoid stale inspector state.
     // Guard: only clear if non-empty to avoid infinite notify loops.
     if (activeTool !== "position" && selectedPositionIds.length > 0) setPositionSelection([]);
     if (activeTool !== "route" && selectedRouteIds.length > 0) setRouteSelection([]);
     if (activeTool !== "select" && selectedIds.length > 0) setSelection([]);
+    if (activeTool !== "light" && selectedLightIds.length > 0) setLightSelection([]);
 
     switch (activeTool) {
       case "select":
@@ -84,6 +89,9 @@ function initToolSwitching(): void {
       case "route":
         setToolHandler(routeTool);
         break;
+      case "light":
+        setToolHandler(lightTool);
+        break;
       default:
         setToolHandler(null);
         break;
@@ -99,6 +107,7 @@ function initToolSwitching(): void {
   initBackgroundToolLifecycle();
   initPositionToolKeyboard();
   initRouteToolKeyboard(cancelRouteCreation, getHoveredPoint);
+  initLightToolKeyboard();
 }
 
 // ---------------------------------------------------------------------------
@@ -172,4 +181,7 @@ export async function initWorkspace(): Promise<void> {
 
   const signalTimeline = createPanel({ id: "signal-timeline", title: "Signal Timeline", minWidth: 400, minHeight: 350 });
   initSignalTimelinePanel(signalTimeline.contentEl);
+
+  const lightingPanel = createPanel({ id: "lighting", title: "Lighting", minWidth: 280, minHeight: 300 });
+  initLightingPanel(lightingPanel.contentEl);
 }
