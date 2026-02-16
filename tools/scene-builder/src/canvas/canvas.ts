@@ -22,6 +22,7 @@ import {
   type CameraController,
 } from "./camera-controller.js";
 import { initLightRenderer, tickFlicker } from "./light-renderer.js";
+import { initParticleRenderer, tickParticles } from "./particle-renderer.js";
 
 // ---------------------------------------------------------------------------
 // Interfaces
@@ -47,6 +48,7 @@ const TOOL_CURSORS: Record<ToolId, string> = {
   position: "crosshair",
   route: "crosshair",
   light: "crosshair",
+  particle: "crosshair",
 };
 
 // ---------------------------------------------------------------------------
@@ -475,10 +477,16 @@ function resizeToContainer(): void {
 function startRenderLoop(): void {
   if (animFrameId !== null) return;
 
+  let lastFrameTime = performance.now();
+
   const loop = (): void => {
     animFrameId = requestAnimationFrame(loop);
     if (webGLRenderer && scene && controller) {
-      tickFlicker(performance.now());
+      const now = performance.now();
+      const dt = (now - lastFrameTime) / 1000;
+      lastFrameTime = now;
+      tickFlicker(now);
+      tickParticles(dt);
       webGLRenderer.render(scene, controller.camera);
     }
   };
@@ -523,6 +531,9 @@ export function initCanvas(): void {
 
   // Light renderer (ambient, directional, point lights from state)
   initLightRenderer();
+
+  // Particle renderer (particle emitters from state)
+  initParticleRenderer();
 
   // --- Canvas2D overlay (transparent, on top of WebGL) ---
   overlayCanvas = document.createElement("canvas");

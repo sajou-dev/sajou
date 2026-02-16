@@ -32,6 +32,7 @@ function createDefault(): EditorState {
       settings: defaultPanelLayout(40, 100, 320, 250),
       "signal-timeline": defaultPanelLayout(40, 100, 480, 520),
       lighting: defaultPanelLayout(40, 100, 300, 400),
+      particles: defaultPanelLayout(40, 100, 300, 450),
     },
     gridEnabled: true,
     gridSize: 32,
@@ -47,6 +48,7 @@ function createDefault(): EditorState {
     activeZoneTypeId: null,
     viewMode: "top-down",
     selectedLightIds: [],
+    selectedParticleIds: [],
   };
 }
 
@@ -153,6 +155,12 @@ export function setRouteSelection(ids: string[]): void {
 /** Set selected light source IDs (light tool). */
 export function setLightSelection(ids: string[]): void {
   state = { ...state, selectedLightIds: ids };
+  notify();
+}
+
+/** Set selected particle emitter IDs (particle tool). */
+export function setParticleSelection(ids: string[]): void {
+  state = { ...state, selectedParticleIds: ids };
   notify();
 }
 

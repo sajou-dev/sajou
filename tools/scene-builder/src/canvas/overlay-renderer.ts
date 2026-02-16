@@ -891,6 +891,124 @@ export function renderLightMarkers(ctx: CanvasRenderingContext2D, zoom: number):
 }
 
 // ---------------------------------------------------------------------------
+// Particle markers
+// ---------------------------------------------------------------------------
+
+/** Render particle emitter markers on the Canvas2D overlay. */
+export function renderParticleMarkers(ctx: CanvasRenderingContext2D, zoom: number): void {
+  if (isRunModeActive()) return;
+
+  const { particles } = getSceneState();
+  const { activeTool, selectedParticleIds } = getEditorState();
+  const isParticleTool = activeTool === "particle";
+
+  ctx.globalAlpha = isParticleTool ? 1 : 0.3;
+
+  for (const emitter of particles) {
+    const isSelected = selectedParticleIds.includes(emitter.id);
+    const firstColor = emitter.colorOverLife[0] ?? "#FFA040";
+    const s = 7 / zoom;
+
+    // Diamond marker (filled with first color stop)
+    ctx.beginPath();
+    ctx.moveTo(emitter.x, emitter.y - s);
+    ctx.lineTo(emitter.x + s, emitter.y);
+    ctx.lineTo(emitter.x, emitter.y + s);
+    ctx.lineTo(emitter.x - s, emitter.y);
+    ctx.closePath();
+
+    ctx.fillStyle = firstColor;
+    ctx.fill();
+
+    if (isSelected) {
+      ctx.strokeStyle = "#58a6ff";
+      ctx.lineWidth = 2 / zoom;
+    } else {
+      ctx.strokeStyle = darkenColor(firstColor, 0.3);
+      ctx.lineWidth = 1 / zoom;
+    }
+    ctx.stroke();
+
+    // Extent circle (dashed, only when particle tool active)
+    if (isParticleTool) {
+      // Approximate extent: max velocity * max lifetime
+      let maxVel: number;
+      if (emitter.type === "radial") {
+        const maxVx = Math.max(Math.abs(emitter.velocity.x[0]), Math.abs(emitter.velocity.x[1]));
+        const maxVy = Math.max(Math.abs(emitter.velocity.y[0]), Math.abs(emitter.velocity.y[1]));
+        maxVel = Math.hypot(maxVx, maxVy);
+      } else {
+        maxVel = Math.max(Math.abs(emitter.speed[0]), Math.abs(emitter.speed[1]));
+      }
+      const extent = maxVel * emitter.lifetime[1];
+
+      if (extent > 0) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(emitter.x, emitter.y, extent, 0, Math.PI * 2);
+        ctx.setLineDash([4 / zoom, 4 / zoom]);
+        ctx.strokeStyle = hexAlpha(firstColor, 0.2);
+        ctx.lineWidth = 1 / zoom;
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.restore();
+      }
+    }
+
+    // Direction arrow (directional emitters, when particle tool active)
+    if (isParticleTool && emitter.type === "directional") {
+      const len = Math.hypot(emitter.direction.x, emitter.direction.y);
+      if (len > 0) {
+        const nx = emitter.direction.x / len;
+        const ny = emitter.direction.y / len;
+        const arrowLen = 20 / zoom;
+
+        ctx.beginPath();
+        ctx.moveTo(emitter.x, emitter.y);
+        ctx.lineTo(emitter.x + nx * arrowLen, emitter.y + ny * arrowLen);
+        ctx.strokeStyle = firstColor;
+        ctx.lineWidth = 2 / zoom;
+        ctx.stroke();
+
+        // Arrowhead
+        const tipX = emitter.x + nx * arrowLen;
+        const tipY = emitter.y + ny * arrowLen;
+        const headSize = 5 / zoom;
+        const px = -ny;
+        const py = nx;
+        ctx.beginPath();
+        ctx.moveTo(tipX, tipY);
+        ctx.lineTo(tipX - nx * headSize + px * headSize * 0.5, tipY - ny * headSize + py * headSize * 0.5);
+        ctx.lineTo(tipX - nx * headSize - px * headSize * 0.5, tipY - ny * headSize - py * headSize * 0.5);
+        ctx.closePath();
+        ctx.fillStyle = firstColor;
+        ctx.fill();
+      }
+    }
+
+    // ID label (when selected)
+    if (isSelected && isParticleTool) {
+      ctx.save();
+      const fontSize = 9 / zoom;
+      const labelY = emitter.y - s - 6 / zoom;
+
+      drawLabel(ctx, emitter.x, labelY, emitter.id, {
+        font: `${fontSize}px "JetBrains Mono", monospace`,
+        fillStyle: "#ffffff",
+        textAlign: "center",
+        textBaseline: "bottom",
+        pillBg: numAlpha(0x0e0e16, 0.85),
+        pillPad: 3 / zoom,
+        pillRadius: 3 / zoom,
+      });
+      ctx.restore();
+    }
+  }
+
+  ctx.globalAlpha = 1;
+}
+
+// ---------------------------------------------------------------------------
 // Canvas2D round rect helper
 // ---------------------------------------------------------------------------
 

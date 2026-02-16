@@ -5,7 +5,7 @@
  * Pub/sub pattern — subscribe to get notified on every change.
  */
 
-import type { SceneState, ZoneTypeDef, ZoneGrid, LightingState, LightingAmbient, LightingDirectional, LightSourceState } from "../types.js";
+import type { SceneState, ZoneTypeDef, ZoneGrid, LightingState, LightingAmbient, LightingDirectional, LightSourceState, ParticleEmitterState } from "../types.js";
 
 // ---------------------------------------------------------------------------
 // Default state
@@ -54,6 +54,7 @@ function createDefault(): SceneState {
     zoneTypes: [...DEFAULT_ZONE_TYPES],
     zoneGrid: createZoneGrid(960, 640),
     lighting: createDefaultLighting(),
+    particles: [],
   };
 }
 
@@ -214,6 +215,35 @@ export function removeLightSource(ids: string[]): void {
       ...state.lighting,
       sources: state.lighting.sources.filter((s) => !idSet.has(s.id)),
     },
+  };
+  notify();
+}
+
+// ---------------------------------------------------------------------------
+// Particle helpers
+// ---------------------------------------------------------------------------
+
+/** Add a new particle emitter. */
+export function addParticleEmitter(emitter: ParticleEmitterState): void {
+  state = { ...state, particles: [...state.particles, emitter] };
+  notify();
+}
+
+/** Update an existing particle emitter by ID (shallow merge). */
+export function updateParticleEmitter(id: string, partial: Partial<Omit<ParticleEmitterState, "id">>): void {
+  state = {
+    ...state,
+    particles: state.particles.map((p) => (p.id === id ? { ...p, ...partial } : p)),
+  };
+  notify();
+}
+
+/** Remove particle emitters by IDs. */
+export function removeParticleEmitter(ids: string[]): void {
+  const idSet = new Set(ids);
+  state = {
+    ...state,
+    particles: state.particles.filter((p) => !idSet.has(p.id)),
   };
   notify();
 }

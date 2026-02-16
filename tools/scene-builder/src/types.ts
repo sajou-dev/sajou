@@ -339,6 +339,37 @@ export interface LightingState {
   sources: LightSourceState[];
 }
 
+// ---------------------------------------------------------------------------
+// Particles
+// ---------------------------------------------------------------------------
+
+/** A particle emitter placed on the scene. */
+export interface ParticleEmitterState {
+  id: string;
+  x: number;
+  y: number;
+  /** Sprite asset path ("" = default circle). */
+  sprite: string;
+  /** Emission pattern. */
+  type: "radial" | "directional";
+  /** Number of particles. */
+  count: number;
+  /** Particle lifetime range [min, max] in seconds. */
+  lifetime: [number, number];
+  /** Velocity ranges for radial mode (scene-pixels/second). */
+  velocity: { x: [number, number]; y: [number, number] };
+  /** Direction vector for directional mode. */
+  direction: { x: number; y: number };
+  /** Speed range for directional mode (scene-pixels/second). */
+  speed: [number, number];
+  /** Color gradient stops over particle lifetime (hex strings). */
+  colorOverLife: string[];
+  /** Size range [start, end] in scene pixels. */
+  size: [number, number];
+  /** Additive blending for glow effect. */
+  glow: boolean;
+}
+
 /** Full scene state (data layer). */
 export interface SceneState {
   dimensions: SceneDimensions;
@@ -354,6 +385,8 @@ export interface SceneState {
   zoneGrid: ZoneGrid;
   /** Lighting configuration (ambient, directional, point lights). */
   lighting: LightingState;
+  /** Particle emitters placed on the scene. */
+  particles: ParticleEmitterState[];
 }
 
 // ---------------------------------------------------------------------------
@@ -380,10 +413,10 @@ export type InterfaceState = 0 | 1 | 2 | 3;
 export type ViewMode = "top-down" | "isometric";
 
 /** Available canvas tools. */
-export type ToolId = "select" | "hand" | "background" | "place" | "position" | "route" | "light";
+export type ToolId = "select" | "hand" | "background" | "place" | "position" | "route" | "light" | "particle";
 
 /** Panel identifiers. */
-export type PanelId = "entity-palette" | "asset-manager" | "entity-editor" | "inspector" | "layers" | "settings" | "signal-timeline" | "lighting";
+export type PanelId = "entity-palette" | "asset-manager" | "entity-editor" | "inspector" | "layers" | "settings" | "signal-timeline" | "lighting" | "particles";
 
 /** Saved panel position and size. */
 export interface PanelLayout {
@@ -459,6 +492,8 @@ export interface EditorState {
   viewMode: ViewMode;
   /** Selected light source IDs (light tool). */
   selectedLightIds: string[];
+  /** Selected particle emitter IDs (particle tool). */
+  selectedParticleIds: string[];
 }
 
 // ---------------------------------------------------------------------------

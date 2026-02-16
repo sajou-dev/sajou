@@ -6906,3 +6906,46 @@ button {
   0%, 100% { box-shadow: 0 0 0 0 transparent; }
   50% { box-shadow: 0 0 6px 2px var(--color-accent-dim); }
 }
+
+/* ---------------------------------------------------------------------------
+ * Particle panel — color stops
+ * --------------------------------------------------------------------------- */
+
+.pp-color-stops {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  padding: 4px 0;
+}
+
+.pp-color-stop-add {
+  width: 32px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed var(--color-border-hover);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 16px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.pp-color-stop-add:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.sp-btn-small {
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 0 2px;
+}
+
+.sp-btn-small:hover {
+  color: var(--color-error);
+}

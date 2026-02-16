@@ -28,6 +28,7 @@ import {
   renderBindingHighlight,
   renderActorBadges,
   renderLightMarkers,
+  renderParticleMarkers,
 } from "./overlay-renderer.js";
 import { drawGuideLines } from "../tools/guide-lines.js";
 import type { PlacedEntity, EntityEntry, SceneLayer } from "../types.js";
@@ -443,6 +444,7 @@ function drawSceneOverlays(
   renderBindingHighlight(ctx, effectiveZoom);
   renderActorBadges(ctx, effectiveZoom);
   renderLightMarkers(ctx, effectiveZoom);
+  renderParticleMarkers(ctx, effectiveZoom);
   drawGuideLines(ctx, effectiveZoom);
 
   ctx.restore();

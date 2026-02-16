@@ -64,6 +64,15 @@ const ICON = {
     '<path d="m19.07 4.93-1.41 1.41"/>'
   ),
 
+  // Sparkles (particle tool)
+  particle: lucide(
+    '<path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/>' +
+    '<path d="M20 3v4"/>' +
+    '<path d="M22 5h-4"/>' +
+    '<path d="M4 17v2"/>' +
+    '<path d="M5 18H3"/>'
+  ),
+
   // Panels
   assets: lucide(
     '<path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/>'
@@ -117,6 +126,7 @@ const TOOLS: ToolDef[] = [
   { id: "position", label: "Position", iconKey: "position", shortcut: "P" },
   { id: "route", label: "Route", iconKey: "route", shortcut: "R" },
   { id: "light", label: "Light", iconKey: "light", shortcut: "J" },
+  { id: "particle", label: "Particle", iconKey: "particle", shortcut: "K" },
 ];
 
 const PANEL_TOGGLES: PanelToggleDef[] = [
@@ -125,6 +135,7 @@ const PANEL_TOGGLES: PanelToggleDef[] = [
   { panelId: "layers", label: "Layers", iconKey: "layers", shortcut: "L" },
   { panelId: "settings", label: "Settings", iconKey: "settings", shortcut: "" },
   { panelId: "lighting", label: "Lighting", iconKey: "light", shortcut: "" },
+  { panelId: "particles", label: "Particles", iconKey: "particle", shortcut: "" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -294,6 +305,7 @@ function initShortcuts(): void {
       case "p": case "P": setActiveTool("position"); break;
       case "r": case "R": setActiveTool("route"); break;
       case "j": case "J": setActiveTool("light"); break;
+      case "k": case "K": setActiveTool("particle"); break;
 
       // Panels
       case "a": case "A": togglePanel("asset-manager"); break;
