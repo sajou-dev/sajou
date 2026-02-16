@@ -81,6 +81,18 @@ Visual scene editor — the main authoring tool for creating and testing choreog
 - Vite dev plugins: `corsProxyPlugin`, `signalIngestionPlugin`, `tapHookPlugin`, `openclawTokenPlugin`, `localDiscoveryPlugin`
 - Dependencies: `@sajou/core`, `three`, `fflate`, `gifuct-js`
 
+#### State persistence
+
+Auto-saves all scene-builder state to IndexedDB and restores on startup:
+- **IndexedDB** (`sajou-scene-builder`, 7 stores): scene state, entity definitions, choreographies, wires, bindings, signal timeline, assets (as `ArrayBuffer`)
+- **localStorage**: remote signal sources (`sajou:remote-sources`), editor preferences (`sajou:editor-prefs`)
+- `persistence-db.ts`: minimal IndexedDB wrapper (singleton connection, CRUD helpers)
+- `persistence.ts`: orchestrator — debounced auto-save (500ms IDB, 300ms localStorage), `restoreState()` blocking on startup, `forcePersistAll()` after ZIP import, `newScene()` to clear all stores
+- `beforeunload` handler flushes pending debounced saves
+- **Not persisted**: undo stack, local sources (re-discovered), connection status, active selections
+- Local sources have fixed identity colors (`LOCAL_SOURCE_COLORS`) to prevent visual drift across sessions
+- "New" button (Ctrl+N) in header: confirmation → `dbClearAll()` → reset all stores → re-discover local sources
+
 #### Camera
 
 - `CameraController` with top-down (orthographic) and isometric modes (toggle: `I` shortcut)

@@ -8,3 +8,6 @@ Points d'attention :
 - Ne pas persister les sources locales (elles viennent du discovery)
 - Ne pas persister le status de connexion (toujours `disconnected` au reload)
 - Stocker la clé API ? Risque sécurité mineur en dev local, mais à évaluer pour un build statique
+
+---
+Merged: 2026-02-16 — branch `interface/scene-state-persistence`
