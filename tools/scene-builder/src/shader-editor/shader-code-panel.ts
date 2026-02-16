@@ -21,6 +21,7 @@ import type { CompileResult } from "./shader-canvas.js";
 import {
   getShaderState,
   addShader,
+  removeShader,
   updateShader,
   selectShader,
   subscribeShaders,
@@ -124,6 +125,13 @@ export function initShaderCodePanel(codeEl: HTMLElement): void {
   btnNew.textContent = "+";
   btnNew.addEventListener("click", createNewShader);
 
+  // Delete shader button
+  const btnDelete = document.createElement("button");
+  btnDelete.className = "shader-code-btn";
+  btnDelete.title = "Delete shader";
+  btnDelete.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>`;
+  btnDelete.addEventListener("click", deleteSelectedShader);
+
   // Spacer
   const spacer = document.createElement("span");
   spacer.style.flex = "1";
@@ -194,7 +202,7 @@ export function initShaderCodePanel(codeEl: HTMLElement): void {
   // Append menu to body so it escapes overflow: hidden
   document.body.appendChild(presetMenu);
 
-  header.append(nameInputEl, shaderSelectorEl, tabVertex, tabFragment, spacer, passesLabel, passesSelect, presetContainer, btnNew);
+  header.append(nameInputEl, shaderSelectorEl, tabVertex, tabFragment, spacer, passesLabel, passesSelect, presetContainer, btnNew, btnDelete);
   codeEl.appendChild(header);
 
   // CodeMirror editor
@@ -337,6 +345,17 @@ function createNewShader(): void {
     bufferResolution: 0,
   };
   addShader(shader);
+}
+
+function deleteSelectedShader(): void {
+  const { shaders, selectedShaderId } = getShaderState();
+  if (!selectedShaderId || shaders.length <= 1) return; // keep at least one
+  removeShader(selectedShaderId);
+  // Select the first remaining shader
+  const remaining = getShaderState().shaders;
+  if (remaining.length > 0 && !getShaderState().selectedShaderId) {
+    selectShader(remaining[0].id);
+  }
 }
 
 function ensureDefaultShader(): void {

@@ -6,7 +6,7 @@
  */
 
 /** Auto-injected uniform block (prepended to every fragment shader). */
-export const UNIFORM_PREFIX = `
+export const UNIFORM_PREFIX = `precision highp float;
 uniform float iTime;
 uniform float iTimeDelta;
 uniform vec2  iResolution;

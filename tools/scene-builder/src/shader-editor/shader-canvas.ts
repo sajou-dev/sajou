@@ -2,8 +2,10 @@
  * Shader preview canvas.
  *
  * Manages a dedicated Three.js WebGLRenderer for GLSL shader preview.
- * Renders a fullscreen quad with ShaderMaterial. Auto-injects uniforms
- * (iTime, iTimeDelta, iResolution, iMouse, iFrame).
+ * Renders a fullscreen quad with RawShaderMaterial (no Three.js prefix
+ * injection — the shader source is compiled exactly as provided).
+ * Auto-injects uniforms (iTime, iTimeDelta, iResolution, iMouse, iFrame)
+ * via the UNIFORM_PREFIX block.
  *
  * Multi-pass ping-pong is handled by extending this module (commit 6).
  */
@@ -41,7 +43,7 @@ let renderer: THREE.WebGLRenderer | null = null;
 let scene: THREE.Scene | null = null;
 let camera: THREE.OrthographicCamera | null = null;
 let quad: THREE.Mesh | null = null;
-let material: THREE.ShaderMaterial | null = null;
+let material: THREE.RawShaderMaterial | null = null;
 let container: HTMLElement | null = null;
 let resizeObserver: ResizeObserver | null = null;
 
@@ -84,8 +86,8 @@ export function initShaderCanvas(el: HTMLElement): void {
 
   const geometry = new THREE.PlaneGeometry(2, 2);
 
-  material = new THREE.ShaderMaterial({
-    vertexShader: DEFAULT_VERTEX_SOURCE,
+  material = new THREE.RawShaderMaterial({
+    vertexShader: stripVersion(DEFAULT_VERTEX_SOURCE),
     fragmentShader: buildFragmentSource(DEFAULT_FRAGMENT_SOURCE),
     uniforms: createUniforms(),
     glslVersion: THREE.GLSL3,
@@ -113,21 +115,24 @@ export function initShaderCanvas(el: HTMLElement): void {
 // Compilation
 // ---------------------------------------------------------------------------
 
+/**
+ * Strip `#version` directive from user source.
+ * Three.js adds `#version 300 es` (via glslVersion = GLSL3) before its own
+ * `#define` lines. A second `#version` anywhere else is a fatal GLSL error.
+ */
+function stripVersion(source: string): string {
+  return source.replace(/^#version\s+\d+(\s+es)?\s*\n/, "");
+}
+
 /** Build the final fragment source by prepending the uniform block. */
 function buildFragmentSource(userFragment: string): string {
   const prefix = passCount >= 2
     ? UNIFORM_PREFIX + MULTIPASS_PREFIX
     : UNIFORM_PREFIX;
 
-  // If user already has #version, inject uniforms after the #version line
-  const versionMatch = userFragment.match(/^(#version\s+\d+\s+es\s*\n)/);
-  if (versionMatch) {
-    const versionLine = versionMatch[1];
-    const rest = userFragment.slice(versionLine.length);
-    return versionLine + prefix + rest;
-  }
-  // Otherwise prepend everything
-  return "#version 300 es\nprecision highp float;\n" + prefix + userFragment;
+  // Strip #version — Three.js handles it via glslVersion: GLSL3
+  const stripped = stripVersion(userFragment);
+  return prefix + stripped;
 }
 
 /** Create the standard uniform object. */
@@ -150,6 +155,7 @@ export function compile(vertexSource: string, fragmentSource: string, userUnifor
     return { success: false, errors: [{ line: 0, message: "Renderer not initialized" }] };
   }
 
+  const builtVertex = stripVersion(vertexSource);
   const builtFragment = buildFragmentSource(fragmentSource);
 
   const uniforms = createUniforms();
@@ -166,12 +172,16 @@ export function compile(vertexSource: string, fragmentSource: string, userUnifor
     uniforms["iChannel0"] = { value: renderTargetA.texture };
   }
 
-  const newMaterial = new THREE.ShaderMaterial({
-    vertexShader: vertexSource,
+  const prevMaterial = material;
+  const newMaterial = new THREE.RawShaderMaterial({
+    vertexShader: builtVertex,
     fragmentShader: builtFragment,
     uniforms,
     glslVersion: THREE.GLSL3,
   });
+
+  // Assign to quad BEFORE compile so Three.js actually processes it
+  quad.material = newMaterial;
 
   // Force compilation to check for errors
   renderer.compile(scene, camera);
@@ -180,18 +190,6 @@ export function compile(vertexSource: string, fragmentSource: string, userUnifor
   const props = renderer.properties.get(newMaterial) as { currentProgram?: { program: WebGLProgram } } | undefined;
   const program = props?.currentProgram;
 
-  if (!program) {
-    // Fallback: try to compile and check via raw WebGL
-    const errors = tryRawCompile(gl, vertexSource, builtFragment);
-    if (errors.length > 0) {
-      const result: CompileResult = { success: false, errors };
-      notifyCompileListeners(result);
-      newMaterial.dispose();
-      return result;
-    }
-  }
-
-  // Check if compilation succeeded via the WebGL program
   if (program) {
     const glProgram = program.program;
     if (glProgram) {
@@ -201,16 +199,29 @@ export function compile(vertexSource: string, fragmentSource: string, userUnifor
         const errors = parseGlslErrors(infoLog);
         const result: CompileResult = { success: false, errors };
         notifyCompileListeners(result);
+        // Restore previous material
         newMaterial.dispose();
+        if (prevMaterial) quad.material = prevMaterial;
         return result;
       }
     }
   }
 
-  // Success — swap material
-  if (material) material.dispose();
+  if (!program) {
+    // Fallback: try to compile and check via raw WebGL
+    const errors = tryRawCompile(gl, builtVertex, builtFragment);
+    if (errors.length > 0) {
+      const result: CompileResult = { success: false, errors };
+      notifyCompileListeners(result);
+      newMaterial.dispose();
+      if (prevMaterial) quad.material = prevMaterial;
+      return result;
+    }
+  }
+
+  // Success — commit the new material
+  if (prevMaterial) prevMaterial.dispose();
   material = newMaterial;
-  quad.material = material;
 
   // Reset ping-pong buffers on recompile
   resetRenderTargets();
@@ -227,9 +238,13 @@ export function compile(vertexSource: string, fragmentSource: string, userUnifor
 function tryRawCompile(gl: WebGLRenderingContext | WebGL2RenderingContext, vertSrc: string, fragSrc: string): CompileError[] {
   const errors: CompileError[] = [];
 
+  // Sources have #version stripped (Three.js adds it via glslVersion).
+  // For raw WebGL compile we need to prepend it ourselves.
+  const ver = "#version 300 es\n";
+
   const vs = gl.createShader(gl.VERTEX_SHADER);
   if (vs) {
-    gl.shaderSource(vs, vertSrc);
+    gl.shaderSource(vs, ver + vertSrc);
     gl.compileShader(vs);
     if (!gl.getShaderParameter(vs, gl.COMPILE_STATUS)) {
       const log = gl.getShaderInfoLog(vs) ?? "";
@@ -240,7 +255,7 @@ function tryRawCompile(gl: WebGLRenderingContext | WebGL2RenderingContext, vertS
 
   const fs = gl.createShader(gl.FRAGMENT_SHADER);
   if (fs) {
-    gl.shaderSource(fs, fragSrc);
+    gl.shaderSource(fs, ver + fragSrc);
     gl.compileShader(fs);
     if (!gl.getShaderParameter(fs, gl.COMPILE_STATUS)) {
       const log = gl.getShaderInfoLog(fs) ?? "";
