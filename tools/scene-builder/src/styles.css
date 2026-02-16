@@ -5746,6 +5746,8 @@ button {
   opacity: 0.9;
   transform: scale(1.08);
   transition: none;
+  width: fit-content !important;
+  max-width: 200px;
 }
 
 /* -- Step popover -- */
