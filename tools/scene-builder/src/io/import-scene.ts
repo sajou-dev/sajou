@@ -21,6 +21,7 @@ import { setChoreographyState, resetChoreographyState } from "../state/choreogra
 import { setWiringState, resetWiringState } from "../state/wiring-state.js";
 import { setBindingState, resetBindingState } from "../state/binding-store.js";
 import { clearHistory } from "../state/undo.js";
+import { forcePersistAll } from "../state/persistence.js";
 import type {
   SceneState,
   EntityEntry,
@@ -321,4 +322,7 @@ export async function importScene(): Promise<void> {
       setBindingState({ bindings: choreoJson.bindings });
     }
   }
+
+  // Persist imported state immediately so it survives a page reload
+  await forcePersistAll();
 }
