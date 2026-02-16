@@ -26,6 +26,7 @@ import {
   subscribeShaders,
 } from "./shader-state.js";
 import type { ShaderDef } from "./shader-types.js";
+import { SHADER_PRESETS } from "./shader-presets.js";
 
 import * as THREE from "three";
 
@@ -144,10 +145,44 @@ export function initShaderCodePanel(codeEl: HTMLElement): void {
     }
   });
 
-  // Preset button placeholder (populated in commit 7)
+  // Preset dropdown
   const presetContainer = document.createElement("span");
   presetContainer.id = "shader-preset-container";
   presetContainer.style.position = "relative";
+
+  const presetBtn = document.createElement("button");
+  presetBtn.className = "shader-code-btn";
+  presetBtn.title = "Load preset";
+  presetBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>`;
+
+  const presetMenu = document.createElement("div");
+  presetMenu.className = "shader-preset-menu";
+  presetMenu.style.display = "none";
+
+  for (const preset of SHADER_PRESETS) {
+    const item = document.createElement("button");
+    item.className = "shader-preset-item";
+    item.innerHTML = `${preset.name}<span class="shader-preset-item-desc">${preset.description}</span>`;
+    item.addEventListener("click", () => {
+      const newShader = preset.create();
+      addShader(newShader);
+      presetMenu.style.display = "none";
+    });
+    presetMenu.appendChild(item);
+  }
+
+  presetBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    presetMenu.style.display = presetMenu.style.display === "none" ? "block" : "none";
+  });
+
+  // Close preset menu on outside click
+  document.addEventListener("click", () => {
+    presetMenu.style.display = "none";
+  });
+
+  presetContainer.appendChild(presetBtn);
+  presetContainer.appendChild(presetMenu);
 
   header.append(nameInputEl, shaderSelectorEl, tabVertex, tabFragment, spacer, passesLabel, passesSelect, presetContainer, btnNew);
   codeEl.appendChild(header);
