@@ -9,27 +9,7 @@ import { importScene } from "../io/import-scene.js";
 import { subscribeRunMode, isRunModeActive } from "../run-mode/run-mode-state.js";
 import { newScene } from "../state/persistence.js";
 
-// Preview is imported lazily to avoid loading @sajou/* packages at startup.
-// If the preview module fails to load, only the preview feature breaks —
-// the rest of the workspace (panels, canvas, tools) continues normally.
-let previewLoading = false;
-
-/** Dynamically load and open the preview. */
-async function triggerPreview(): Promise<void> {
-  if (previewLoading) return;
-  previewLoading = true;
-  try {
-    const { openPreview, isPreviewOpen } = await import("../preview/preview-scene.js");
-    if (isPreviewOpen()) return;
-    await openPreview();
-  } catch (err: unknown) {
-    console.error("[scene-builder] Preview failed:", err);
-  } finally {
-    previewLoading = false;
-  }
-}
-
-// Run mode is imported lazily — same pattern as preview.
+// Run mode is imported lazily to avoid loading @sajou/* packages at startup.
 let runModeLoading = false;
 
 /** Toggle run mode on/off. */
@@ -82,7 +62,6 @@ async function triggerNewScene(): Promise<void> {
 export function initHeader(): void {
   const btnImport = document.getElementById("btn-import");
   const btnExport = document.getElementById("btn-export");
-  const btnPreview = document.getElementById("btn-preview");
   const btnRun = document.getElementById("btn-run");
 
   // Insert "New" button before Import
@@ -111,24 +90,12 @@ export function initHeader(): void {
     });
   });
 
-  btnPreview?.addEventListener("click", () => {
-    void triggerPreview();
-  });
-
   btnRun?.addEventListener("click", () => {
     void triggerRunMode();
   });
 
   // Subscribe to run mode state changes to update button appearance
   subscribeRunMode(updateRunButton);
-
-  // Keyboard shortcut: Ctrl+P for preview
-  document.addEventListener("keydown", (e: KeyboardEvent) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === "p") {
-      e.preventDefault();
-      void triggerPreview();
-    }
-  });
 
   // Keyboard shortcut: Ctrl+R for run mode
   document.addEventListener("keydown", (e: KeyboardEvent) => {

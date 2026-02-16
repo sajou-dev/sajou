@@ -371,18 +371,77 @@ button {
   color: var(--color-accent);
 }
 
-/* Rail arrows between nodes */
+/* Rail separators between nodes — hold arrow + badge stack */
 .pl-rail {
-  flex: 0 0 24px;
+  flex: 0 0 auto;
+  min-width: 28px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.pl-rail-arrow {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 2px 0;
 }
 
-.pl-rail svg {
+.pl-rail-arrow svg {
   color: var(--color-text-dim);
-  width: 16px;
-  height: 16px;
+  width: 12px;
+  height: 12px;
+}
+
+/* Rail badge — compact vertical button in the rail separator */
+.pl-rail-badges {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: center;
+  width: 100%;
+}
+
+.pl-rail-badge {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 6px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font: 400 9px/1 var(--font-mono);
+  cursor: pointer;
+  white-space: nowrap;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.pl-rail-badge:hover {
+  background: var(--color-surface-hover);
+  border-color: var(--color-text-dim);
+}
+
+.pl-rail-badge--active {
+  background: var(--color-surface-hover);
+}
+
+.pl-rail-badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.pl-rail-badge-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ---------------------------------------------------------------------------
@@ -412,79 +471,17 @@ button {
 
 /* ---------------------------------------------------------------------------
  * Horizontal connector bar (signal → choreographer)
- * TouchDesigner-style hub: visible connection bus between signal and choreo.
- * Thicker strip with connection badges and a center rail line.
+ * Source badges — inside the signal pipeline node
  * --------------------------------------------------------------------------- */
 
-.connector-bar-h {
+/* Source badges container inside signal node */
+.connector-bar-h-sources {
   display: flex;
-  flex-direction: column;
-  height: auto;
-  min-height: 36px;
-  position: relative;
-  flex-shrink: 0;
-  padding: 4px 12px;
-  background: var(--color-bg);
-  border-top: 1px solid var(--color-border);
-  border-bottom: 1px solid var(--color-border);
-  overflow: visible;
-  z-index: 2;
-}
-
-/* Rail line on types row */
-.connector-bar-h-row--types {
-  position: relative;
-}
-.connector-bar-h-row--types::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  height: 2px;
-  background: var(--color-border);
-  opacity: 0.4;
-  z-index: 0;
-  pointer-events: none;
-}
-
-.connector-bar-h-label {
-  font: 9px var(--font-mono);
-  color: var(--color-text-dim);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  white-space: nowrap;
-  flex-shrink: 0;
-  z-index: 1;
-  background: var(--color-bg);
-  padding: 0 4px;
-}
-
-.connector-bar-h-inner {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  flex: 1;
-  min-width: 0;
-  z-index: 1;
-}
-
-.connector-bar-h-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
   flex-wrap: wrap;
-  padding: 2px 0;
-  z-index: 1;
-}
-
-.connector-bar-h-row--sources {
   gap: 6px;
-}
-
-.connector-bar-h-row--types {
-  gap: 4px;
+  padding: 4px 8px;
+  flex-shrink: 0;
+  border-top: 1px solid var(--color-border);
 }
 
 .connector-bar-h-badge {
@@ -508,12 +505,6 @@ button {
   box-shadow: 0 0 6px rgba(232, 168, 81, 0.15);
 }
 
-.connector-bar-h-badge--wired {
-  border-color: var(--color-accent-dim);
-  color: var(--color-text);
-  box-shadow: 0 0 4px rgba(232, 168, 81, 0.1);
-}
-
 .connector-bar-h-badge--selected {
   border-color: currentColor;
   box-shadow: 0 0 8px currentColor;
@@ -532,16 +523,6 @@ button {
   color: inherit;
 }
 
-.connector-bar-h-arrow {
-  color: var(--color-accent-dim);
-  font-size: 9px;
-}
-
-.connector-bar-h-target {
-  color: var(--color-accent);
-  font: inherit;
-}
-
 .connector-bar-h-rate {
   color: var(--color-text-dim);
   font: 9px var(--font-mono);
@@ -552,99 +533,17 @@ button {
   font: 9px var(--font-mono);
   color: var(--color-text-dim);
   font-style: italic;
-  z-index: 1;
 }
 
-/* Signal type badges — show available channels on the bar */
-.connector-bar-h-type-badge {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  padding: 2px 8px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--color-border);
-  font: 9px var(--font-mono);
-  font-weight: 600;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  transition: border-color 0.15s, color 0.15s, box-shadow 0.15s;
-  white-space: nowrap;
-  z-index: 1;
-}
-
-.connector-bar-h-type-badge:hover {
-  border-color: var(--color-accent-dim);
-  color: var(--color-text);
-  box-shadow: 0 0 6px rgba(232, 168, 81, 0.15);
-}
-
-.connector-bar-h-type-badge--active {
-  border-color: var(--color-accent-dim);
-  color: var(--color-text);
-  box-shadow: 0 0 4px rgba(232, 168, 81, 0.1);
-}
-
-.connector-bar-h-type-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-/* separator no longer needed — sources and types are on separate rows */
-
-/* ---------------------------------------------------------------------------
- * Vertical connector bar (choreographer → visual, inside choreo node)
- * --------------------------------------------------------------------------- */
-
-.connector-bar-v {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
-  flex-shrink: 0;
-  border-top: 1px solid var(--color-border);
-  z-index: 2;
-}
-
-.connector-bar-v-badge {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  border: 2px solid var(--color-border);
-  background: var(--color-elevated);
-  cursor: pointer;
-  padding: 0;
-  transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
-}
-
-.connector-bar-v-badge:hover {
-  transform: scale(1.3);
-  border-color: var(--color-accent-dim);
-  box-shadow: 0 0 6px rgba(232, 168, 81, 0.2);
-}
-
-.connector-bar-v-badge--wired {
-  border-color: var(--color-accent-dim);
-  box-shadow: 0 0 6px rgba(232, 168, 81, 0.15);
-}
-
-.connector-bar-v-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-}
-
-/* Theme zone — inside pipeline visual node */
+/* Theme zone — inside pipeline visual node.
+   flex-direction: row overrides the column default from .pl-node-content
+   so that toolbar | canvas-container | zoom-bar are laid out horizontally. */
 .zone-theme {
   display: flex;
+  flex-direction: row;
   position: relative;
   min-width: 0;
+  min-height: 0;
 }
 
 /* ---------------------------------------------------------------------------

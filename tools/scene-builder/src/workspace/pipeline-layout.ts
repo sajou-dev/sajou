@@ -105,12 +105,25 @@ export function initPipelineLayout(): void {
 
   let nodeIdx = 0;
   for (const def of NODES) {
-    // Rail arrow before each node (except first)
+    // Rail separator before each node (except first)
     if (nodeIdx > 0) {
+      const railKey = `${RAILS[nodeIdx - 1]![0]}-${RAILS[nodeIdx - 1]![1]}`;
       const rail = document.createElement("div");
       rail.className = "pl-rail";
-      rail.dataset.rail = `${RAILS[nodeIdx - 1]![0]}-${RAILS[nodeIdx - 1]![1]}`;
-      rail.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>`;
+      rail.id = `rail-${railKey}`;
+      rail.dataset.rail = railKey;
+
+      // Chevron arrow
+      const arrow = document.createElement("div");
+      arrow.className = "pl-rail-arrow";
+      arrow.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>`;
+      rail.appendChild(arrow);
+
+      // Badge container (populated by connector bars)
+      const badges = document.createElement("div");
+      badges.className = "pl-rail-badges";
+      rail.appendChild(badges);
+
       pipelineEl.appendChild(rail);
     }
 

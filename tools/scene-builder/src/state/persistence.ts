@@ -215,13 +215,14 @@ function restoreEditorPrefs(): void {
     if (typeof prefs.interfaceState === "number") update.interfaceState = prefs.interfaceState;
     if (prefs.viewMode) update.viewMode = prefs.viewMode;
 
-    // Pipeline layout — restore or migrate from rideauSplit
+    // Pipeline layout — restore (solo: keep first entry) or migrate from rideauSplit
     if (prefs.pipelineLayout) {
-      update.pipelineLayout = prefs.pipelineLayout;
+      const first = prefs.pipelineLayout.extended[0] ?? "visual";
+      update.pipelineLayout = { extended: [first] };
     } else if (typeof prefs.rideauSplit === "number") {
       // Migration: derive from rideauSplit
       if (prefs.rideauSplit >= 0.95) {
-        update.pipelineLayout = { extended: ["signal", "choreographer"] };
+        update.pipelineLayout = { extended: ["signal"] };
       } else {
         update.pipelineLayout = { extended: ["visual"] };
       }

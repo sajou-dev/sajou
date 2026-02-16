@@ -1,8 +1,8 @@
 /**
- * Vertical connector bar — choreographer ↔ theme.
+ * Vertical connector bar — choreographer ↔ visual.
  *
- * In the pipeline layout, renders badges inside the choreographer node.
- * Each badge represents a choreography as a potential connection point
+ * Mounts badges inside the rail separator (#rail-choreographer-visual).
+ * Each badge represents a choreography as a connection point
  * to the visual/theme stage.
  *
  * Clicking a badge focuses the choreography in the editor.
@@ -26,18 +26,19 @@ import { SIGNAL_TYPE_COLORS } from "../views/step-commands.js";
 let containerEl: HTMLElement | null = null;
 let initialized = false;
 
-/** Initialize the vertical connector bar inside the choreographer pipeline node. */
+/** Initialize the vertical connector bar inside the choreo→visual rail. */
 export function initConnectorBarV(): void {
   if (initialized) return;
   initialized = true;
 
-  // Mount inside the choreographer pipeline node's content area
-  const choreoContent = document.getElementById("zone-choreographer");
-  if (!choreoContent) return;
+  // Mount inside the choreographer→visual rail separator
+  const rail = document.getElementById("rail-choreographer-visual");
+  if (!rail) return;
 
-  containerEl = document.createElement("div");
-  containerEl.className = "connector-bar-v";
-  choreoContent.appendChild(containerEl);
+  const badgesContainer = rail.querySelector(".pl-rail-badges");
+  if (badgesContainer) {
+    containerEl = badgesContainer as HTMLElement;
+  }
 
   subscribeChoreography(render);
   subscribeWiring(render);
@@ -60,7 +61,7 @@ function render(): void {
 
   for (const choreo of choreographies) {
     const badge = document.createElement("button");
-    badge.className = "connector-bar-v-badge";
+    badge.className = "pl-rail-badge";
 
     // Wire endpoint data attributes for drag-connect system
     badge.dataset.wireZone = "choreographer";
@@ -68,7 +69,7 @@ function render(): void {
 
     const wired = wiredSet.has(choreo.id);
     if (wired) {
-      badge.classList.add("connector-bar-v-badge--wired");
+      badge.classList.add("pl-rail-badge--active");
     }
 
     // Color by signal type
@@ -76,11 +77,17 @@ function render(): void {
 
     // Dot
     const dot = document.createElement("span");
-    dot.className = "connector-bar-v-dot";
+    dot.className = "pl-rail-badge-dot";
     dot.style.background = wired ? color : "#6E6E8A";
     badge.appendChild(dot);
 
-    badge.title = `${choreo.on}${wired ? " (wired to theme)" : " (drag to connect)"}`;
+    // Label
+    const label = document.createElement("span");
+    label.className = "pl-rail-badge-label";
+    label.textContent = choreo.on;
+    badge.appendChild(label);
+
+    badge.title = `${choreo.on}${wired ? " (wired to visual)" : " (drag to connect)"}`;
 
     badge.addEventListener("click", () => {
       selectChoreography(choreo.id);

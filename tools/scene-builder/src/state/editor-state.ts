@@ -217,50 +217,24 @@ export function toggleViewMode(): void {
 // Pipeline layout
 // ---------------------------------------------------------------------------
 
-/** Ordered pipeline nodes for distance calculation. */
-const PIPELINE_ORDER: readonly PipelineNodeId[] = ["signal", "choreographer", "visual", "shader"];
-
-/** Set which pipeline nodes are extended (max 2). */
+/** Set which pipeline node is extended (solo — exactly one). */
 export function setPipelineExtended(nodes: PipelineNodeId[]): void {
-  state = { ...state, pipelineLayout: { extended: nodes.slice(0, 2) } };
+  const first = nodes[0] ?? "visual";
+  state = { ...state, pipelineLayout: { extended: [first] } };
   notify();
 }
 
-/** Toggle a pipeline node's extended state. If >2 extended, eject the farthest from the toggled node. */
+/** Extend a pipeline node (solo — collapses all others). */
 export function togglePipelineNode(id: PipelineNodeId): void {
-  const current = [...state.pipelineLayout.extended];
-  const idx = current.indexOf(id);
-  if (idx >= 0) {
-    // Already extended — collapse it (but keep at least one)
-    if (current.length > 1) {
-      current.splice(idx, 1);
-    }
-  } else {
-    current.push(id);
-    // If more than 2, eject the one farthest from the newly toggled
-    if (current.length > 2) {
-      const clickedOrder = PIPELINE_ORDER.indexOf(id);
-      let farthestIdx = 0;
-      let farthestDist = -1;
-      for (let i = 0; i < current.length; i++) {
-        if (current[i] === id) continue;
-        const dist = Math.abs(PIPELINE_ORDER.indexOf(current[i]!) - clickedOrder);
-        if (dist > farthestDist) {
-          farthestDist = dist;
-          farthestIdx = i;
-        }
-      }
-      current.splice(farthestIdx, 1);
-    }
-  }
-  state = { ...state, pipelineLayout: { extended: current } };
-  notify();
-}
-
-/** Focus a single pipeline node (solo mode). */
-export function focusPipelineNode(id: PipelineNodeId): void {
+  // Already the only extended node — no-op
+  if (state.pipelineLayout.extended.length === 1 && state.pipelineLayout.extended[0] === id) return;
   state = { ...state, pipelineLayout: { extended: [id] } };
   notify();
+}
+
+/** Focus a single pipeline node (alias for togglePipelineNode). */
+export function focusPipelineNode(id: PipelineNodeId): void {
+  togglePipelineNode(id);
 }
 
 /** Get the primary focused pipeline node (first extended, fallback "visual"). */
