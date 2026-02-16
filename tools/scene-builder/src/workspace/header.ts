@@ -8,6 +8,7 @@ import { exportScene } from "../io/export-scene.js";
 import { importScene } from "../io/import-scene.js";
 import { subscribeRunMode, isRunModeActive } from "../run-mode/run-mode-state.js";
 import { newScene } from "../state/persistence.js";
+import { getEditorState, setActiveView, subscribeEditor } from "../state/editor-state.js";
 
 // Preview is imported lazily to avoid loading @sajou/* packages at startup.
 // If the preview module fails to load, only the preview feature breaks —
@@ -78,12 +79,38 @@ async function triggerNewScene(): Promise<void> {
   }
 }
 
+/** Toggle between visual and shader views. */
+function toggleShaderView(): void {
+  const { currentView } = getEditorState();
+  setActiveView(currentView === "shader" ? "visual" : "shader");
+}
+
 /** Initialize header button handlers. */
 export function initHeader(): void {
   const btnImport = document.getElementById("btn-import");
   const btnExport = document.getElementById("btn-export");
   const btnPreview = document.getElementById("btn-preview");
   const btnRun = document.getElementById("btn-run");
+
+  // Insert "Shader" toggle before "New"
+  if (btnImport) {
+    const btnShader = document.createElement("button");
+    btnShader.id = "btn-shader";
+    btnShader.className = "header-btn";
+    btnShader.title = "Toggle Shader editor (Shift+E)";
+    // Lucide code-xml icon
+    btnShader.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"/><path d="m6 8-4 4 4 4"/><path d="m14.5 4-5 16"/></svg> <span id="btn-shader-label">Shader</span>`;
+    btnShader.addEventListener("click", toggleShaderView);
+    btnImport.parentNode?.insertBefore(btnShader, btnImport);
+
+    // Sync button active state with editor view
+    subscribeEditor(() => {
+      const isShader = getEditorState().currentView === "shader";
+      btnShader.classList.toggle("header-btn--shader-active", isShader);
+      const label = document.getElementById("btn-shader-label");
+      if (label) label.textContent = isShader ? "Visual" : "Shader";
+    });
+  }
 
   // Insert "New" button before Import
   if (btnImport) {
@@ -153,6 +180,17 @@ export function initHeader(): void {
     if ((e.ctrlKey || e.metaKey) && e.key === "n") {
       e.preventDefault();
       void triggerNewScene();
+    }
+  });
+
+  // Keyboard shortcut: Shift+E for shader toggle
+  document.addEventListener("keydown", (e: KeyboardEvent) => {
+    if (e.shiftKey && e.key === "E" && !e.ctrlKey && !e.metaKey) {
+      // Don't trigger if typing in an input/textarea/contenteditable
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement).isContentEditable) return;
+      e.preventDefault();
+      toggleShaderView();
     }
   });
 }

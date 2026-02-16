@@ -44,6 +44,7 @@ import { initParticlePanel } from "../panels/particle-panel.js";
 // Views
 import { initSignalView } from "../views/signal-view.js";
 import { initChoreographyView } from "../views/choreography-view.js";
+import { initShaderView } from "../shader-editor/shader-view.js";
 
 // Tools
 import { createSelectTool, initSelectToolKeyboard } from "../tools/select-tool.js";
@@ -165,6 +166,9 @@ export async function initWorkspace(): Promise<void> {
 
   // Scene renderer (syncs state → Three.js entities + Canvas2D overlays)
   initSceneRenderer();
+
+  // Shader editor view (hidden by default, toggled via header button)
+  initShaderView();
 
   // Canvas drop handler (drag asset from Asset Manager → auto-place)
   initCanvasDropHandler();

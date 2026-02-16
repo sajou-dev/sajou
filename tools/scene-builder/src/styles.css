@@ -7033,3 +7033,248 @@ button {
 .sp-btn-small:hover {
   color: var(--color-error);
 }
+
+/* ===========================================================================
+ * Shader Editor
+ * =========================================================================== */
+
+/* Header toggle button — active state */
+.header-btn--shader-active {
+  background: var(--color-accent);
+  color: var(--color-bg);
+}
+
+.header-btn--shader-active:hover {
+  background: var(--color-accent-light);
+}
+
+/* Main layout: two-column flex */
+.shader-editor {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Left column: code panel (flex 1) + uniforms panel (max 40%) stacked */
+.shader-left-panel {
+  display: flex;
+  flex-direction: column;
+  width: 45%;
+  min-width: 300px;
+  max-width: 60%;
+  border-right: 1px solid var(--color-border);
+}
+
+/* Code editor area */
+.shader-code-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Code panel header (tabs, shader selector, buttons) */
+.shader-code-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.shader-code-header select,
+.shader-code-header input {
+  background: var(--color-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 2px 6px;
+  height: 24px;
+}
+
+.shader-code-header select:focus,
+.shader-code-header input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+.shader-tab-btn {
+  padding: 3px 10px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-muted);
+  transition: background 0.12s, color 0.12s;
+}
+
+.shader-tab-btn:hover {
+  background: var(--color-border-hover);
+  color: var(--color-text);
+}
+
+.shader-tab-btn--active {
+  background: var(--color-accent);
+  color: var(--color-bg);
+}
+
+.shader-code-btn {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  font-size: 14px;
+  transition: background 0.12s, color 0.12s;
+}
+
+.shader-code-btn:hover {
+  background: var(--color-border-hover);
+  color: var(--color-text);
+}
+
+/* CodeMirror container */
+.shader-code-panel .cm-editor {
+  flex: 1;
+  min-height: 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.shader-code-panel .cm-editor .cm-scroller {
+  overflow: auto;
+}
+
+/* Compilation error gutter marker */
+.cm-error-line {
+  background: rgba(196, 64, 64, 0.15);
+}
+
+.shader-compile-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  border-top: 1px solid var(--color-border);
+  flex-shrink: 0;
+  min-height: 24px;
+}
+
+.shader-compile-status--ok {
+  color: var(--color-success);
+}
+
+.shader-compile-status--error {
+  color: var(--color-error);
+}
+
+/* Uniforms panel (bottom of left column) */
+.shader-uniforms-panel {
+  max-height: 40%;
+  overflow-y: auto;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
+  padding: 8px 10px;
+}
+
+.shader-uniforms-panel:empty {
+  display: none;
+}
+
+.shader-uniform-label {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-muted);
+  margin-bottom: 2px;
+}
+
+.shader-uniform-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.shader-uniform-row input[type="range"] {
+  flex: 1;
+  accent-color: var(--color-accent);
+}
+
+.shader-uniform-row input[type="color"] {
+  width: 28px;
+  height: 22px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.shader-uniform-value {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-muted);
+  min-width: 40px;
+  text-align: right;
+}
+
+/* Preview panel (right side) */
+.shader-preview-panel {
+  flex: 1;
+  min-width: 0;
+  background: #07070c;
+  position: relative;
+  overflow: hidden;
+}
+
+.shader-preview-panel canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Preset dropdown */
+.shader-preset-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 100;
+  background: var(--color-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow);
+  padding: 4px 0;
+  min-width: 180px;
+}
+
+.shader-preset-item {
+  display: block;
+  width: 100%;
+  padding: 6px 12px;
+  text-align: left;
+  font-size: 12px;
+  color: var(--color-text);
+  transition: background 0.1s;
+}
+
+.shader-preset-item:hover {
+  background: var(--color-border-hover);
+}
+
+.shader-preset-item-desc {
+  display: block;
+  font-size: 10px;
+  color: var(--color-text-muted);
+  margin-top: 1px;
+}
