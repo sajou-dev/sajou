@@ -398,15 +398,14 @@ button {
   height: 12px;
 }
 
-/* Rail badge — compact vertical button in the rail separator.
-   margin: auto centers this block between connected (top) and inactive (bottom) sources. */
+/* Rail badge — compact vertical button in the rail separator */
 .pl-rail-badges {
   display: flex;
   flex-direction: column;
   gap: 2px;
   align-items: center;
   width: 100%;
-  margin: auto 0;
+  flex-shrink: 0;
 }
 
 .pl-rail-badge {
@@ -476,14 +475,17 @@ button {
  * Source badges + signal-type badges in the rail
  * --------------------------------------------------------------------------- */
 
-/* Source badges section (connected above, inactive below signal-types) */
+/* Source badges section (connected above, inactive below signal-types).
+   flex:1 + justify-content:center keeps badges centered in their half. */
 .pl-rail-sources {
   display: flex;
   flex-direction: column;
   gap: 2px;
   align-items: center;
+  justify-content: center;
   width: 100%;
   padding: 2px 0;
+  flex: 1;
 }
 
 /* Inactive sources: grayed out, non-interactive (matches signal view) */
