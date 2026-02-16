@@ -99,6 +99,11 @@ const ICON = {
     '<path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>' +
     '<path d="M12 17h.01"/>'
   ),
+  shader: lucide(
+    '<path d="m18 16 4-4-4-4"/>' +
+    '<path d="m6 8-4 4 4 4"/>' +
+    '<path d="m14.5 4-5 16"/>'
+  ),
 };
 
 // ---------------------------------------------------------------------------
@@ -136,6 +141,7 @@ const PANEL_TOGGLES: PanelToggleDef[] = [
   { panelId: "settings", label: "Settings", iconKey: "settings", shortcut: "" },
   { panelId: "lighting", label: "Lighting", iconKey: "light", shortcut: "" },
   { panelId: "particles", label: "Particles", iconKey: "particle", shortcut: "" },
+  { panelId: "shader-editor", label: "Shader", iconKey: "shader", shortcut: "" },
 ];
 
 // ---------------------------------------------------------------------------

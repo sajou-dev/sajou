@@ -6899,23 +6899,12 @@ button {
   background: var(--color-accent-light);
 }
 
-/* Main layout: two-column flex */
-.shader-editor {
-  display: flex;
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-}
-
-/* Left column: code panel (flex 1) + uniforms panel (max 40%) stacked */
-.shader-left-panel {
+/* Shader editor floating panel content: code + uniforms stacked */
+.panel[data-panel-id="shader-editor"] .panel-content {
   display: flex;
   flex-direction: column;
-  width: 45%;
-  min-width: 300px;
-  max-width: 60%;
-  border-right: 1px solid var(--color-border);
+  padding: 0;
+  overflow: hidden;
 }
 
 /* Code editor area */
@@ -7029,13 +7018,14 @@ button {
   color: var(--color-error);
 }
 
-/* Uniforms panel (bottom of left column) */
+/* Uniforms panel (bottom of shader-editor panel) */
 .shader-uniforms-panel {
   max-height: 40%;
   overflow-y: auto;
   border-top: 1px solid var(--color-border);
   background: var(--color-surface);
   padding: 8px 10px;
+  flex-shrink: 0;
 }
 
 .shader-uniforms-panel:empty {
@@ -7080,10 +7070,11 @@ button {
   text-align: right;
 }
 
-/* Preview panel (right side) */
+/* Preview panel — fills the shader pipeline node entirely */
 .shader-preview-panel {
   flex: 1;
   min-width: 0;
+  min-height: 0;
   background: #07070c;
   position: relative;
   overflow: hidden;

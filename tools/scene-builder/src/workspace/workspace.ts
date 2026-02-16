@@ -46,7 +46,7 @@ import { initParticlePanel } from "../panels/particle-panel.js";
 // Views
 import { initSignalView } from "../views/signal-view.js";
 import { initChoreographyView } from "../views/choreography-view.js";
-import { initShaderView } from "../shader-editor/shader-view.js";
+import { initShaderView, initShaderEditorPanel } from "../shader-editor/shader-view.js";
 
 // Tools
 import { createSelectTool, initSelectToolKeyboard } from "../tools/select-tool.js";
@@ -212,6 +212,9 @@ export async function initWorkspace(): Promise<void> {
 
   const particlesPanel = createPanel({ id: "particles", title: "Particles", minWidth: 280, minHeight: 350 });
   initParticlePanel(particlesPanel.contentEl);
+
+  const shaderPanel = createPanel({ id: "shader-editor", title: "Shader Editor", minWidth: 400, minHeight: 350 });
+  initShaderEditorPanel(shaderPanel.contentEl);
 
   // Start auto-saving state changes AFTER all views and stores are initialized.
   initAutoSave();

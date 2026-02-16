@@ -1,35 +1,46 @@
 /**
  * Shader editor view.
  *
- * Creates the shader editor DOM container inside the shader pipeline node
- * (#shader-node-content). The shader editor is always rendered in its own
- * pipeline node — no toggle with the visual canvas.
+ * The shader pipeline node (#shader-node-content) contains only the preview
+ * canvas. The code editor + uniforms panel live in a floating panel created
+ * by initShaderEditorPanel().
  *
- * Lazily initializes CodeMirror and preview canvas on first extension.
+ * Lazily initializes CodeMirror, uniforms, and preview canvas on first need.
  */
 
-import { getEditorState, subscribeEditor } from "../state/editor-state.js";
+import { getEditorState, subscribeEditor, showPanel } from "../state/editor-state.js";
 
 // ---------------------------------------------------------------------------
-// DOM creation
+// Module state
 // ---------------------------------------------------------------------------
 
-let editorEl: HTMLDivElement | null = null;
-let initialized = false;
+let panelInitialized = false;
 
-/** Initialize the shader editor view inside the shader pipeline node. */
+// ---------------------------------------------------------------------------
+// Pipeline node — preview canvas only
+// ---------------------------------------------------------------------------
+
+/** Initialize the shader preview inside the shader pipeline node. */
 export function initShaderView(): void {
   const container = document.getElementById("shader-node-content");
   if (!container) return;
 
-  editorEl = document.createElement("div");
-  editorEl.id = "shader-editor";
-  editorEl.className = "shader-editor";
+  // Create preview panel directly inside the pipeline node
+  const previewPanel = document.createElement("div");
+  previewPanel.className = "shader-preview-panel";
+  previewPanel.id = "shader-preview-panel";
+  container.appendChild(previewPanel);
 
-  // Left panel: code + uniforms (stacked)
-  const leftPanel = document.createElement("div");
-  leftPanel.className = "shader-left-panel";
+  // Subscribe to pipeline layout changes for lazy init
+  subscribeEditor(onLayoutChange);
+}
 
+// ---------------------------------------------------------------------------
+// Floating panel — code editor + uniforms
+// ---------------------------------------------------------------------------
+
+/** Initialize the shader editor floating panel content. */
+export function initShaderEditorPanel(contentEl: HTMLElement): void {
   const codePanel = document.createElement("div");
   codePanel.className = "shader-code-panel";
   codePanel.id = "shader-code-panel";
@@ -38,30 +49,18 @@ export function initShaderView(): void {
   uniformsPanel.className = "shader-uniforms-panel";
   uniformsPanel.id = "shader-uniforms-panel";
 
-  leftPanel.appendChild(codePanel);
-  leftPanel.appendChild(uniformsPanel);
-
-  // Right panel: preview canvas
-  const previewPanel = document.createElement("div");
-  previewPanel.className = "shader-preview-panel";
-  previewPanel.id = "shader-preview-panel";
-
-  editorEl.appendChild(leftPanel);
-  editorEl.appendChild(previewPanel);
-  container.appendChild(editorEl);
-
-  // Subscribe to pipeline layout changes for lazy init
-  subscribeEditor(onLayoutChange);
+  contentEl.appendChild(codePanel);
+  contentEl.appendChild(uniformsPanel);
 }
 
 // ---------------------------------------------------------------------------
 // Lazy initialization
 // ---------------------------------------------------------------------------
 
-/** Initialize CodeMirror and uniforms panel on first switch to shader view. */
-async function lazyInit(): Promise<void> {
-  if (initialized) return;
-  initialized = true;
+/** Initialize CodeMirror and uniforms on first panel open. */
+async function lazyInitPanel(): Promise<void> {
+  if (panelInitialized) return;
+  panelInitialized = true;
 
   const codeEl = document.getElementById("shader-code-panel");
   if (codeEl) {
@@ -77,15 +76,24 @@ async function lazyInit(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Layout sync — lazy init when shader node becomes extended
+// Layout sync
 // ---------------------------------------------------------------------------
 
-/** Trigger lazy init when the shader pipeline node becomes extended. */
+/** Trigger lazy inits when shader node becomes extended or panel opens. */
 function onLayoutChange(): void {
-  const { pipelineLayout } = getEditorState();
+  const { pipelineLayout, panelLayouts } = getEditorState();
   const isExtended = pipelineLayout.extended.includes("shader");
 
-  if (isExtended && !initialized) {
-    void lazyInit();
+  // Auto-open shader-editor panel when shader node becomes extended
+  if (isExtended) {
+    const shaderPanelVisible = panelLayouts["shader-editor"]?.visible;
+    if (!shaderPanelVisible) {
+      showPanel("shader-editor");
+    }
+  }
+
+  // Lazy init code panel when shader-editor panel becomes visible
+  if (panelLayouts["shader-editor"]?.visible && !panelInitialized) {
+    void lazyInitPanel();
   }
 }
