@@ -2039,20 +2039,21 @@ button {
   position: absolute;
   top: 0;
   left: 0;
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  height: 28px;
+  padding: 0 10px 0 6px;
+  border-radius: 14px;
   border: 1.5px solid rgba(232, 168, 81, 0.35);
   background: var(--color-surface);
   color: var(--color-text);
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  justify-content: center;
-  gap: 2px;
+  gap: 5px;
   cursor: pointer;
   pointer-events: auto;
   font-family: var(--font-mono);
+  white-space: nowrap;
   transition: transform 0.12s ease-out, border-color 0.12s, background 0.12s, box-shadow 0.12s;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
   opacity: 0;
@@ -2076,36 +2077,51 @@ button {
   border-color: var(--color-accent);
   background: var(--color-elevated);
   box-shadow: 0 0 14px rgba(232, 168, 81, 0.5), 0 2px 8px rgba(0, 0, 0, 0.5);
-  transform: scale(1.18);
+  transform: translate(-50%, -50%) scale(1.1);
   z-index: 1;
 }
 
 .radial-item:active {
   background: var(--color-accent);
   color: var(--color-bg);
-  transform: scale(0.95);
+  transform: translate(-50%, -50%) scale(0.95);
 }
 
 .radial-item-icon {
-  font-size: 16px;
+  font-size: 13px;
   line-height: 1;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(232, 168, 81, 0.15);
 }
 
 .radial-item-label {
-  font-size: 8px;
+  font-size: 10px;
   line-height: 1;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  max-width: 50px;
+  letter-spacing: 0.02em;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  text-align: center;
-  color: var(--color-text-dim);
+  max-width: 120px;
+  color: var(--color-text);
+}
+
+.radial-item-label--ref {
+  font-style: italic;
+  color: var(--color-accent-dim);
 }
 
 .radial-item:hover .radial-item-label {
   color: var(--color-accent);
+}
+
+.radial-item:active .radial-item-icon {
+  background: rgba(7, 7, 12, 0.3);
 }
 
 @keyframes radial-pop {
