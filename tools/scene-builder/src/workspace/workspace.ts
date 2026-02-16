@@ -213,7 +213,7 @@ export async function initWorkspace(): Promise<void> {
   const particlesPanel = createPanel({ id: "particles", title: "Particles", minWidth: 280, minHeight: 350 });
   initParticlePanel(particlesPanel.contentEl);
 
-  const shaderPanel = createPanel({ id: "shader-editor", title: "Shader Editor", minWidth: 400, minHeight: 350 });
+  const shaderPanel = createPanel({ id: "shader-editor", title: "Shader Editor", minWidth: 400, minHeight: 350, ownerNode: "shader" });
   initShaderEditorPanel(shaderPanel.contentEl);
 
   // Start auto-saving state changes AFTER all views and stores are initialized.
