@@ -73,12 +73,23 @@ export interface DiscoveredService {
   models?: string[];
 }
 
+/**
+ * Fixed identity colors for well-known local sources.
+ * Ensures colors are stable across sessions (no palette rotation drift).
+ */
+const LOCAL_SOURCE_COLORS: Record<string, string> = {
+  "local:claude-code": "#E8A851",  // amber (sajou accent)
+  "local:openclaw": "#5B8DEF",     // blue
+  "local:lm-studio": "#4EC9B0",    // teal
+  "local:ollama": "#6A9955",       // green
+};
+
 /** Create a local source from a discovered service descriptor. */
 export function createLocalSource(service: DiscoveredService): SignalSource {
   return {
     id: service.id,
     name: service.label,
-    color: nextSourceColor(),
+    color: LOCAL_SOURCE_COLORS[service.id] ?? nextSourceColor(),
     protocol: service.protocol,
     url: service.url,
     apiKey: "",

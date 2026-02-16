@@ -10,6 +10,7 @@ import { initSceneRenderer } from "../canvas/scene-renderer.js";
 import { initCanvasDropHandler } from "../canvas/canvas-drop-handler.js";
 import { initToolbar } from "./toolbar.js";
 import { initHeader } from "./header.js";
+import { restoreState, initAutoSave } from "../state/persistence.js";
 import { initHelpBar } from "./help-bar.js";
 import { initUndoManager } from "../state/undo.js";
 import {
@@ -125,7 +126,9 @@ function initToolSwitching(): void {
 
 /** Initialize the full workspace. */
 export async function initWorkspace(): Promise<void> {
-  // State is initialized with defaults on import — nothing to call.
+  // Attempt to restore persisted state before initializing views.
+  // If data exists in IndexedDB, stores are populated; otherwise defaults remain.
+  await restoreState();
 
   // Undo/redo shortcuts
   initUndoManager();
@@ -196,4 +199,7 @@ export async function initWorkspace(): Promise<void> {
 
   const particlesPanel = createPanel({ id: "particles", title: "Particles", minWidth: 280, minHeight: 350 });
   initParticlePanel(particlesPanel.contentEl);
+
+  // Start auto-saving state changes AFTER all views and stores are initialized.
+  initAutoSave();
 }

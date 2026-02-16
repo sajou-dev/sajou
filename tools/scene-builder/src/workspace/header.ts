@@ -7,6 +7,7 @@
 import { exportScene } from "../io/export-scene.js";
 import { importScene } from "../io/import-scene.js";
 import { subscribeRunMode, isRunModeActive } from "../run-mode/run-mode-state.js";
+import { newScene } from "../state/persistence.js";
 
 // Preview is imported lazily to avoid loading @sajou/* packages at startup.
 // If the preview module fails to load, only the preview feature breaks —
@@ -65,12 +66,38 @@ function updateRunButton(): void {
   }
 }
 
+/** Trigger "New Scene" with confirmation dialog. */
+async function triggerNewScene(): Promise<void> {
+  const confirmed = window.confirm("Unsaved changes will be lost. Create a new scene?");
+  if (!confirmed) return;
+
+  try {
+    await newScene();
+  } catch (err: unknown) {
+    console.error("[scene-builder] New scene failed:", err);
+  }
+}
+
 /** Initialize header button handlers. */
 export function initHeader(): void {
   const btnImport = document.getElementById("btn-import");
   const btnExport = document.getElementById("btn-export");
   const btnPreview = document.getElementById("btn-preview");
   const btnRun = document.getElementById("btn-run");
+
+  // Insert "New" button before Import
+  if (btnImport) {
+    const btnNew = document.createElement("button");
+    btnNew.id = "btn-new";
+    btnNew.className = "header-btn";
+    btnNew.title = "New scene (Ctrl+N)";
+    btnNew.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg> New`;
+    btnImport.parentNode?.insertBefore(btnNew, btnImport);
+
+    btnNew.addEventListener("click", () => {
+      void triggerNewScene();
+    });
+  }
 
   btnExport?.addEventListener("click", () => {
     exportScene().catch((err: unknown) => {
@@ -118,6 +145,14 @@ export function initHeader(): void {
       exportScene().catch((err: unknown) => {
         console.error("[scene-builder] Export failed:", err);
       });
+    }
+  });
+
+  // Keyboard shortcut: Ctrl+N for new scene
+  document.addEventListener("keydown", (e: KeyboardEvent) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "n") {
+      e.preventDefault();
+      void triggerNewScene();
     }
   });
 }
