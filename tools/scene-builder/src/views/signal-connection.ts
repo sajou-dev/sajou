@@ -551,8 +551,6 @@ const OPENCLAW_MAX_RECONNECT = 10;
 /** Maximum backoff delay in ms (30s). */
 const OPENCLAW_MAX_BACKOFF_MS = 30_000;
 
-/** Default keepalive interval in ms when server doesn't specify one. */
-const OPENCLAW_DEFAULT_TICK_MS = 15_000;
 
 /**
  * Connect to an OpenClaw gateway via WebSocket.
@@ -638,16 +636,11 @@ function connectOpenClaw(conn: SourceConnection, url: string, apiKey: string): v
           // Reset reconnect state on successful connection
           openClawReconnectState.set(conn.sourceId, { attempts: 0, timer: null });
 
-          // Extract tickIntervalMs for keepalive
-          const result = msg["result"] as Record<string, unknown> | undefined;
-          const tickMs = typeof result?.["tickIntervalMs"] === "number"
-            ? result["tickIntervalMs"]
-            : OPENCLAW_DEFAULT_TICK_MS;
-
-          startOpenClawKeepalive(conn, tickMs as number);
+          // No application-level keepalive — WebSocket transport handles it,
+          // and the gateway rejects health/ping without operator.admin scope.
 
           setSourceState(conn.sourceId, { status: "connected", error: null });
-          debug(`[${conn.sourceId}] OpenClaw connected (keepalive ${tickMs}ms).`, "info", conn.sourceId);
+          debug(`[${conn.sourceId}] OpenClaw connected.`, "info", conn.sourceId);
         } else {
           const rawErr = msg["error"] ?? msg["message"] ?? "Authentication failed";
           const errMsg = typeof rawErr === "object" && rawErr !== null
@@ -690,7 +683,6 @@ function connectOpenClaw(conn: SourceConnection, url: string, apiKey: string): v
 
   conn.ws.addEventListener("close", (event) => {
     conn.ws = null;
-    clearOpenClawKeepalive(conn.sourceId);
 
     const existing = connections.get(conn.sourceId);
     if (!existing) return; // Already cleaned up by disconnectSource
@@ -733,29 +725,13 @@ function connectOpenClaw(conn: SourceConnection, url: string, apiKey: string): v
   });
 }
 
-/** Start the OpenClaw keepalive ping interval. */
-function startOpenClawKeepalive(conn: SourceConnection, intervalMs: number): void {
-  clearOpenClawKeepalive(conn.sourceId);
-  const timer = setInterval(() => {
-    if (conn.ws && conn.ws.readyState === WebSocket.OPEN) {
-      conn.ws.send(JSON.stringify({ type: "req", id: crypto.randomUUID(), method: "health" }));
-    }
-  }, intervalMs);
-  openClawKeepaliveTimers.set(conn.sourceId, timer);
-}
-
-/** Clear the OpenClaw keepalive interval for a source. */
-function clearOpenClawKeepalive(sourceId: string): void {
-  const timer = openClawKeepaliveTimers.get(sourceId);
-  if (timer) {
-    clearInterval(timer);
+/** Clear all OpenClaw timers (reconnect) for a source. */
+function clearOpenClawTimers(sourceId: string): void {
+  const keepalive = openClawKeepaliveTimers.get(sourceId);
+  if (keepalive) {
+    clearInterval(keepalive);
     openClawKeepaliveTimers.delete(sourceId);
   }
-}
-
-/** Clear all OpenClaw timers (keepalive + reconnect) for a source. */
-function clearOpenClawTimers(sourceId: string): void {
-  clearOpenClawKeepalive(sourceId);
   const reconnState = openClawReconnectState.get(sourceId);
   if (reconnState?.timer) {
     clearTimeout(reconnState.timer);
