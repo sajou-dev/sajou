@@ -71,10 +71,14 @@ Visual scene editor — the main authoring tool for creating and testing choreog
 - Wiring system (patch bay), node canvas, step chain with popover editing
 - Zone painting for semantic regions on background
 - Export/import ZIP, run mode with live preview
-- Multi-source signal connections: WebSocket, SSE, OpenAI-compatible, Anthropic API, OpenClaw
+- Signal sources split into **LOCAL** (auto-discovered) and **REMOTE** (manually added) categories
+- Local discovery: Vite plugin probes localhost for Claude Code (SSE), OpenClaw (TCP 18789), LM Studio (HTTP 1234), Ollama (HTTP 11434)
+- OpenClaw token auto-fill from `~/.openclaw/openclaw.json` → `gateway.auth.token` (CORS-restricted endpoint)
+- Remote transports: WebSocket, SSE, OpenAI-compatible, Anthropic API, OpenClaw
 - OpenClaw integration: challenge/response handshake (protocol v3), channel metadata extraction, delta-first text streaming, exponential backoff reconnect
 - HTTP POST ingestion (`POST /api/signal`) + SSE broadcast (`GET /__signals__/stream`)
 - Signal log: 10k entries in memory, 500 rendered, "Load older" button for virtual scrolling
+- Vite dev plugins: `corsProxyPlugin`, `signalIngestionPlugin`, `tapHookPlugin`, `openclawTokenPlugin`, `localDiscoveryPlugin`
 - Dependencies: `@sajou/core`, `three`, `fflate`, `gifuct-js`
 
 #### Camera
