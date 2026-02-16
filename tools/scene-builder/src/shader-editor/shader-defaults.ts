@@ -44,17 +44,38 @@ void main() {
 }
 `;
 
-/** Default fragment shader (animated gradient). */
+/** Default fragment shader — plasma with bindable uniforms. */
 export const DEFAULT_FRAGMENT_SOURCE = `#version 300 es
 precision highp float;
 
 in vec2 vUv;
 out vec4 fragColor;
 
+uniform float uSpeed;     // @ui: slider, min: 0.1, max: 5.0
+uniform float uScale;     // @ui: slider, min: 1.0, max: 20.0
+uniform float uIntensity; // @ui: slider, min: 0.0, max: 1.0
+uniform vec3  uTint;      // @ui: color
+uniform vec2  uCenter;    // @ui: xy
+uniform bool  uInvert;    // @ui: toggle
+
 void main() {
-  vec2 uv = vUv;
-  float t = iTime * 0.5;
-  vec3 col = 0.5 + 0.5 * cos(t + uv.xyx + vec3(0.0, 2.0, 4.0));
+  vec2 uv = vUv * uScale;
+  vec2 c = uCenter * uScale;
+  float t = iTime * uSpeed;
+
+  // layered sine plasma
+  float v = sin(uv.x + t);
+  v += sin(uv.y + t * 0.7);
+  v += sin((uv.x + uv.y) + t * 0.5);
+  v += sin(length(uv - c) * 2.0 + t);
+  v *= 0.25; // normalise to -1..1
+
+  // palette: cosine gradient tinted by uTint
+  vec3 col = 0.5 + 0.5 * cos(v * 3.14159 + vec3(0.0, 2.0, 4.0));
+  col = mix(col, col * uTint, uIntensity);
+
+  if (uInvert) col = 1.0 - col;
+
   fragColor = vec4(col, 1.0);
 }
 `;

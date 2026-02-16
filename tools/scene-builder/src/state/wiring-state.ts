@@ -27,8 +27,8 @@ export interface WireConnection {
   /** Source endpoint ID (signal source ID, signal type name, or choreography ID). */
   fromId: string;
   /** Destination zone. */
-  toZone: "signal-type" | "choreographer" | "theme";
-  /** Destination endpoint ID (signal type name, choreography ID, or theme slot). */
+  toZone: "signal-type" | "choreographer" | "theme" | "shader";
+  /** Destination endpoint ID (signal type name, choreography ID, theme slot, or {shaderId}:{uniformName}). */
   toId: string;
   /** Optional mapping function applied to routed data. */
   mapping?: { fn: string; args: number[] };

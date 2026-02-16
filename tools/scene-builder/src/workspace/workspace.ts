@@ -29,6 +29,7 @@ import { initViewTabs } from "./view-tabs.js";
 import { initRideau } from "./rideau.js";
 import { initConnectorBarH } from "./connector-bar-horizontal.js";
 import { initConnectorBarV } from "./connector-bar-vertical.js";
+import { initConnectorBarShader } from "./connector-bar-shader.js";
 import { initWiringOverlay } from "./wiring-overlay.js";
 import { initWiringDrag } from "./wiring-drag.js";
 
@@ -155,6 +156,7 @@ export async function initWorkspace(): Promise<void> {
   // Connector bars (badges showing wired connections between zones)
   initConnectorBarH();
   initConnectorBarV();
+  initConnectorBarShader();
 
   // Wiring overlay (SVG bezier curves) + drag-to-connect interaction
   initWiringOverlay();

@@ -173,7 +173,16 @@ export function initShaderCodePanel(codeEl: HTMLElement): void {
 
   presetBtn.addEventListener("click", (e) => {
     e.stopPropagation();
-    presetMenu.style.display = presetMenu.style.display === "none" ? "block" : "none";
+    const isOpen = presetMenu.style.display !== "none";
+    if (isOpen) {
+      presetMenu.style.display = "none";
+    } else {
+      // Position fixed menu below the button
+      const rect = presetBtn.getBoundingClientRect();
+      presetMenu.style.left = `${rect.left}px`;
+      presetMenu.style.top = `${rect.bottom + 4}px`;
+      presetMenu.style.display = "block";
+    }
   });
 
   // Close preset menu on outside click
@@ -182,7 +191,8 @@ export function initShaderCodePanel(codeEl: HTMLElement): void {
   });
 
   presetContainer.appendChild(presetBtn);
-  presetContainer.appendChild(presetMenu);
+  // Append menu to body so it escapes overflow: hidden
+  document.body.appendChild(presetMenu);
 
   header.append(nameInputEl, shaderSelectorEl, tabVertex, tabFragment, spacer, passesLabel, passesSelect, presetContainer, btnNew);
   codeEl.appendChild(header);

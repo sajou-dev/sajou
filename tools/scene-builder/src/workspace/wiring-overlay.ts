@@ -40,6 +40,8 @@ import {
   getActiveBarHSource,
   subscribeActiveSource,
 } from "./connector-bar-horizontal.js";
+import { subscribeShaders } from "../shader-editor/shader-state.js";
+import { getEditorState } from "../state/editor-state.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -48,6 +50,7 @@ import {
 const SVG_NS = "http://www.w3.org/2000/svg";
 const WIRE_COLOR = "#E8A851";
 const WIRE_PREVIEW_COLOR = "#E8A851";
+const WIRE_SHADER_COLOR = "#7B61FF";
 const WIRE_WIDTH = 2;
 const WIRE_HOVER_WIDTH = 4;
 const CONTROL_POINT_OFFSET = 60;
@@ -93,6 +96,7 @@ export function initWiringOverlay(): void {
   subscribeChoreography(renderWires);
   subscribeSignalSources(renderWires);
   subscribeActiveSource(renderWires);
+  subscribeShaders(renderWires);
   window.addEventListener("resize", renderWires);
 
   renderWires();
@@ -129,11 +133,12 @@ function renderWires(): void {
 
   const { wires } = getWiringState();
 
-  // Render established wires (skip signal→signal-type and signal-type→choreo:
-  // replaced by computed source→choreo orthogonal lines below)
+  // Render established wires (skip signal→signal-type, signal-type→choreo,
+  // and choreo→shader: these use dedicated orthogonal renderers below)
   for (const wire of wires) {
     if (wire.fromZone === "signal" && wire.toZone === "signal-type") continue;
     if (wire.fromZone === "signal-type" && wire.toZone === "choreographer") continue;
+    if (wire.fromZone === "choreographer" && wire.toZone === "shader") continue;
     const path = createWirePath(wire, wsRect);
     if (path) {
       svgEl.appendChild(path);
@@ -142,6 +147,9 @@ function renderWires(): void {
 
   // Computed source→choreography orthogonal lines
   renderSourceChoreoLines(wsRect);
+
+  // Choreographer→shader orthogonal lines
+  renderChoreoShaderLines(wsRect);
 
   // Render preview wire
   if (previewWire) {
@@ -441,6 +449,113 @@ function renderSourceChoreoLines(wsRect: DOMRect): void {
 }
 
 // ---------------------------------------------------------------------------
+// Choreographer → shader orthogonal lines
+// ---------------------------------------------------------------------------
+
+/**
+ * Render choreographer→shader wires as orthogonal elbows.
+ *
+ * Only visible when the shader node is extended — the V-bar and shader-bar
+ * are adjacent with no Visual node between them, so the short orthogonal
+ * route looks clean. When Visual is extended, the wires are hidden to avoid
+ * lines cutting across the canvas.
+ */
+function renderChoreoShaderLines(wsRect: DOMRect): void {
+  if (!svgEl) return;
+
+  // Only draw when shader node is extended (badges are visible and close)
+  const { pipelineLayout } = getEditorState();
+  if (!pipelineLayout.extended.includes("shader")) return;
+
+  const { wires } = getWiringState();
+  const shaderWires = wires.filter(
+    (w) => w.fromZone === "choreographer" && w.toZone === "shader",
+  );
+  if (shaderWires.length === 0) return;
+
+  const activeSource = getActiveBarHSource();
+  const { sources } = getSignalSourcesState();
+
+  for (const wire of shaderWires) {
+    const fromBadge = findBadge(wire.fromZone, wire.fromId);
+    const toBadge = findBadge(wire.toZone, wire.toId);
+    if (!fromBadge || !toBadge) continue;
+
+    const fromRect = fromBadge.getBoundingClientRect();
+    const toRect = toBadge.getBoundingClientRect();
+    if (fromRect.width === 0 || toRect.width === 0) continue;
+
+    const fromX = fromRect.right - wsRect.left;
+    const fromY = fromRect.top + fromRect.height / 2 - wsRect.top;
+    const toX = toRect.left - wsRect.left;
+    const toY = toRect.top + toRect.height / 2 - wsRect.top;
+
+    const laneX = fromX + (toX - fromX) * 0.5;
+    const d = buildOrthogonalD(fromX, fromY, toX, toY, laneX);
+
+    // Resolve source identity color via the parent choreography
+    const choreoId = (fromBadge as HTMLElement).dataset.choreoId ?? "";
+    const provenance = choreoId ? getSourcesForChoreo(choreoId) : [];
+
+    let wireColor = WIRE_SHADER_COLOR;
+    let isDimmed = false;
+
+    if (provenance.length === 1) {
+      const src = sources.find((s) => s.id === provenance[0]!.sourceId);
+      if (src) wireColor = src.color;
+    } else if (provenance.length > 1 && activeSource) {
+      const activeEntry = provenance.find((p) => p.sourceId === activeSource);
+      if (activeEntry) {
+        const src = sources.find((s) => s.id === activeSource);
+        if (src) wireColor = src.color;
+      }
+    }
+
+    if (activeSource) {
+      isDimmed = !provenance.some((p) => p.sourceId === activeSource);
+    }
+
+    const path = document.createElementNS(SVG_NS, "path");
+    path.setAttribute("d", d);
+    path.setAttribute("fill", "none");
+    path.setAttribute("stroke", wireColor);
+    path.setAttribute("stroke-width", String(WIRE_WIDTH));
+    path.setAttribute("stroke-linecap", "round");
+    path.setAttribute("stroke-linejoin", "round");
+    if (isDimmed) path.setAttribute("opacity", "0.15");
+    path.classList.add("wire-path", "wire-path--choreo-shader");
+
+    // Hit area for hover/delete
+    const hitArea = document.createElementNS(SVG_NS, "path");
+    hitArea.setAttribute("d", d);
+    hitArea.setAttribute("fill", "none");
+    hitArea.setAttribute("stroke", "transparent");
+    hitArea.setAttribute("stroke-width", "12");
+    hitArea.setAttribute("stroke-linecap", "round");
+    hitArea.style.cursor = "pointer";
+
+    hitArea.addEventListener("mouseenter", () => {
+      path.setAttribute("stroke-width", String(WIRE_HOVER_WIDTH));
+      path.classList.add("wire-path--hover");
+    });
+    hitArea.addEventListener("mouseleave", () => {
+      path.setAttribute("stroke-width", String(WIRE_WIDTH));
+      path.classList.remove("wire-path--hover");
+    });
+    hitArea.addEventListener("contextmenu", (e: MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      removeWire(wire.id);
+    });
+
+    const group = document.createElementNS(SVG_NS, "g");
+    group.appendChild(path);
+    group.appendChild(hitArea);
+    svgEl.appendChild(group);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Endpoint resolution
 // ---------------------------------------------------------------------------
 
@@ -490,7 +605,7 @@ function resolveEndpoints(
     return { fromX, fromY, toX, toY, curveDirection: "horizontal", cpOffset };
   }
 
-  // Unknown wire type
+  // Unknown wire type (choreo→shader handled by renderChoreoShaderLines)
   return null;
 }
 

@@ -157,6 +157,12 @@ function onMouseMove(e: MouseEvent): void {
   const targetBadge = findTargetBadgeAt(e.clientX, e.clientY, session.targetZone);
   updateTargetHighlight(session.targetZone, targetBadge);
 
+  // When dragging from choreographer, also check shader badges as targets
+  if (session.fromZone === "choreographer") {
+    const shaderBadge = findTargetBadgeAt(e.clientX, e.clientY, "shader");
+    updateTargetHighlight("shader", shaderBadge);
+  }
+
   // Level 2: when dragging choreo→theme, also hit-test entities on canvas
   if (session.targetZone === "theme") {
     const themeZone = document.getElementById("zone-theme");
@@ -192,6 +198,26 @@ function onMouseUp(e: MouseEvent): void {
     updateEditorState({ bindingDragActive: false, bindingDropHighlightId: null });
   }
 
+  // Check if released on a shader badge first (choreo→shader wire)
+  if (fromZone === "choreographer") {
+    const shaderBadge = findTargetBadgeAt(e.clientX, e.clientY, "shader");
+    if (shaderBadge) {
+      const toId = shaderBadge.dataset.wireId;
+      if (toId && !hasWire(fromZone, fromId, "shader", toId)) {
+        addWire({
+          fromZone: fromZone as "signal" | "signal-type" | "choreographer",
+          fromId,
+          toZone: "shader",
+          toId,
+        });
+      }
+      // Clean up shader highlight
+      highlightTargets("shader", false);
+      session = null;
+      return;
+    }
+  }
+
   // Check if released on a valid DOM target badge
   const targetBadge = findTargetBadgeAt(e.clientX, e.clientY, targetZone);
   if (targetBadge) {
@@ -203,7 +229,7 @@ function onMouseUp(e: MouseEvent): void {
         addWire({
           fromZone: fromZone as "signal" | "signal-type" | "choreographer",
           fromId,
-          toZone: targetZone as "signal-type" | "choreographer" | "theme",
+          toZone: targetZone as "signal-type" | "choreographer" | "theme" | "shader",
           toId,
         });
       }
@@ -229,6 +255,8 @@ function onMouseUp(e: MouseEvent): void {
         autoTransition(fromZone, targetZone);
       }
     }
+    // Clean up shader highlight if we were also highlighting those
+    if (fromZone === "choreographer") highlightTargets("shader", false);
     session = null;
     return;
   }
@@ -329,6 +357,19 @@ function highlightTargets(zone: WireZone, highlight: boolean): void {
     } else {
       (badge as HTMLElement).classList.remove("connector-badge--drop-target");
       (badge as HTMLElement).classList.remove("connector-badge--drop-hover");
+    }
+  }
+
+  // When highlighting theme targets, also highlight shader badges
+  if (zone === "theme") {
+    const shaderBadges = document.querySelectorAll('[data-wire-zone="shader"]');
+    for (const badge of shaderBadges) {
+      if (highlight) {
+        (badge as HTMLElement).classList.add("connector-badge--drop-target");
+      } else {
+        (badge as HTMLElement).classList.remove("connector-badge--drop-target");
+        (badge as HTMLElement).classList.remove("connector-badge--drop-hover");
+      }
     }
   }
 }
