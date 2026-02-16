@@ -20,6 +20,7 @@ import { subscribeWiring } from "../state/wiring-state.js";
 import { subscribeActiveSource } from "../workspace/connector-bar-horizontal.js";
 import { renderAllRacks } from "./rack-renderer.js";
 import { initRackDrag } from "./rack-drag.js";
+import { initActionPalette } from "./action-palette.js";
 
 // ---------------------------------------------------------------------------
 // State
@@ -39,6 +40,9 @@ export function initChoreographyView(): void {
 
   const zoneEl = document.getElementById("zone-choreographer");
   if (!zoneEl) return;
+
+  // Action palette at top of zone
+  initActionPalette(zoneEl);
 
   // Create the scrollable rack list
   rackListEl = document.createElement("div");

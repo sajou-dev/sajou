@@ -5274,6 +5274,70 @@ button {
 
 /* -- Canvas surface -- */
 
+/* -- Action palette (top of choreographer zone) -- */
+
+.action-palette {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-elevated);
+  flex-shrink: 0;
+}
+
+.action-palette-block {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 4px 4px 4px 0;
+  background: color-mix(in srgb, var(--block-color, #888899) 18%, var(--color-surface));
+  border: 1px solid color-mix(in srgb, var(--block-color, #888899) 35%, transparent);
+  color: var(--block-color, #888899);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: grab;
+  user-select: none;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.action-palette-block:hover {
+  background: color-mix(in srgb, var(--block-color, #888899) 28%, var(--color-surface));
+  border-color: color-mix(in srgb, var(--block-color, #888899) 55%, transparent);
+}
+
+.action-palette-block:active {
+  cursor: grabbing;
+}
+
+.action-palette-icon {
+  font-size: 10px;
+  line-height: 1;
+}
+
+.action-palette-label {
+  font-size: 9px;
+}
+
+.action-palette-ghost {
+  position: fixed;
+  z-index: 10000;
+  pointer-events: none;
+  padding: 4px 10px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--block-color, #888899) 25%, var(--color-elevated));
+  border: 1px solid var(--block-color, #888899);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--block-color, #888899);
+  box-shadow: var(--shadow-lg);
+  opacity: 0.9;
+}
+
 /* -- Rack list (choreographer zone) -- */
 
 .rack-list {
@@ -5282,18 +5346,21 @@ button {
   gap: 6px;
   padding: 8px;
   overflow-y: auto;
-  height: 100%;
+  flex: 1;
   scrollbar-width: thin;
   scrollbar-color: var(--color-border) transparent;
 }
 
+/* -- Clamp (single choreography) -- */
+
 .rack {
+  display: flex;
+  flex-direction: row;
+  border-radius: var(--radius-lg);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  display: flex;
-  flex-direction: column;
   transition: box-shadow 0.15s, border-color 0.15s;
+  min-height: 40px;
 }
 
 .rack:hover {
@@ -5303,6 +5370,11 @@ button {
 .rack--selected {
   border-color: var(--color-accent-dim);
   box-shadow: 0 0 12px rgba(232, 168, 81, 0.15);
+}
+
+.rack--drop-target {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 16px rgba(232, 168, 81, 0.25);
 }
 
 .rack--reordering {
@@ -5315,90 +5387,100 @@ button {
   border: 2px dashed var(--color-accent-dim);
   border-radius: var(--radius-lg);
   background: rgba(232, 168, 81, 0.05);
+  min-height: 40px;
 }
 
-/* -- Rack header -- */
+/* -- Left bracket (signal type "pince") -- */
 
-.rack-header {
+.rack-bracket {
   display: flex;
+  flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  padding: 6px 10px;
-  border-left: 3px solid var(--color-accent);
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  padding: 6px 4px;
+  min-width: 36px;
+  background: color-mix(in srgb, var(--clamp-color, #6E6E8A) 15%, var(--color-surface));
+  border-right: 2px solid var(--clamp-color, #6E6E8A);
+  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
   cursor: pointer;
   user-select: none;
 }
 
-.rack-header-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.rack-header-label {
+.rack-bracket-label {
+  writing-mode: vertical-lr;
+  text-orientation: mixed;
+  transform: rotate(180deg);
   font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--color-text);
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--clamp-color, #6E6E8A);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
   white-space: nowrap;
 }
 
-.rack-header-count {
-  font-family: var(--font-mono);
-  font-size: 9px;
-  color: var(--color-text-dim);
-  flex-shrink: 0;
+.rack-bracket-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
-.rack-header-btn {
+.rack-bracket-btn {
   background: none;
   border: none;
   color: var(--color-text-dim);
   cursor: pointer;
-  font-size: 10px;
-  padding: 2px 4px;
+  font-size: 8px;
+  padding: 2px;
   border-radius: var(--radius-sm);
   line-height: 1;
 }
 
-.rack-header-btn:hover {
+.rack-bracket-btn:hover {
   color: var(--color-text);
   background: var(--color-border);
 }
 
-.rack-header-btn--delete:hover {
+.rack-bracket-btn--delete:hover {
   color: #F44747;
 }
 
-/* -- Rack body -- */
+/* -- Clamp content area -- */
 
-.rack-body {
-  border-top: 1px solid var(--color-border);
+.rack-content {
+  flex: 1;
   display: flex;
   flex-direction: column;
-}
-
-.rack-chain {
-  /* wrapper around renderStepChain */
+  min-width: 0;
+  overflow: hidden;
 }
 
 .rack-detail {
   border-top: 1px solid var(--color-border);
 }
 
-/* -- Step chain pills -- */
+.rack-collapsed {
+  display: flex;
+  align-items: center;
+  padding: 8px 10px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--color-text-dim);
+  font-style: italic;
+}
+
+/* -- Block chain (horizontal Blockly blocks) -- */
 
 .nc-chain {
   display: flex;
-  align-items: center;
-  padding: 6px 8px;
+  align-items: stretch;
+  padding: 4px 4px;
   overflow-x: auto;
   gap: 0;
-  border-top: 1px solid var(--color-border);
   scrollbar-width: thin;
   scrollbar-color: var(--color-border) transparent;
+  min-height: 34px;
 }
 
 .nc-chain::-webkit-scrollbar {
@@ -5409,47 +5491,112 @@ button {
   border-radius: 2px;
 }
 
-.nc-chain-pill {
+/* -- Single block -- */
+
+.nc-block {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  height: 26px;
-  padding: 0 8px;
-  border-radius: 13px;
-  border: 1px solid color-mix(in srgb, var(--pill-color, #888899) 40%, transparent);
-  background: color-mix(in srgb, var(--pill-color, #888899) 10%, transparent);
-  color: var(--pill-color, #888899);
+  height: 28px;
+  padding: 0 10px 0 8px;
+  background: color-mix(in srgb, var(--block-color, #888899) 18%, var(--color-surface));
+  color: var(--block-color, #888899);
   font-family: var(--font-mono);
   font-size: 9px;
   font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
-  transition: background 0.12s, border-color 0.12s, transform 0.1s;
+  flex-shrink: 0;
+  border: none;
+  position: relative;
+  transition: background 0.12s;
+  /* Puzzle connector: tab on right via box-shadow, notch on left via border */
+  border-left: 2px solid color-mix(in srgb, var(--block-color, #888899) 40%, transparent);
+  border-radius: 0;
+}
+
+/* First block in chain — rounded left */
+.nc-block:first-child,
+.nc-block--when {
+  border-left: none;
+  border-radius: 4px 0 0 4px;
+}
+
+/* Last block before drop hint */
+.nc-block:last-of-type {
+  border-radius: 0 4px 4px 0;
+}
+
+/* Only block — rounded both sides */
+.nc-block:first-child:last-of-type {
+  border-radius: 4px;
+}
+
+.nc-block:hover {
+  background: color-mix(in srgb, var(--block-color, #888899) 28%, var(--color-surface));
+}
+
+.nc-block--selected {
+  background: color-mix(in srgb, var(--block-color, #888899) 30%, var(--color-surface));
+  box-shadow: 0 0 0 1.5px var(--block-color, #888899);
+  z-index: 1;
+}
+
+.nc-block--incomplete {
+  opacity: 0.5;
+  border-left-style: dashed;
+}
+.nc-block--incomplete:hover {
+  opacity: 0.8;
+}
+
+/* When filter block */
+.nc-block--when {
+  --block-color: #8E8EA0;
+  background: color-mix(in srgb, #8E8EA0 12%, var(--color-surface));
+  color: #8E8EA0;
+  font-style: italic;
+  cursor: default;
+}
+
+.nc-block-icon {
+  font-size: 11px;
+  line-height: 1;
   flex-shrink: 0;
 }
 
-.nc-chain-pill:hover {
-  background: color-mix(in srgb, var(--pill-color, #888899) 20%, transparent);
-  border-color: color-mix(in srgb, var(--pill-color, #888899) 60%, transparent);
-  transform: translateY(-1px);
+.nc-block-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
 }
 
-.nc-chain-pill--selected {
-  background: color-mix(in srgb, var(--pill-color, #888899) 25%, transparent);
-  border-color: var(--pill-color, #888899);
-  box-shadow: 0 0 8px color-mix(in srgb, var(--pill-color, #888899) 30%, transparent);
+/* Drop hint at end of chain */
+.nc-chain-drop-hint {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 8px;
+  border: 1.5px dashed var(--color-border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-text-dim);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  margin-left: 2px;
+  flex-shrink: 0;
+  transition: border-color 0.15s, color 0.15s;
 }
 
-/* Pill incomplete (entity not configured — drag to assign) */
-.nc-chain-pill--incomplete {
-  border-style: dashed;
-  opacity: 0.55;
-}
-.nc-chain-pill--incomplete:hover {
-  opacity: 0.85;
+.rack--drop-target .nc-chain-drop-hint {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  background: rgba(232, 168, 81, 0.06);
 }
 
-/* Ghost pill during step-drag */
+/* Ghost block during step-drag */
 .nc-step-drag-ghost {
   position: fixed;
   z-index: 10000;
@@ -5457,59 +5604,6 @@ button {
   opacity: 0.85;
   transform: scale(1.1);
   transition: none;
-}
-
-.nc-pill-icon {
-  font-size: 11px;
-  line-height: 1;
-  flex-shrink: 0;
-}
-
-.nc-pill-label {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 120px;
-}
-
-.nc-chain-arrow {
-  width: 12px;
-  height: 0;
-  border-top: 1.5px solid var(--color-border);
-  flex-shrink: 0;
-  position: relative;
-  margin: 0 1px;
-}
-
-.nc-chain-arrow::after {
-  content: "";
-  position: absolute;
-  right: -1px;
-  top: -4px;
-  border: 3px solid transparent;
-  border-left-color: var(--color-border);
-}
-
-.nc-chain-add {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  border: 1.5px dashed var(--color-border);
-  background: transparent;
-  color: var(--color-text-dim);
-  font-size: 14px;
-  font-weight: 300;
-  cursor: pointer;
-  transition: border-color 0.15s, color 0.15s, background 0.15s;
-  flex-shrink: 0;
-}
-
-.nc-chain-add:hover {
-  border-color: var(--color-accent);
-  color: var(--color-accent);
-  background: rgba(232, 168, 81, 0.08);
 }
 
 /* -- Step popover -- */
@@ -5644,55 +5738,6 @@ button {
 }
 
 /* -- Quick-action picker -- */
-
-.nc-action-picker {
-  position: fixed;
-  z-index: 1001;
-  width: 200px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-  padding: 6px;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 3px;
-  animation: nc-popover-in 0.12s ease-out;
-}
-
-.nc-action-picker-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  padding: 6px 2px;
-  border-radius: var(--radius-sm);
-  border: 1px solid transparent;
-  background: transparent;
-  color: var(--picker-color, var(--color-text-muted));
-  cursor: pointer;
-  transition: background 0.1s, border-color 0.1s;
-}
-
-.nc-action-picker-item:hover {
-  background: color-mix(in srgb, var(--picker-color, #888899) 12%, transparent);
-  border-color: color-mix(in srgb, var(--picker-color, #888899) 30%, transparent);
-}
-
-.nc-action-picker-icon {
-  font-size: 14px;
-  line-height: 1;
-}
-
-.nc-action-picker-label {
-  font-family: var(--font-mono);
-  font-size: 8px;
-  text-align: center;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
-}
 
 /* -- Inline detail panel (under selected rack) -- */
 

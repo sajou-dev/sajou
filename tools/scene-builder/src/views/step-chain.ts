@@ -1,16 +1,18 @@
 /**
- * Step chain — horizontal pill-based step renderer.
+ * Step chain — horizontal Blockly-style block chain.
  *
- * Renders a choreography's steps as a horizontal chain of coloured pills
- * connected by arrows, inspired by TouchDesigner's operator chains.
- * Each pill is clickable (opens popover). A "+" button at the end
- * opens the quick-action picker.
+ * Renders a choreography's steps as interlocking blocks in a horizontal
+ * chain. Each block is colored by action type and shows inline params.
+ * The when filter (if present) renders as the first block.
+ *
+ * Blocks snap together via CSS puzzle-piece connectors (tab on right,
+ * notch on left).
  */
 
 import type { ChoreographyDef, ChoreographyStepDef } from "../types.js";
 import { STRUCTURAL_ACTIONS } from "../types.js";
 import { getChoreographyState } from "../state/choreography-state.js";
-import { ACTION_COLORS, addStepCmd, createDefaultStep } from "./step-commands.js";
+import { ACTION_COLORS } from "./step-commands.js";
 import { attachPillDragBehavior, isStepDragSuppressed, DRAGGABLE_ACTIONS } from "../workspace/step-drag.js";
 
 // ---------------------------------------------------------------------------
@@ -37,16 +39,17 @@ const ACTION_ICONS: Record<string, string> = {
 // ---------------------------------------------------------------------------
 
 export interface StepChainCallbacks {
-  /** Called when a pill is clicked. */
+  /** Called when a block is clicked. */
   onStepClick: (stepId: string) => void;
-  /** Called when the "+" button is clicked (opens action picker). */
+  /** Called when the "+" button is clicked (legacy — now palette-driven). */
   onAddClick: (anchorEl: HTMLElement) => void;
 }
 
 /**
- * Render a horizontal step chain for a choreography.
+ * Render a horizontal block chain for a choreography.
  *
- * Returns a `.nc-chain` container with pills, arrows, and a "+" button.
+ * Returns a `.nc-chain` container with Blockly-style blocks.
+ * If the choreography has a when condition, it renders as the first block.
  */
 export function renderStepChain(
   choreo: ChoreographyDef,
@@ -55,229 +58,152 @@ export function renderStepChain(
   const chain = document.createElement("div");
   chain.className = "nc-chain";
 
-  // Prevent node drag when interacting with the chain
+  // Prevent rack drag when interacting with the chain
   chain.addEventListener("mousedown", (e) => e.stopPropagation());
 
   const { selectedStepId } = getChoreographyState();
 
-  if (choreo.steps.length === 0) {
-    // Empty state: just the "+" button
-    const addBtn = createAddButton(callbacks.onAddClick);
-    chain.appendChild(addBtn);
-    return chain;
+  // When filter as first block (if present)
+  if (choreo.when) {
+    const whenBlock = renderWhenBlock(choreo);
+    chain.appendChild(whenBlock);
   }
 
-  for (let i = 0; i < choreo.steps.length; i++) {
-    const step = choreo.steps[i]!;
-
-    // Arrow before each pill (except the first)
-    if (i > 0) {
-      const arrow = document.createElement("div");
-      arrow.className = "nc-chain-arrow";
-      chain.appendChild(arrow);
-    }
-
-    const pill = renderPill(step, step.id === selectedStepId, callbacks.onStepClick, choreo.id);
-    chain.appendChild(pill);
+  // Step blocks
+  for (const step of choreo.steps) {
+    const block = renderBlock(step, step.id === selectedStepId, callbacks.onStepClick, choreo.id);
+    chain.appendChild(block);
   }
 
-  // Arrow before the "+" button
-  const lastArrow = document.createElement("div");
-  lastArrow.className = "nc-chain-arrow";
-  chain.appendChild(lastArrow);
-
-  // "+" add button
-  const addBtn = createAddButton(callbacks.onAddClick);
-  chain.appendChild(addBtn);
+  // Empty drop zone hint at the end
+  const dropHint = document.createElement("div");
+  dropHint.className = "nc-chain-drop-hint";
+  dropHint.textContent = choreo.steps.length === 0 ? "drop actions here" : "+";
+  dropHint.title = "Drag an action from the palette";
+  chain.appendChild(dropHint);
 
   return chain;
 }
 
 // ---------------------------------------------------------------------------
-// Internal: pill
+// When filter block
 // ---------------------------------------------------------------------------
 
-/** Render a single step pill. */
-function renderPill(
+/** Render the when condition as the first block in the chain. */
+function renderWhenBlock(choreo: ChoreographyDef): HTMLElement {
+  const block = document.createElement("div");
+  block.className = "nc-block nc-block--when";
+
+  const icon = document.createElement("span");
+  icon.className = "nc-block-icon";
+  icon.textContent = "\u2630"; // ☰ filter
+  block.appendChild(icon);
+
+  const label = document.createElement("span");
+  label.className = "nc-block-label";
+  label.textContent = summarizeWhen(choreo);
+  block.appendChild(label);
+
+  return block;
+}
+
+/** Summarize a when clause for display. */
+function summarizeWhen(choreo: ChoreographyDef): string {
+  const when = choreo.when;
+  if (!when) return "when";
+
+  const condition = Array.isArray(when) ? when[0] : when;
+  if (!condition) return "when";
+
+  const entries = Object.entries(condition);
+  if (entries.length === 0) return "when";
+
+  const [path, ops] = entries[0]!;
+  const opEntries = Object.entries(ops as Record<string, unknown>);
+  if (opEntries.length === 0) return `when ${path}`;
+
+  const [op, val] = opEntries[0]!;
+  return `when ${path} ${op} ${val}`;
+}
+
+// ---------------------------------------------------------------------------
+// Step block
+// ---------------------------------------------------------------------------
+
+/** Render a single step as a Blockly-style block. */
+function renderBlock(
   step: ChoreographyStepDef,
   isSelected: boolean,
   onClick: (stepId: string) => void,
   choreoId: string,
 ): HTMLElement {
-  const pill = document.createElement("button");
-  pill.className = "nc-chain-pill" + (isSelected ? " nc-chain-pill--selected" : "");
-  pill.dataset.stepId = step.id;
+  const block = document.createElement("button");
+  block.className = "nc-block" + (isSelected ? " nc-block--selected" : "");
+  block.dataset.stepId = step.id;
 
   const color = ACTION_COLORS[step.action] ?? "#888899";
-  pill.style.setProperty("--pill-color", color);
+  block.style.setProperty("--block-color", color);
 
-  // Mark incomplete pills (draggable action with no entity configured)
+  // Mark incomplete blocks (draggable action with no entity configured)
   if (DRAGGABLE_ACTIONS.has(step.action) && !step.entity && !step.target) {
-    pill.classList.add("nc-chain-pill--incomplete");
+    block.classList.add("nc-block--incomplete");
   }
 
   // Icon
   const icon = document.createElement("span");
-  icon.className = "nc-pill-icon";
+  icon.className = "nc-block-icon";
   icon.textContent = ACTION_ICONS[step.action] ?? "\u25CF"; // ●
-  pill.appendChild(icon);
+  block.appendChild(icon);
 
-  // Label
+  // Label with inline params
   const label = document.createElement("span");
-  label.className = "nc-pill-label";
-
-  if (STRUCTURAL_ACTIONS.includes(step.action)) {
-    const count = step.children?.length ?? 0;
-    label.textContent = `${step.action} (${count})`;
-  } else {
-    label.textContent = compactLabel(step);
-  }
-
-  pill.appendChild(label);
+  label.className = "nc-block-label";
+  label.textContent = inlineLabel(step);
+  block.appendChild(label);
 
   // Attach drag-to-entity behavior for draggable actions
   if (DRAGGABLE_ACTIONS.has(step.action)) {
-    attachPillDragBehavior(pill, step, choreoId);
+    attachPillDragBehavior(block, step, choreoId);
   }
 
-  pill.addEventListener("click", (e) => {
+  block.addEventListener("click", (e) => {
     if (isStepDragSuppressed()) return;
     e.stopPropagation();
     onClick(step.id);
   });
 
-  return pill;
+  return block;
 }
 
-/** Build a compact label: "action entity → target" */
-function compactLabel(step: ChoreographyStepDef): string {
+/** Build an inline label with params embedded. */
+function inlineLabel(step: ChoreographyStepDef): string {
+  if (STRUCTURAL_ACTIONS.includes(step.action)) {
+    const count = step.children?.length ?? 0;
+    return `${step.action} (${count})`;
+  }
+
+  const parts: string[] = [step.action];
   const entity = step.entity ?? step.target ?? "";
+  if (entity) parts.push(entity);
+
   const to = step.params["to"] as string | undefined;
-  if (entity && to) return `${step.action} ${entity}→${to}`;
-  if (entity) return `${step.action} ${entity}`;
-  return step.action;
+  if (to) parts.push(`\u2192 ${to}`); // →
+
+  if (step.duration) parts.push(`${step.duration}ms`);
+
+  return parts.join(" ");
 }
 
 // ---------------------------------------------------------------------------
-// Internal: add button
+// Legacy exports (for backward compat with step-chain consumers)
 // ---------------------------------------------------------------------------
 
-/** Create the dashed "+" button at the end of the chain. */
-function createAddButton(onAddClick: (anchor: HTMLElement) => void): HTMLElement {
-  const btn = document.createElement("button");
-  btn.className = "nc-chain-add";
-  btn.title = "Add step";
-  btn.textContent = "+";
-
-  btn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    onAddClick(btn);
-  });
-
-  return btn;
+/** @deprecated Use palette instead. Kept for backward compat. */
+export function openActionPicker(_anchorEl: HTMLElement, _choreoId: string): void {
+  // No-op — replaced by action palette
 }
 
-// ---------------------------------------------------------------------------
-// Quick-action picker
-// ---------------------------------------------------------------------------
-
-/** Action picker items: icon + label + action type. */
-const PICKER_ITEMS: { action: string; icon: string; label: string }[] = [
-  { action: "move", icon: "\u279C", label: "move" },
-  { action: "spawn", icon: "+", label: "spawn" },
-  { action: "destroy", icon: "\u2716", label: "destroy" },
-  { action: "fly", icon: "\u2197", label: "fly" },
-  { action: "flash", icon: "\u26A1", label: "flash" },
-  { action: "wait", icon: "\u23F1", label: "wait" },
-  { action: "playSound", icon: "\u266B", label: "sound" },
-  { action: "setAnimation", icon: "\u25B6", label: "animation" },
-  { action: "followRoute", icon: "\u21DD", label: "followRoute" },
-  { action: "parallel", icon: "\u2503", label: "parallel" },
-  { action: "onArrive", icon: "\u2691", label: "onArrive" },
-  { action: "onInterrupt", icon: "\u26A0", label: "onInterrupt" },
-];
-
-let pickerEl: HTMLElement | null = null;
-let pickerCleanup: (() => void) | null = null;
-
-/** Open the quick-action picker anchored to the "+" button. */
-export function openActionPicker(anchorEl: HTMLElement, choreoId: string): void {
-  closeActionPicker();
-
-  const picker = document.createElement("div");
-  picker.className = "nc-action-picker";
-
-  for (const item of PICKER_ITEMS) {
-    const color = ACTION_COLORS[item.action] ?? "#888899";
-
-    const btn = document.createElement("button");
-    btn.className = "nc-action-picker-item";
-    btn.style.setProperty("--picker-color", color);
-    btn.title = item.label;
-
-    const icon = document.createElement("span");
-    icon.className = "nc-action-picker-icon";
-    icon.textContent = item.icon;
-    btn.appendChild(icon);
-
-    const label = document.createElement("span");
-    label.className = "nc-action-picker-label";
-    label.textContent = item.label;
-    btn.appendChild(label);
-
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      addStepCmd(choreoId, createDefaultStep(item.action));
-      closeActionPicker();
-    });
-
-    picker.appendChild(btn);
-  }
-
-  document.body.appendChild(picker);
-  pickerEl = picker;
-
-  // Position below the anchor
-  const rect = anchorEl.getBoundingClientRect();
-  const pickerWidth = 200;
-  let left = rect.left + rect.width / 2 - pickerWidth / 2;
-  left = Math.max(8, Math.min(window.innerWidth - pickerWidth - 8, left));
-  let top = rect.bottom + 6;
-  // If it would overflow, place above
-  if (top + 200 > window.innerHeight - 8) {
-    top = rect.top - 200 - 6;
-  }
-  picker.style.left = `${left}px`;
-  picker.style.top = `${top}px`;
-
-  // Close on click outside or Escape
-  const onDocClick = (e: MouseEvent) => {
-    if (picker.contains(e.target as Node)) return;
-    closeActionPicker();
-  };
-  const onKeyDown = (e: KeyboardEvent) => {
-    if (e.key === "Escape") closeActionPicker();
-  };
-
-  requestAnimationFrame(() => {
-    document.addEventListener("mousedown", onDocClick);
-    document.addEventListener("keydown", onKeyDown);
-  });
-
-  pickerCleanup = () => {
-    document.removeEventListener("mousedown", onDocClick);
-    document.removeEventListener("keydown", onKeyDown);
-  };
-}
-
-/** Close the quick-action picker. */
+/** @deprecated No-op. */
 export function closeActionPicker(): void {
-  if (pickerCleanup) {
-    pickerCleanup();
-    pickerCleanup = null;
-  }
-  if (pickerEl) {
-    pickerEl.remove();
-    pickerEl = null;
-  }
+  // No-op
 }

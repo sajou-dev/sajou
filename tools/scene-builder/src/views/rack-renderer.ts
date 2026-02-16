@@ -1,11 +1,12 @@
 /**
- * Rack renderer — renders choreographies as a vertical list of racks.
+ * Rack renderer — renders choreographies as horizontal clamps.
  *
- * Replaces node-renderer.ts. Each ChoreographyDef becomes a rack:
- *   - Header: signal type dot + label + collapse/expand + delete
- *   - Body: step chain (reuses renderStepChain) + inline detail
+ * Each ChoreographyDef becomes a clamp (C-shape):
+ *   - Left bracket: signal type color + label (the "pince")
+ *   - Inside: horizontal block chain (when filter + action blocks)
+ *   - Controls: collapse/delete on the bracket
  *
- * Racks take the full width of `#zone-choreographer`.
+ * Clamps take the full width of the rack-list container.
  */
 
 import type { ChoreographyDef } from "../types.js";
@@ -17,7 +18,7 @@ import {
 } from "../state/choreography-state.js";
 import { removeChoreography } from "../state/choreography-state.js";
 import { renderNodeDetail } from "./node-detail-inline.js";
-import { renderStepChain, openActionPicker } from "./step-chain.js";
+import { renderStepChain } from "./step-chain.js";
 import { openStepPopover, closeStepPopover } from "./step-popover.js";
 import { SIGNAL_TYPE_COLORS, SIGNAL_TYPE_LABELS } from "./step-commands.js";
 
@@ -25,7 +26,7 @@ import { SIGNAL_TYPE_COLORS, SIGNAL_TYPE_LABELS } from "./step-commands.js";
 // Public API
 // ---------------------------------------------------------------------------
 
-/** Render all choreographies as racks into the container. */
+/** Render all choreographies as clamps into the container. */
 export function renderAllRacks(container: HTMLElement): void {
   container.innerHTML = "";
 
@@ -33,17 +34,17 @@ export function renderAllRacks(container: HTMLElement): void {
 
   for (const choreo of choreographies) {
     const isSelected = choreo.id === selectedChoreographyId;
-    const rack = renderRack(choreo, isSelected);
+    const rack = renderClamp(choreo, isSelected);
     container.appendChild(rack);
   }
 }
 
 // ---------------------------------------------------------------------------
-// Render single rack
+// Render single clamp
 // ---------------------------------------------------------------------------
 
-/** Render a single choreography rack. */
-function renderRack(choreo: ChoreographyDef, isSelected: boolean): HTMLElement {
+/** Render a single choreography clamp. */
+function renderClamp(choreo: ChoreographyDef, isSelected: boolean): HTMLElement {
   const rack = document.createElement("div");
   rack.className = "rack" + (isSelected ? " rack--selected" : "");
   rack.dataset.choreoId = choreo.id;
@@ -51,74 +52,58 @@ function renderRack(choreo: ChoreographyDef, isSelected: boolean): HTMLElement {
   const primaryType = choreo.on;
   const color = SIGNAL_TYPE_COLORS[primaryType] ?? "#6E6E8A";
 
-  // ── Header ──
-  const header = document.createElement("div");
-  header.className = "rack-header";
-  header.style.borderLeftColor = color;
+  // ── Left bracket (signal type) ──
+  const bracket = document.createElement("div");
+  bracket.className = "rack-bracket";
+  bracket.style.setProperty("--clamp-color", color);
 
-  // Signal type dot
-  const dot = document.createElement("span");
-  dot.className = "rack-header-dot";
-  dot.style.background = color;
-  header.appendChild(dot);
-
-  // Signal type label
+  // Signal type label (rotated in CSS)
   const label = document.createElement("span");
-  label.className = "rack-header-label";
+  label.className = "rack-bracket-label";
   label.textContent = SIGNAL_TYPE_LABELS[primaryType] ?? primaryType;
-  header.appendChild(label);
+  bracket.appendChild(label);
 
-  // Step count
-  const count = document.createElement("span");
-  count.className = "rack-header-count";
-  count.textContent = `${choreo.steps.length} step${choreo.steps.length !== 1 ? "s" : ""}`;
-  header.appendChild(count);
+  // Controls row under the label
+  const controls = document.createElement("div");
+  controls.className = "rack-bracket-controls";
 
-  // Spacer
-  const spacer = document.createElement("span");
-  spacer.style.flex = "1";
-  header.appendChild(spacer);
-
-  // Collapse/expand button
   const collapseBtn = document.createElement("button");
-  collapseBtn.className = "rack-header-btn";
+  collapseBtn.className = "rack-bracket-btn";
   collapseBtn.textContent = choreo.collapsed ? "\u25B6" : "\u25BC"; // ▶ or ▼
   collapseBtn.title = choreo.collapsed ? "Expand" : "Collapse";
   collapseBtn.addEventListener("click", (e) => {
     e.stopPropagation();
     toggleNodeCollapsed(choreo.id);
   });
-  header.appendChild(collapseBtn);
+  controls.appendChild(collapseBtn);
 
-  // Delete button
   const deleteBtn = document.createElement("button");
-  deleteBtn.className = "rack-header-btn rack-header-btn--delete";
+  deleteBtn.className = "rack-bracket-btn rack-bracket-btn--delete";
   deleteBtn.textContent = "\u2716"; // ✖
-  deleteBtn.title = "Delete choreography";
+  deleteBtn.title = "Delete";
   deleteBtn.addEventListener("click", (e) => {
     e.stopPropagation();
     removeChoreography(choreo.id);
   });
-  header.appendChild(deleteBtn);
+  controls.appendChild(deleteBtn);
 
-  // Click header → select rack
-  header.addEventListener("click", (e) => {
+  bracket.appendChild(controls);
+
+  // Click bracket → select/deselect
+  bracket.addEventListener("click", (e) => {
     e.stopPropagation();
     const { selectedChoreographyId } = getChoreographyState();
     selectChoreography(selectedChoreographyId === choreo.id ? null : choreo.id);
   });
 
-  rack.appendChild(header);
+  rack.appendChild(bracket);
 
-  // ── Body (visible when not collapsed) ──
+  // ── Content area (right of bracket) ──
+  const content = document.createElement("div");
+  content.className = "rack-content";
+
   if (!choreo.collapsed) {
-    const body = document.createElement("div");
-    body.className = "rack-body";
-
-    // Step chain
-    const chainWrapper = document.createElement("div");
-    chainWrapper.className = "rack-chain";
-
+    // Block chain
     const chain = renderStepChain(choreo, {
       onStepClick: (stepId) => {
         const { selectedStepId } = getChoreographyState();
@@ -129,30 +114,34 @@ function renderRack(choreo: ChoreographyDef, isSelected: boolean): HTMLElement {
           selectChoreographyStep(stepId);
           requestAnimationFrame(() => {
             const livePill = document.querySelector(
-              `.rack[data-choreo-id="${choreo.id}"] .nc-chain-pill[data-step-id="${stepId}"]`,
+              `.rack[data-choreo-id="${choreo.id}"] .nc-block[data-step-id="${stepId}"]`,
             );
             if (livePill) openStepPopover(stepId, choreo.id, livePill as HTMLElement);
           });
         }
       },
-      onAddClick: (anchorEl) => {
-        openActionPicker(anchorEl, choreo.id);
+      onAddClick: () => {
+        // No-op — palette replaces the picker
       },
     });
-
-    chainWrapper.appendChild(chain);
-    body.appendChild(chainWrapper);
+    content.appendChild(chain);
 
     // Inline detail (when selected)
     if (isSelected) {
       const detail = document.createElement("div");
       detail.className = "rack-detail";
       detail.appendChild(renderNodeDetail(choreo));
-      body.appendChild(detail);
+      content.appendChild(detail);
     }
-
-    rack.appendChild(body);
+  } else {
+    // Collapsed: just show step count
+    const collapsed = document.createElement("div");
+    collapsed.className = "rack-collapsed";
+    collapsed.textContent = `${choreo.steps.length} step${choreo.steps.length !== 1 ? "s" : ""}`;
+    content.appendChild(collapsed);
   }
+
+  rack.appendChild(content);
 
   return rack;
 }
