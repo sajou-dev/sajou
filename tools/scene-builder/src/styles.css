@@ -474,65 +474,22 @@ button {
  * Source badges — inside the signal pipeline node
  * --------------------------------------------------------------------------- */
 
-/* Source badges container inside signal node */
-.connector-bar-h-sources {
+/* Connected-model badges in the signal→choreo rail */
+.pl-rail-models {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 4px 8px;
-  flex-shrink: 0;
-  border-top: 1px solid var(--color-border);
-}
-
-.connector-bar-h-badge {
-  display: flex;
+  flex-direction: column;
+  gap: 2px;
   align-items: center;
-  gap: 4px;
-  padding: 2px 10px;
-  background: var(--color-elevated);
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
-  cursor: pointer;
-  font: 10px var(--font-mono);
-  color: var(--color-text-muted);
-  white-space: nowrap;
-  transition: border-color 0.15s, color 0.15s, box-shadow 0.15s;
+  width: 100%;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: 2px;
 }
 
-.connector-bar-h-badge:hover {
-  border-color: var(--color-accent-dim);
-  color: var(--color-text);
-  box-shadow: 0 0 6px rgba(232, 168, 81, 0.15);
-}
-
-.connector-bar-h-badge--selected {
+.pl-rail-badge--selected {
   border-color: currentColor;
   box-shadow: 0 0 8px currentColor;
   background: rgba(255, 255, 255, 0.04);
-}
-
-.connector-bar-h-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.connector-bar-h-name {
-  font: inherit;
-  color: inherit;
-}
-
-.connector-bar-h-rate {
-  color: var(--color-text-dim);
-  font: 9px var(--font-mono);
-  margin-left: 2px;
-}
-
-.connector-bar-h-hint {
-  font: 9px var(--font-mono);
-  color: var(--color-text-dim);
-  font-style: italic;
 }
 
 /* Theme zone — inside pipeline visual node.
@@ -550,13 +507,14 @@ button {
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  padding: 0 4px;
+  padding: 0 2px;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
-.toolbar-divider {
-  height: 1px;
-  background: var(--color-border);
-  margin: 8px 6px;
+/* Visual separator between the two toolbar columns */
+.toolbar-columns > .toolbar-section + .toolbar-section {
+  border-left: 1px solid var(--color-border);
 }
 
 .toolbar-btn {
@@ -813,12 +771,19 @@ button {
   border-radius: 0 0 var(--radius-xl) var(--radius-xl);
 }
 
-/* Toolbar panel: vertical flex to push help button to bottom */
+/* Toolbar panel: two-column layout with help button at bottom */
 .panel[data-panel-id="toolbar"] .panel-content {
   display: flex;
   flex-direction: column;
   gap: 2px;
   padding: 4px;
+}
+
+.toolbar-columns {
+  display: flex;
+  gap: 2px;
+  flex: 1;
+  min-height: 0;
 }
 
 .panel-placeholder {
