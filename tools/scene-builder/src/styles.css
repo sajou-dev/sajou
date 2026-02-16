@@ -201,9 +201,13 @@ button {
   50% { box-shadow: 0 0 8px 2px rgba(232, 168, 81, 0.3); }
 }
 
-/* Workspace — running state indicator (accent top-border on zone-theme) */
-.workspace--running .zone-theme {
-  border-top: 2px solid var(--color-accent);
+/* Workspace — running state indicator (accent glow on visual node + rail arrows) */
+.workspace--running .pl-node[data-pl-node="visual"] {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 12px rgba(232, 168, 81, 0.15);
+}
+.workspace--running .pl-rail svg {
+  color: var(--color-accent);
 }
 
 /* ---------------------------------------------------------------------------
