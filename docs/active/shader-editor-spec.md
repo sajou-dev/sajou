@@ -19,6 +19,7 @@ Le shader editor est conçu pour produire des atmosphères, pas des effets déco
 - **Réaction-diffusion** (Karl Sims) — patterns organiques qui émergent, mutent, se stabilisent
 - **Generative typography** (Zach Lieberman) — texte vivant, déformé, respiration typographique
 - **WebGL fluids** (Felix Turner, David Li) — les signaux comme flux, les agents comme courants
+- **Kazuhiro Tanimoto** (Memories of Digital Data, Art Blocks / p5.js on-chain) — données brutes devenues poétiques, l'exemple parfait de la direction artistique visée
 
 ---
 
@@ -433,10 +434,25 @@ La taille de p5.js (~1MB) n'est pas un enjeu à ce stade. Le chargement est lazy
 
 ---
 
-## Open questions
+## Décisions supplémentaires (résolu)
 
-1. **Wiring types V1** — Faut-il déclarer `WireZone: "shader"` dans les types dès la V1 du shader editor (sans implémentation du wiring), pour éviter une migration plus tard ? Ou attendre la V2 wiring ?
+### WireZone "shader" — déclaré en V1
 
-2. **GLSL version** — WebGL2 est supporté par tous les browsers modernes (>97% coverage). Faut-il cibler GLSL ES 3.0 exclusivement, ou supporter aussi GLSL ES 1.0 (WebGL1) pour les vieux devices ?
+Ajouter `WireZone: "shader"` dans les types dès la V1 du shader editor, sans implémentation du wiring. Coût zéro (c'est un string literal dans un union type), et ça évite un refactor des types quand le wiring shader sera implémenté en V2.
 
-3. **Shader library / community sharing** — À terme, les shader themes pourraient être partagés (import URL, galerie). Quel format de distribution : standalone JSON, ou intégré dans le ZIP de scène uniquement ?
+### GLSL ES 3.0 uniquement
+
+Le shader editor cible **GLSL ES 3.0** (WebGL2) exclusivement. C'est le standard moderne, supporté par tous les browsers actuels (>97% coverage). Pas de support GLSL ES 1.0 / WebGL1 — pas de raison de traîner le legacy.
+
+Implications :
+- Le vertex shader utilise `#version 300 es`, `in`/`out` au lieu de `attribute`/`varying`
+- Le fragment shader utilise `#version 300 es`, `in` au lieu de `varying`, `out vec4 fragColor` au lieu de `gl_FragColor`
+- Les presets et le boilerplate sont écrits directement en GLSL ES 3.0
+
+### Format de distribution — JSON / ZIP
+
+Pour la V1, les shaders sont distribués sous forme de **fichier JSON standalone** (`.json`) ou inclus dans le **ZIP d'export** existant (`shaders.json` à côté de `scene.json`). Pas de package manager, pas de galerie communautaire à ce stade.
+
+Le format JSON est le même que le Shader Theme JSON décrit dans la section Formats. Un fichier `.json` peut être importé indépendamment de la scène (import dédié dans le shader editor).
+
+La theme library / galerie communautaire viendra après, quand le format sera stabilisé par l'usage.

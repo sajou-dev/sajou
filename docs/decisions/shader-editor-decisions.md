@@ -34,3 +34,24 @@ Raison: Le shader s'adapte naturellement à toute résolution. Un FPS counter su
 Contexte: p5.js pèse ~1MB complet.
 Décision: Accepter la taille, lazy load au premier accès au tab. Pas d'optimisation bundle à ce stade.
 Raison: Le lazy import élimine l'impact sur le startup. L'optimisation prématurée du bundle est un frein au développement.
+
+## 6. WireZone "shader" déclaré en V1
+
+Contexte: Le wiring shader (signal → uniform) est prévu en V2, mais les types `WireZone` sont déjà définis dans `wiring-state.ts`.
+Décision: Ajouter `"shader"` au type `WireZone` dès la V1, sans implémenter le wiring.
+Alternatives envisagées: Attendre la V2 (risque de refactor des types, des tests, et des switch exhaustifs).
+Raison: Coût zéro — c'est un string literal dans un union type. Évite une migration quand le wiring shader sera implémenté.
+
+## 7. GLSL ES 3.0 uniquement
+
+Contexte: WebGL2 (GLSL ES 3.0) est supporté par >97% des browsers. WebGL1 (GLSL ES 1.0) est le legacy.
+Décision: Cibler GLSL ES 3.0 exclusivement. `#version 300 es` obligatoire.
+Alternatives envisagées: Supporter les deux versions (double maintenance, boilerplate conditionnel, pas de bénéfice mesurable).
+Raison: Pas de raison de traîner le legacy. Les presets, le boilerplate, et la validation sont plus simples avec une seule cible.
+
+## 8. Format de distribution — JSON / ZIP
+
+Contexte: Les shader themes doivent pouvoir être partagés et importés.
+Décision: V1 = fichier `.json` standalone ou inclus dans le ZIP d'export (`shaders.json`). Pas de package manager.
+Alternatives envisagées: npm-style package (trop lourd pour du contenu artistique), galerie web (scope V2+).
+Raison: Le JSON est le format natif du shader editor. Le ZIP intègre déjà le workflow d'export/import. La galerie communautaire viendra quand le format sera stabilisé par l'usage.
