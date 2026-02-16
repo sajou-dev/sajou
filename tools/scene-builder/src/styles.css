@@ -3310,8 +3310,8 @@ button {
   background: rgba(255, 255, 255, 0.04);
 }
 
-.sp-dial-value {
-  min-width: 32px;
+.sp-dial-input {
+  width: 48px;
   text-align: right;
 }
 

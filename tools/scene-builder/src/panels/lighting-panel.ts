@@ -160,10 +160,14 @@ function createAngleDial(
   canvas.className = "sp-dial";
   wrapper.appendChild(canvas);
 
-  const valueLabel = document.createElement("span");
-  valueLabel.className = "sp-value sp-dial-value";
-  valueLabel.textContent = `${Math.round(initial)}°`;
-  wrapper.appendChild(valueLabel);
+  const numInput = document.createElement("input");
+  numInput.type = "number";
+  numInput.className = "sp-input sp-dial-input";
+  numInput.min = "0";
+  numInput.max = "359";
+  numInput.step = "1";
+  numInput.value = String(Math.round(initial));
+  wrapper.appendChild(numInput);
 
   const ctx = canvas.getContext("2d")!;
   let angleDeg = initial;
@@ -237,6 +241,14 @@ function createAngleDial(
     ctx.fill();
   }
 
+  function setAngle(deg: number): void {
+    angleDeg = deg;
+    if (document.activeElement !== numInput) {
+      numInput.value = String(Math.round(deg));
+    }
+    draw();
+  }
+
   function angleFromMouse(e: MouseEvent): number {
     const rect = canvas.getBoundingClientRect();
     const mx = e.clientX - rect.left - CX;
@@ -251,29 +263,33 @@ function createAngleDial(
   canvas.addEventListener("mousedown", (e) => {
     e.preventDefault();
     dragging = true;
-    angleDeg = angleFromMouse(e);
-    valueLabel.textContent = `${Math.round(angleDeg)}°`;
-    draw();
-    onChange(angleDeg);
+    const v = angleFromMouse(e);
+    setAngle(v);
+    onChange(v);
   });
 
   document.addEventListener("mousemove", (e) => {
     if (!dragging) return;
-    angleDeg = angleFromMouse(e);
-    valueLabel.textContent = `${Math.round(angleDeg)}°`;
-    draw();
-    onChange(angleDeg);
+    const v = angleFromMouse(e);
+    setAngle(v);
+    onChange(v);
   });
 
   document.addEventListener("mouseup", () => {
     dragging = false;
   });
 
+  numInput.addEventListener("change", () => {
+    let v = Math.round(parseFloat(numInput.value) || 0);
+    v = ((v % 360) + 360) % 360;
+    numInput.value = String(v);
+    setAngle(v);
+    onChange(v);
+  });
+
   function setValue(v: number): void {
     if (dragging) return;
-    angleDeg = v;
-    valueLabel.textContent = `${Math.round(v)}°`;
-    draw();
+    setAngle(v);
   }
 
   draw();
@@ -304,10 +320,14 @@ function createElevationDial(
   canvas.className = "sp-dial";
   wrapper.appendChild(canvas);
 
-  const valueLabel = document.createElement("span");
-  valueLabel.className = "sp-value sp-dial-value";
-  valueLabel.textContent = `${Math.round(initial)}°`;
-  wrapper.appendChild(valueLabel);
+  const numInput = document.createElement("input");
+  numInput.type = "number";
+  numInput.className = "sp-input sp-dial-input";
+  numInput.min = "0";
+  numInput.max = "90";
+  numInput.step = "1";
+  numInput.value = String(Math.round(initial));
+  wrapper.appendChild(numInput);
 
   const ctx = canvas.getContext("2d")!;
   let elevDeg = initial;
@@ -385,6 +405,14 @@ function createElevationDial(
     ctx.fill();
   }
 
+  function setElev(deg: number): void {
+    elevDeg = deg;
+    if (document.activeElement !== numInput) {
+      numInput.value = String(Math.round(deg));
+    }
+    draw();
+  }
+
   function elevFromMouse(e: MouseEvent): number {
     const rect = canvas.getBoundingClientRect();
     const mx = e.clientX - rect.left - CX;
@@ -399,29 +427,33 @@ function createElevationDial(
   canvas.addEventListener("mousedown", (e) => {
     e.preventDefault();
     dragging = true;
-    elevDeg = elevFromMouse(e);
-    valueLabel.textContent = `${Math.round(elevDeg)}°`;
-    draw();
-    onChange(elevDeg);
+    const v = elevFromMouse(e);
+    setElev(v);
+    onChange(v);
   });
 
   document.addEventListener("mousemove", (e) => {
     if (!dragging) return;
-    elevDeg = elevFromMouse(e);
-    valueLabel.textContent = `${Math.round(elevDeg)}°`;
-    draw();
-    onChange(elevDeg);
+    const v = elevFromMouse(e);
+    setElev(v);
+    onChange(v);
   });
 
   document.addEventListener("mouseup", () => {
     dragging = false;
   });
 
+  numInput.addEventListener("change", () => {
+    let v = Math.round(parseFloat(numInput.value) || 0);
+    v = Math.max(0, Math.min(90, v));
+    numInput.value = String(v);
+    setElev(v);
+    onChange(v);
+  });
+
   function setValue(v: number): void {
     if (dragging) return;
-    elevDeg = v;
-    valueLabel.textContent = `${Math.round(v)}°`;
-    draw();
+    setElev(v);
   }
 
   draw();
