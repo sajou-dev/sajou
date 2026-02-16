@@ -180,10 +180,6 @@ export function initToolbarPanel(toolbar: HTMLElement): void {
     toolSection.appendChild(btn);
   }
 
-  // Divider
-  const divider = document.createElement("div");
-  divider.className = "toolbar-divider";
-
   // Panel toggles
   const panelSection = document.createElement("div");
   panelSection.className = "toolbar-section";
@@ -208,9 +204,13 @@ export function initToolbarPanel(toolbar: HTMLElement): void {
     syncHelpBtn();
   });
 
-  toolbar.appendChild(toolSection);
-  toolbar.appendChild(divider);
-  toolbar.appendChild(panelSection);
+  // Two-column layout: tools | panels
+  const columns = document.createElement("div");
+  columns.className = "toolbar-columns";
+  columns.appendChild(toolSection);
+  columns.appendChild(panelSection);
+
+  toolbar.appendChild(columns);
   toolbar.appendChild(helpBtn);
 
   // Sync active states
