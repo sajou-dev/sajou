@@ -132,6 +132,25 @@ export function renderStepChain(
 }
 
 // ---------------------------------------------------------------------------
+// Source badge helper
+// ---------------------------------------------------------------------------
+
+/** Create a small source identity badge (dot + name) for the hat block. */
+function createSourceBadge(src: { name: string; color: string }): HTMLElement {
+  const badge = document.createElement("span");
+  badge.className = "nc-hat-source";
+  badge.title = `Source: ${src.name}`;
+  const dot = document.createElement("span");
+  dot.className = "nc-hat-source-dot";
+  dot.style.background = src.color;
+  badge.appendChild(dot);
+  const name = document.createElement("span");
+  name.textContent = src.name;
+  badge.appendChild(name);
+  return badge;
+}
+
+// ---------------------------------------------------------------------------
 // Hat block — "when <signal_type>" (trigger, always first)
 // ---------------------------------------------------------------------------
 
@@ -172,24 +191,24 @@ function renderHatBlock(choreo: ChoreographyDef, isTail: boolean): HTMLElement {
   });
   block.appendChild(select);
 
-  // Source provenance badges
+  // Source badges — wire-based provenance, or fallback to connected sources
+  const { sources } = getSignalSourcesState();
   const provenance = getSourcesForChoreo(choreo.id);
-  if (provenance.length > 0) {
-    const { sources } = getSignalSourcesState();
-    for (const p of provenance) {
-      const src = sources.find((s) => s.id === p.sourceId);
-      if (!src) continue;
-      const srcBadge = document.createElement("span");
-      srcBadge.className = "nc-hat-source";
-      srcBadge.title = `Source: ${src.name}`;
-      const dot = document.createElement("span");
-      dot.className = "nc-hat-source-dot";
-      dot.style.background = src.color;
-      srcBadge.appendChild(dot);
-      const srcName = document.createElement("span");
-      srcName.textContent = src.name;
-      srcBadge.appendChild(srcName);
-      block.appendChild(srcBadge);
+  const shownSourceIds = new Set<string>();
+
+  // First: show wire-based provenance (explicit signal→signal-type wires)
+  for (const p of provenance) {
+    const src = sources.find((s) => s.id === p.sourceId);
+    if (!src) continue;
+    shownSourceIds.add(src.id);
+    block.appendChild(createSourceBadge(src));
+  }
+
+  // Fallback: if no wire-based provenance, show all connected sources
+  if (shownSourceIds.size === 0) {
+    const connected = sources.filter((s) => s.status === "connected");
+    for (const src of connected) {
+      block.appendChild(createSourceBadge(src));
     }
   }
 
