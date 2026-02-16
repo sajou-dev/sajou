@@ -3,9 +3,10 @@
  *
  * Three sections:
  * 1. Ambient — color + intensity
- * 2. Directional — enable, color, intensity, angle, elevation
+ * 2. Directional — enable, color, intensity, angle dial, elevation dial
  * 3. Selected Light — color, intensity, radius, flicker (visible when 1 light selected)
  *
+ * Angle and elevation use interactive Canvas2D dials instead of number inputs.
  * Reuses the `sp-` CSS classes from settings-panel.
  */
 
@@ -137,6 +138,297 @@ function createCheckbox(
 }
 
 // ---------------------------------------------------------------------------
+// Angle dial (compass, 0–360°)
+// ---------------------------------------------------------------------------
+
+/** Canvas2D compass dial for the directional light angle. */
+function createAngleDial(
+  initial: number,
+  onChange: (degrees: number) => void,
+): { element: HTMLElement; setValue: (v: number) => void } {
+  const SIZE = 72;
+  const R = SIZE / 2 - 2; // outer radius
+  const CX = SIZE / 2;
+  const CY = SIZE / 2;
+
+  const wrapper = document.createElement("div");
+  wrapper.className = "sp-dial-wrapper";
+
+  const canvas = document.createElement("canvas");
+  canvas.width = SIZE;
+  canvas.height = SIZE;
+  canvas.className = "sp-dial";
+  wrapper.appendChild(canvas);
+
+  const valueLabel = document.createElement("span");
+  valueLabel.className = "sp-value sp-dial-value";
+  valueLabel.textContent = `${Math.round(initial)}°`;
+  wrapper.appendChild(valueLabel);
+
+  const ctx = canvas.getContext("2d")!;
+  let angleDeg = initial;
+
+  const LABELS: Array<{ label: string; angle: number }> = [
+    { label: "N", angle: 0 },
+    { label: "E", angle: 90 },
+    { label: "S", angle: 180 },
+    { label: "W", angle: 270 },
+  ];
+
+  function draw(): void {
+    ctx.clearRect(0, 0, SIZE, SIZE);
+
+    // Outer ring
+    ctx.beginPath();
+    ctx.arc(CX, CY, R, 0, Math.PI * 2);
+    ctx.strokeStyle = "rgba(255,255,255,0.15)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Tick marks (every 45°)
+    for (let i = 0; i < 8; i++) {
+      const a = (i * 45 - 90) * (Math.PI / 180);
+      const inner = i % 2 === 0 ? R - 8 : R - 5;
+      ctx.beginPath();
+      ctx.moveTo(CX + Math.cos(a) * inner, CY + Math.sin(a) * inner);
+      ctx.lineTo(CX + Math.cos(a) * R, CY + Math.sin(a) * R);
+      ctx.strokeStyle = "rgba(255,255,255,0.3)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
+    // Cardinal labels
+    ctx.font = "bold 8px 'JetBrains Mono', monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "rgba(255,255,255,0.5)";
+    for (const { label, angle } of LABELS) {
+      const a = (angle - 90) * (Math.PI / 180);
+      const lr = R - 14;
+      ctx.fillText(label, CX + Math.cos(a) * lr, CY + Math.sin(a) * lr);
+    }
+
+    // Needle
+    const needleAngle = (angleDeg - 90) * (Math.PI / 180);
+    const needleLen = R - 6;
+
+    // Needle line
+    ctx.beginPath();
+    ctx.moveTo(CX, CY);
+    ctx.lineTo(CX + Math.cos(needleAngle) * needleLen, CY + Math.sin(needleAngle) * needleLen);
+    ctx.strokeStyle = "#E8A851";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Needle tip dot
+    ctx.beginPath();
+    ctx.arc(
+      CX + Math.cos(needleAngle) * needleLen,
+      CY + Math.sin(needleAngle) * needleLen,
+      3, 0, Math.PI * 2,
+    );
+    ctx.fillStyle = "#E8A851";
+    ctx.fill();
+
+    // Center dot
+    ctx.beginPath();
+    ctx.arc(CX, CY, 2, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(255,255,255,0.5)";
+    ctx.fill();
+  }
+
+  function angleFromMouse(e: MouseEvent): number {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left - CX;
+    const my = e.clientY - rect.top - CY;
+    let deg = Math.atan2(my, mx) * (180 / Math.PI) + 90;
+    if (deg < 0) deg += 360;
+    return Math.round(deg) % 360;
+  }
+
+  let dragging = false;
+
+  canvas.addEventListener("mousedown", (e) => {
+    e.preventDefault();
+    dragging = true;
+    angleDeg = angleFromMouse(e);
+    valueLabel.textContent = `${Math.round(angleDeg)}°`;
+    draw();
+    onChange(angleDeg);
+  });
+
+  document.addEventListener("mousemove", (e) => {
+    if (!dragging) return;
+    angleDeg = angleFromMouse(e);
+    valueLabel.textContent = `${Math.round(angleDeg)}°`;
+    draw();
+    onChange(angleDeg);
+  });
+
+  document.addEventListener("mouseup", () => {
+    dragging = false;
+  });
+
+  function setValue(v: number): void {
+    if (dragging) return;
+    angleDeg = v;
+    valueLabel.textContent = `${Math.round(v)}°`;
+    draw();
+  }
+
+  draw();
+  return { element: wrapper, setValue };
+}
+
+// ---------------------------------------------------------------------------
+// Elevation dial (arc, 0–90°)
+// ---------------------------------------------------------------------------
+
+/** Canvas2D arc dial for the directional light elevation. */
+function createElevationDial(
+  initial: number,
+  onChange: (degrees: number) => void,
+): { element: HTMLElement; setValue: (v: number) => void } {
+  const W = 80;
+  const H = 50;
+  const CX = W / 2;
+  const CY = H - 4;
+  const R = H - 10;
+
+  const wrapper = document.createElement("div");
+  wrapper.className = "sp-dial-wrapper";
+
+  const canvas = document.createElement("canvas");
+  canvas.width = W;
+  canvas.height = H;
+  canvas.className = "sp-dial";
+  wrapper.appendChild(canvas);
+
+  const valueLabel = document.createElement("span");
+  valueLabel.className = "sp-value sp-dial-value";
+  valueLabel.textContent = `${Math.round(initial)}°`;
+  wrapper.appendChild(valueLabel);
+
+  const ctx = canvas.getContext("2d")!;
+  let elevDeg = initial;
+
+  function draw(): void {
+    ctx.clearRect(0, 0, W, H);
+
+    // Arc (semicircle from 0° to 180°)
+    ctx.beginPath();
+    ctx.arc(CX, CY, R, Math.PI, 0);
+    ctx.strokeStyle = "rgba(255,255,255,0.15)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Horizon line
+    ctx.beginPath();
+    ctx.moveTo(CX - R - 4, CY);
+    ctx.lineTo(CX + R + 4, CY);
+    ctx.strokeStyle = "rgba(255,255,255,0.1)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Tick marks at 0°, 30°, 45°, 60°, 90°
+    const ticks = [0, 30, 45, 60, 90];
+    for (const t of ticks) {
+      // Elevation angle: 0° = horizon (right side), 90° = zenith (top)
+      const a = Math.PI + (t / 180) * Math.PI; // map [0,90] to [PI, PI/2]
+      // Correction: 0° → right horizon (angle=0 from +X), 90° → top (angle=-PI/2)
+      // In canvas: 0° elevation = horizontal right = angle 0; 90° = straight up = -PI/2
+      const canvasAngle = -(t * Math.PI) / 180; // 0° → 0, 90° → -PI/2
+      const inner = R - 5;
+      ctx.beginPath();
+      ctx.moveTo(CX + Math.cos(canvasAngle) * inner, CY + Math.sin(canvasAngle) * inner);
+      ctx.lineTo(CX + Math.cos(canvasAngle) * R, CY + Math.sin(canvasAngle) * R);
+      ctx.strokeStyle = "rgba(255,255,255,0.3)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
+    // Labels
+    ctx.font = "7px 'JetBrains Mono', monospace";
+    ctx.fillStyle = "rgba(255,255,255,0.4)";
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    ctx.fillText("0°", CX + R + 2, CY - 8);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "bottom";
+    ctx.fillText("90°", CX, CY - R - 2);
+
+    // Needle
+    const needleAngle = -(elevDeg * Math.PI) / 180;
+    const needleLen = R - 3;
+
+    ctx.beginPath();
+    ctx.moveTo(CX, CY);
+    ctx.lineTo(CX + Math.cos(needleAngle) * needleLen, CY + Math.sin(needleAngle) * needleLen);
+    ctx.strokeStyle = "#E8A851";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Needle tip
+    ctx.beginPath();
+    ctx.arc(
+      CX + Math.cos(needleAngle) * needleLen,
+      CY + Math.sin(needleAngle) * needleLen,
+      3, 0, Math.PI * 2,
+    );
+    ctx.fillStyle = "#E8A851";
+    ctx.fill();
+
+    // Center dot
+    ctx.beginPath();
+    ctx.arc(CX, CY, 2, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(255,255,255,0.5)";
+    ctx.fill();
+  }
+
+  function elevFromMouse(e: MouseEvent): number {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left - CX;
+    const my = e.clientY - rect.top - CY;
+    let deg = -Math.atan2(my, mx) * (180 / Math.PI);
+    deg = Math.max(0, Math.min(90, Math.round(deg)));
+    return deg;
+  }
+
+  let dragging = false;
+
+  canvas.addEventListener("mousedown", (e) => {
+    e.preventDefault();
+    dragging = true;
+    elevDeg = elevFromMouse(e);
+    valueLabel.textContent = `${Math.round(elevDeg)}°`;
+    draw();
+    onChange(elevDeg);
+  });
+
+  document.addEventListener("mousemove", (e) => {
+    if (!dragging) return;
+    elevDeg = elevFromMouse(e);
+    valueLabel.textContent = `${Math.round(elevDeg)}°`;
+    draw();
+    onChange(elevDeg);
+  });
+
+  document.addEventListener("mouseup", () => {
+    dragging = false;
+  });
+
+  function setValue(v: number): void {
+    if (dragging) return;
+    elevDeg = v;
+    valueLabel.textContent = `${Math.round(v)}°`;
+    draw();
+  }
+
+  draw();
+  return { element: wrapper, setValue };
+}
+
+// ---------------------------------------------------------------------------
 // Panel init
 // ---------------------------------------------------------------------------
 
@@ -164,8 +456,8 @@ export function initLightingPanel(container: HTMLElement): void {
   let dirEnableCheckbox: HTMLInputElement;
   let dirColorInput: HTMLInputElement;
   let dirIntSlider: HTMLElement;
-  let dirAngleInput: HTMLInputElement;
-  let dirElevInput: HTMLInputElement;
+  let angleDial: { element: HTMLElement; setValue: (v: number) => void };
+  let elevDial: { element: HTMLElement; setValue: (v: number) => void };
 
   {
     const { directional } = getSceneState().lighting;
@@ -179,11 +471,11 @@ export function initLightingPanel(container: HTMLElement): void {
     dirIntSlider = createSlider(directional.intensity, 0, 3, 0.05, (v) => updateDirectionalLighting({ intensity: v }));
     dirSection.body.appendChild(createRow("Intensity", dirIntSlider));
 
-    dirAngleInput = createNumberInput(directional.angle, 0, 360, 1, (v) => updateDirectionalLighting({ angle: v }));
-    dirSection.body.appendChild(createRow("Angle", dirAngleInput));
+    angleDial = createAngleDial(directional.angle, (v) => updateDirectionalLighting({ angle: v }));
+    dirSection.body.appendChild(createRow("Angle", angleDial.element));
 
-    dirElevInput = createNumberInput(directional.elevation, 0, 90, 1, (v) => updateDirectionalLighting({ elevation: v }));
-    dirSection.body.appendChild(createRow("Elevation", dirElevInput));
+    elevDial = createElevationDial(directional.elevation, (v) => updateDirectionalLighting({ elevation: v }));
+    dirSection.body.appendChild(createRow("Elevation", elevDial.element));
   }
 
   // === Selected Light section ===
@@ -224,12 +516,10 @@ export function initLightingPanel(container: HTMLElement): void {
       dirSlider.value = String(lighting.directional.intensity);
     }
     if (dirLabel) dirLabel.textContent = lighting.directional.intensity.toFixed(2);
-    if (document.activeElement !== dirAngleInput) {
-      dirAngleInput.value = String(lighting.directional.angle);
-    }
-    if (document.activeElement !== dirElevInput) {
-      dirElevInput.value = String(lighting.directional.elevation);
-    }
+
+    // Dials
+    angleDial.setValue(lighting.directional.angle);
+    elevDial.setValue(lighting.directional.elevation);
 
     // Selected light
     if (selectedLightIds.length === 1) {
