@@ -8,7 +8,7 @@
  * Pub/sub pattern — subscribe to get notified on every change.
  */
 
-import type { EntityBinding, BindablePropertyDef, BindingValueType } from "../types.js";
+import type { EntityBinding, BindablePropertyDef, BindingValueType, BindingTransition } from "../types.js";
 
 // ---------------------------------------------------------------------------
 // Bindable property registry
@@ -134,6 +134,15 @@ export function updateBindingAction(id: string, action: EntityBinding["action"])
   state = {
     ...state,
     bindings: state.bindings.map((b) => (b.id === id ? { ...b, action } : b)),
+  };
+  notify();
+}
+
+/** Update a binding's transition config. */
+export function updateBindingTransition(id: string, transition: BindingTransition | undefined): void {
+  state = {
+    ...state,
+    bindings: state.bindings.map((b) => (b.id === id ? { ...b, transition } : b)),
   };
   notify();
 }

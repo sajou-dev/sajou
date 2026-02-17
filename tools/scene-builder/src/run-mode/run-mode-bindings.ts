@@ -16,23 +16,63 @@
  *   └──→ bindingExecutor.handleSignal()   [bindings: animation.state, opacity…]
  * ```
  *
- * Bindings are immediate property assignments, not temporal animations.
- * They are a side-effect of the choreography trigger, not of step sequencing.
+ * Bindings support two modes:
+ *   - **Instant**: immediate property assignment (MIDI, continuous values)
+ *   - **Temporal**: smooth animation to a target value with easing and optional revert
+ *     (AI event signals, triggers)
  */
 
 import type {
   EntityBinding,
   BindingMapping,
+  BindingTransition,
   WhenClauseDef,
   WhenConditionDef,
   WhenOperatorDef,
 } from "../types.js";
-import type { RenderAdapter } from "../canvas/render-adapter.js";
+import type { RenderAdapter, DisplayObjectHandle } from "../canvas/render-adapter.js";
 import { getChoreographyState } from "../state/choreography-state.js";
 import { getChoreoInputInfo } from "../state/wiring-queries.js";
 import { getBindingsFromChoreography } from "../state/binding-store.js";
 import { resolveEntityId, resolvePosition } from "./run-mode-resolve.js";
 import { switchAnimation } from "./run-mode-animator.js";
+import { getSnapshot } from "./run-mode-state.js";
+
+// ---------------------------------------------------------------------------
+// Easing functions (local — no @sajou/core dependency)
+// ---------------------------------------------------------------------------
+
+/** Easing function: maps normalized time t (0→1) to progress (0→1). */
+type EasingFn = (t: number) => number;
+
+const EASING_FNS: Record<string, EasingFn> = {
+  linear: (t) => t,
+  easeIn: (t) => t * t,
+  easeOut: (t) => 1 - (1 - t) * (1 - t),
+  easeInOut: (t) => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2,
+  arc: (t) => Math.sin(t * Math.PI),
+};
+
+/** Resolve an easing name to its function. Falls back to linear. */
+function resolveEasing(name: string): EasingFn {
+  return EASING_FNS[name] ?? EASING_FNS["linear"]!;
+}
+
+// ---------------------------------------------------------------------------
+// Active property animation state
+// ---------------------------------------------------------------------------
+
+/** A property animation currently in flight. */
+interface ActivePropertyAnim {
+  handle: DisplayObjectHandle;
+  prop: "alpha" | "rotation" | "scale" | "x" | "y";
+  fromValue: number;
+  toValue: number;
+  durationMs: number;
+  easingFn: EasingFn;
+  elapsed: number;
+  revert?: { delayMs: number; originalValue: number };
+}
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -42,7 +82,9 @@ import { switchAnimation } from "./run-mode-animator.js";
 export interface BindingExecutor {
   /** Evaluate a signal against all choreography bindings and execute matches. */
   handleSignal(signal: { type: string; payload: Record<string, unknown> }): void;
-  /** Clean up resources. */
+  /** Advance all active property animations by dt milliseconds. */
+  tick(dtMs: number): void;
+  /** Clean up resources (cancel rAF, clear pending timeouts). */
   dispose(): void;
 }
 
@@ -52,9 +94,45 @@ export interface BindingExecutor {
  *
  * Reads binding state lazily on each signal (not snapshotted at creation)
  * so that bindings added during run mode are immediately effective.
+ *
+ * Temporal animations are driven by an internal rAF loop started on
+ * the first transition trigger and stopped when all animations complete
+ * or on dispose().
  */
 export function createBindingExecutor(adapter: RenderAdapter): BindingExecutor {
   let disposed = false;
+
+  /** Active property animations keyed by `${placedId}:${prop}`. */
+  const activeAnims = new Map<string, ActivePropertyAnim>();
+
+  /** Pending revert timeout IDs for cleanup. */
+  const pendingTimeouts = new Set<ReturnType<typeof setTimeout>>();
+
+  /** rAF handle for the animation tick loop. */
+  let rafId: number | null = null;
+  let lastTime = 0;
+
+  /** Start the rAF tick loop if not already running. */
+  function ensureTicking(): void {
+    if (rafId !== null || disposed) return;
+    lastTime = performance.now();
+    rafId = requestAnimationFrame(tickLoop);
+  }
+
+  /** Internal rAF callback. */
+  function tickLoop(now: number): void {
+    if (disposed) return;
+    const dt = now - lastTime;
+    lastTime = now;
+
+    tickAnims(dt, activeAnims, pendingTimeouts, adapter, ensureTicking);
+
+    if (activeAnims.size > 0) {
+      rafId = requestAnimationFrame(tickLoop);
+    } else {
+      rafId = null;
+    }
+  }
 
   return {
     handleSignal(signal) {
@@ -63,26 +141,34 @@ export function createBindingExecutor(adapter: RenderAdapter): BindingExecutor {
       const { choreographies } = getChoreographyState();
 
       for (const choreo of choreographies) {
-        // Get bindings for this choreography
         const bindings = getBindingsFromChoreography(choreo.id);
         if (bindings.length === 0) continue;
 
-        // Check signal type match
         const inputInfo = getChoreoInputInfo(choreo.id);
         if (!inputInfo.effectiveTypes.includes(signal.type)) continue;
 
-        // Check when clause match
         if (!matchesWhen(choreo.when, signal)) continue;
 
-        // All conditions met — execute each binding
         for (const binding of bindings) {
-          executeBinding(binding, signal, adapter);
+          executeBinding(binding, signal, adapter, activeAnims, pendingTimeouts, ensureTicking);
         }
       }
     },
 
+    tick(dtMs) {
+      if (disposed) return;
+      tickAnims(dtMs, activeAnims, pendingTimeouts, adapter, ensureTicking);
+    },
+
     dispose() {
       disposed = true;
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+      activeAnims.clear();
+      for (const tid of pendingTimeouts) clearTimeout(tid);
+      pendingTimeouts.clear();
     },
   };
 }
@@ -91,11 +177,23 @@ export function createBindingExecutor(adapter: RenderAdapter): BindingExecutor {
 // Binding execution
 // ---------------------------------------------------------------------------
 
+/** Map binding property names to handle property names. */
+const PROP_TO_HANDLE: Record<string, "alpha" | "rotation" | "scale" | "x" | "y"> = {
+  opacity: "alpha",
+  rotation: "rotation",
+  scale: "scale",
+  "position.x": "x",
+  "position.y": "y",
+};
+
 /** Execute a single binding against a matched signal. */
 function executeBinding(
   binding: EntityBinding,
   signal: { type: string; payload: Record<string, unknown> },
   adapter: RenderAdapter,
+  activeAnims: Map<string, ActivePropertyAnim>,
+  pendingTimeouts: Set<ReturnType<typeof setTimeout>>,
+  ensureTicking: () => void,
 ): void {
   const placedId = resolveEntityId(binding.targetEntityId);
   if (!placedId) {
@@ -103,6 +201,17 @@ function executeBinding(
     return;
   }
 
+  // Temporal transition path — if binding has a transition config
+  const handleProp = PROP_TO_HANDLE[binding.property];
+  if (binding.transition && handleProp) {
+    startTransition(
+      placedId, handleProp, binding.transition,
+      adapter, activeAnims, pendingTimeouts, ensureTicking,
+    );
+    return;
+  }
+
+  // Instant path (backward compatible)
   switch (binding.property) {
     case "animation.state":
       executeAnimationState(placedId, binding);
@@ -224,6 +333,140 @@ function executeTeleportTo(placedId: string, binding: EntityBinding, adapter: Re
   handle.x = pos.x;
   handle.y = pos.y;
   console.log(`[bindings] ${binding.targetEntityId} → teleport to ${waypointName} (${pos.x}, ${pos.y})`);
+}
+
+// ---------------------------------------------------------------------------
+// Temporal animation engine
+// ---------------------------------------------------------------------------
+
+/** Read a property value from a handle. */
+function readHandleProp(handle: DisplayObjectHandle, prop: "alpha" | "rotation" | "scale" | "x" | "y"): number {
+  if (prop === "scale") return handle.scale.x;
+  return handle[prop];
+}
+
+/** Write a property value to a handle. */
+function writeHandleProp(handle: DisplayObjectHandle, prop: "alpha" | "rotation" | "scale" | "x" | "y", value: number): void {
+  if (prop === "scale") {
+    handle.scale.set(value);
+  } else {
+    handle[prop] = value;
+  }
+}
+
+/** Look up the snapshot original value for a placed entity + property. */
+function getSnapshotValue(placedId: string, prop: "alpha" | "rotation" | "scale" | "x" | "y"): number | null {
+  const snapshots = getSnapshot();
+  if (!snapshots) return null;
+  const snap = snapshots.find((s) => s.id === placedId);
+  if (!snap) return null;
+
+  switch (prop) {
+    case "alpha": return snap.opacity;
+    case "rotation": return snap.rotation;
+    case "scale": return snap.scale;
+    case "x": return snap.x;
+    case "y": return snap.y;
+  }
+}
+
+/** Start a temporal transition animation on a property. */
+function startTransition(
+  placedId: string,
+  prop: "alpha" | "rotation" | "scale" | "x" | "y",
+  transition: BindingTransition,
+  adapter: RenderAdapter,
+  activeAnims: Map<string, ActivePropertyAnim>,
+  pendingTimeouts: Set<ReturnType<typeof setTimeout>>,
+  ensureTicking: () => void,
+): void {
+  const handle = adapter.getHandle(placedId);
+  if (!handle) return;
+
+  const key = `${placedId}:${prop}`;
+
+  // Read current value from handle (supports smooth interruption)
+  const fromValue = readHandleProp(handle, prop);
+
+  // Determine original value for revert (from snapshot, or current if no snapshot)
+  const originalValue = getSnapshotValue(placedId, prop) ?? fromValue;
+
+  const anim: ActivePropertyAnim = {
+    handle,
+    prop,
+    fromValue,
+    toValue: transition.targetValue,
+    durationMs: transition.durationMs,
+    easingFn: resolveEasing(transition.easing),
+    elapsed: 0,
+    ...(transition.revert ? { revert: { delayMs: transition.revertDelayMs, originalValue } } : {}),
+  };
+
+  // Interrupt any existing animation on the same key
+  activeAnims.set(key, anim);
+  ensureTicking();
+
+  console.log(`[bindings] ${placedId} → ${prop}: ${fromValue} → ${transition.targetValue} (${transition.durationMs}ms ${transition.easing})`);
+}
+
+/** Advance all active property animations by dt milliseconds. */
+function tickAnims(
+  dtMs: number,
+  activeAnims: Map<string, ActivePropertyAnim>,
+  pendingTimeouts: Set<ReturnType<typeof setTimeout>>,
+  adapter: RenderAdapter,
+  ensureTicking: () => void,
+): void {
+  const completed: string[] = [];
+
+  for (const [key, anim] of activeAnims) {
+    anim.elapsed += dtMs;
+    const t = Math.min(1, anim.elapsed / anim.durationMs);
+    const progress = anim.easingFn(t);
+    const value = anim.fromValue + (anim.toValue - anim.fromValue) * progress;
+
+    writeHandleProp(anim.handle, anim.prop, value);
+
+    if (t >= 1) {
+      // Snap to final value
+      writeHandleProp(anim.handle, anim.prop, anim.toValue);
+      completed.push(key);
+
+      // Schedule revert if configured
+      if (anim.revert) {
+        const { delayMs, originalValue } = anim.revert;
+        const placedId = key.split(":")[0]!;
+        const prop = anim.prop;
+        const handle = anim.handle;
+
+        const tid = setTimeout(() => {
+          pendingTimeouts.delete(tid);
+
+          // Start a revert animation back to original
+          const currentValue = readHandleProp(handle, prop);
+          const revertAnim: ActivePropertyAnim = {
+            handle,
+            prop,
+            fromValue: currentValue,
+            toValue: originalValue,
+            durationMs: anim.durationMs,
+            easingFn: anim.easingFn,
+            elapsed: 0,
+          };
+          activeAnims.set(`${placedId}:${prop}`, revertAnim);
+          ensureTicking();
+
+          console.log(`[bindings] ${placedId} → ${prop}: revert to ${originalValue}`);
+        }, delayMs);
+
+        pendingTimeouts.add(tid);
+      }
+    }
+  }
+
+  for (const key of completed) {
+    activeAnims.delete(key);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -417,3 +660,15 @@ function evaluateOperator(operator: WhenOperatorDef, value: unknown): boolean {
 
   return true;
 }
+
+// ---------------------------------------------------------------------------
+// Test-only exports
+// ---------------------------------------------------------------------------
+
+export const __test__ = {
+  EASING_FNS,
+  resolveEasing,
+  readHandleProp,
+  writeHandleProp,
+  tickAnims,
+} as const;
