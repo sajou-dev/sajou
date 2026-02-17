@@ -191,7 +191,7 @@ function buildPopoverContent(content: HTMLElement, source: SignalSource): void {
 
   const protoBadge = document.createElement("span");
   protoBadge.className = `sv-chip-proto source-block-proto--${source.protocol}`;
-  protoBadge.textContent = { websocket: "WS", sse: "SSE", openai: "AI", openclaw: "CLAW", anthropic: "ANTH" }[source.protocol] ?? source.protocol;
+  protoBadge.textContent = { websocket: "WS", sse: "SSE", openai: "AI", openclaw: "CLAW", anthropic: "ANTH", midi: "MIDI" }[source.protocol] ?? source.protocol;
   statusRow.appendChild(protoBadge);
 
   if (source.eventsPerSecond > 0) {
@@ -225,7 +225,8 @@ function buildPopoverContent(content: HTMLElement, source: SignalSource): void {
   content.appendChild(nameRow);
 
   // -- Protocol selector for local HTTP-based sources (LM Studio, Ollama) --
-  if (isLocal && source.protocol !== "sse" && source.protocol !== "openclaw") {
+  // Not shown for SSE (Claude Code), OpenClaw, or MIDI sources.
+  if (isLocal && source.protocol !== "sse" && source.protocol !== "openclaw" && source.protocol !== "midi") {
     const protoRow = document.createElement("div");
     protoRow.className = "nc-popover-row";
 
@@ -252,9 +253,10 @@ function buildPopoverContent(content: HTMLElement, source: SignalSource): void {
   }
 
   // -- URL + API key inputs --
-  // Local sources: show URL read-only (pre-filled), hide for SSE locals (Claude Code)
+  // Local sources: show URL read-only (pre-filled), hide for SSE locals (Claude Code) and MIDI
   // Remote sources: fully editable
-  if (!isLocal || source.protocol !== "sse") {
+  const hideUrl = isLocal && (source.protocol === "sse" || source.protocol === "midi");
+  if (!hideUrl) {
     const urlRow = document.createElement("div");
     urlRow.className = "nc-popover-row";
 
@@ -280,8 +282,9 @@ function buildPopoverContent(content: HTMLElement, source: SignalSource): void {
     content.appendChild(urlRow);
   }
 
-  // API key — show for remote sources and local sources with non-SSE protocols
-  if (!isLocal || (isLocal && source.protocol !== "sse")) {
+  // API key — show for remote sources and local sources with non-SSE/non-MIDI protocols
+  const hideKey = isLocal && (source.protocol === "sse" || source.protocol === "midi");
+  if (!hideKey) {
     const keyRow = document.createElement("div");
     keyRow.className = "nc-popover-row";
 

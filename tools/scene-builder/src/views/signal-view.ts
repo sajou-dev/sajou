@@ -113,6 +113,7 @@ const PROTO_LABELS: Record<string, string> = {
   openai: "AI",
   anthropic: "ANTH",
   openclaw: "CLAW",
+  midi: "MIDI",
 };
 
 function renderSourceChips(): void {
