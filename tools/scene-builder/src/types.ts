@@ -141,6 +141,24 @@ export interface BindingMapping {
 }
 
 /**
+ * Transition config for temporal property animations on bindings.
+ * When present, the binding animates smoothly to the target value
+ * instead of assigning instantly.
+ */
+export interface BindingTransition {
+  /** Target value to animate towards. */
+  targetValue: number;
+  /** Animation duration in milliseconds. */
+  durationMs: number;
+  /** Easing function name. */
+  easing: ChoreographyEasing;
+  /** Whether to animate back to the original value after reaching target. */
+  revert: boolean;
+  /** Delay in milliseconds before reverting (only used when revert is true). */
+  revertDelayMs: number;
+}
+
+/**
  * Action config for event→action bindings (moveTo, followRoute, etc.).
  * Used when a choreographer event triggers a topological action.
  */
@@ -178,6 +196,8 @@ export interface EntityBinding {
   action?: BindingAction;
   /** Payload field to extract value from (e.g. "velocity", "value"). Auto-detect if absent. */
   sourceField?: string;
+  /** Optional transition config for temporal property animations. */
+  transition?: BindingTransition;
 }
 
 /** Position type hints for choreography semantics. */
