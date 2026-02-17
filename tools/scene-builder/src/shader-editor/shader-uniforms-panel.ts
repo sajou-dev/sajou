@@ -125,8 +125,13 @@ function buildSliderControl(u: ShaderUniformDef, shaderId: string): void {
   const row = document.createElement("div");
   row.className = "shader-uniform-row";
 
+  const inputId = `uniform-${u.name}`;
+  label.htmlFor = inputId;
+
   const slider = document.createElement("input");
   slider.type = "range";
+  slider.id = inputId;
+  slider.name = u.name;
   slider.min = String(u.min);
   slider.max = String(u.max);
   slider.step = String(u.step);
@@ -174,8 +179,13 @@ function buildColorControl(u: ShaderUniformDef, shaderId: string): void {
   const row = document.createElement("div");
   row.className = "shader-uniform-row";
 
+  const colorId = `uniform-${u.name}`;
+  label.htmlFor = colorId;
+
   const colorInput = document.createElement("input");
   colorInput.type = "color";
+  colorInput.id = colorId;
+  colorInput.name = u.name;
   const rgb = Array.isArray(u.value) ? u.value as number[] : [1, 1, 1];
   colorInput.value = rgbToHex(rgb[0], rgb[1], rgb[2]);
 
@@ -218,14 +228,19 @@ function buildToggleControl(u: ShaderUniformDef, shaderId: string): void {
   const row = document.createElement("div");
   row.className = "shader-uniform-row";
 
+  const checkId = `uniform-${u.name}`;
+
   const checkbox = document.createElement("input");
   checkbox.type = "checkbox";
+  checkbox.id = checkId;
+  checkbox.name = u.name;
   checkbox.checked = u.value === true;
   checkbox.style.accentColor = "var(--color-accent)";
 
   const label = document.createElement("label");
   label.className = "shader-uniform-label";
   label.style.marginBottom = "0";
+  label.htmlFor = checkId;
   label.textContent = u.name;
 
   checkbox.addEventListener("change", () => {
@@ -275,8 +290,13 @@ function buildXYControl(u: ShaderUniformDef, shaderId: string): void {
     axisSpan.style.minWidth = "12px";
     axisSpan.textContent = axisLabel;
 
+    const sliderId = `uniform-${u.name}-${axisLabel}`;
+
     const slider = document.createElement("input");
     slider.type = "range";
+    slider.id = sliderId;
+    slider.name = `${u.name}-${axisLabel}`;
+    slider.setAttribute("aria-label", `${u.name} ${axisLabel}`);
     slider.min = String(u.min);
     slider.max = String(u.max);
     slider.step = String(u.step);

@@ -95,6 +95,9 @@ export function initShaderCodePanel(codeEl: HTMLElement): void {
   // Shader name input
   nameInputEl = document.createElement("input");
   nameInputEl.type = "text";
+  nameInputEl.id = "shader-name-input";
+  nameInputEl.name = "shader-name";
+  nameInputEl.setAttribute("aria-label", "Shader name");
   nameInputEl.placeholder = "Shader name";
   nameInputEl.style.width = "120px";
   nameInputEl.addEventListener("change", () => {
@@ -106,6 +109,9 @@ export function initShaderCodePanel(codeEl: HTMLElement): void {
 
   // Shader selector dropdown
   shaderSelectorEl = document.createElement("select");
+  shaderSelectorEl.id = "shader-selector";
+  shaderSelectorEl.name = "shader-selector";
+  shaderSelectorEl.setAttribute("aria-label", "Select shader");
   shaderSelectorEl.title = "Select shader";
   shaderSelectorEl.addEventListener("change", () => {
     if (shaderSelectorEl) {
@@ -141,6 +147,9 @@ export function initShaderCodePanel(codeEl: HTMLElement): void {
   passesLabel.style.cssText = "font-size: 10px; color: var(--color-text-muted);";
   passesLabel.textContent = "Passes:";
   const passesSelect = document.createElement("select");
+  passesSelect.id = "shader-passes-select";
+  passesSelect.name = "shader-passes";
+  passesSelect.setAttribute("aria-label", "Render passes");
   passesSelect.title = "Render passes (multi-pass ping-pong)";
   passesSelect.innerHTML = '<option value="1">1</option><option value="2">2</option>';
   passesSelect.addEventListener("change", () => {

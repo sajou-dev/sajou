@@ -204,15 +204,19 @@ function initShaderMini(): void {
     const { pipelineLayout } = getEditorState();
     if (!pipelineLayout.extended.includes("shader")) {
       const shaderCanvas = document.querySelector<HTMLCanvasElement>("#shader-preview-panel canvas");
-      if (shaderCanvas) {
+      if (shaderCanvas && shaderCanvas.width > 0 && shaderCanvas.height > 0) {
         try {
-          img.src = shaderCanvas.toDataURL("image/png");
+          const dataUrl = shaderCanvas.toDataURL("image/png");
+          // "data:," is what a 0x0 canvas returns — skip it
+          if (dataUrl.length > 6) {
+            img.src = dataUrl;
+          }
         } catch {
-          // ignore
+          // Security error if canvas is tainted — ignore
         }
       }
-      // Only show the swatch if we have a valid capture (avoid broken image icon)
-      if (img.src) {
+      // Only show the swatch if we have a real capture
+      if (img.src && img.src.length > 6) {
         el.appendChild(img);
       }
     }
