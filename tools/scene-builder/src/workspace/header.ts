@@ -8,6 +8,7 @@ import { exportScene } from "../io/export-scene.js";
 import { importScene } from "../io/import-scene.js";
 import { subscribeRunMode, isRunModeActive } from "../run-mode/run-mode-state.js";
 import { newScene } from "../state/persistence.js";
+import { shouldSuppressShortcut } from "../shortcuts/shortcut-registry.js";
 
 // Run mode is imported lazily to avoid loading @sajou/* packages at startup.
 let runModeLoading = false;
@@ -97,29 +98,26 @@ export function initHeader(): void {
   // Subscribe to run mode state changes to update button appearance
   subscribeRunMode(updateRunButton);
 
-  // Keyboard shortcut: Ctrl+R for run mode
+  // Keyboard shortcuts: Ctrl+R (run), Ctrl+S (save), Ctrl+N (new)
   document.addEventListener("keydown", (e: KeyboardEvent) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === "r") {
-      e.preventDefault();
-      void triggerRunMode();
-    }
-  });
+    if (!(e.ctrlKey || e.metaKey)) return;
+    if (shouldSuppressShortcut(e)) return;
 
-  // Keyboard shortcut: Ctrl+S for quick export (save)
-  document.addEventListener("keydown", (e: KeyboardEvent) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === "s") {
-      e.preventDefault();
-      exportScene().catch((err: unknown) => {
-        console.error("[scene-builder] Export failed:", err);
-      });
-    }
-  });
-
-  // Keyboard shortcut: Ctrl+N for new scene
-  document.addEventListener("keydown", (e: KeyboardEvent) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === "n") {
-      e.preventDefault();
-      void triggerNewScene();
+    switch (e.key) {
+      case "r":
+        e.preventDefault();
+        void triggerRunMode();
+        break;
+      case "s":
+        e.preventDefault();
+        exportScene().catch((err: unknown) => {
+          console.error("[scene-builder] Export failed:", err);
+        });
+        break;
+      case "n":
+        e.preventDefault();
+        void triggerNewScene();
+        break;
     }
   });
 }

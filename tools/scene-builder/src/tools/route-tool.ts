@@ -14,6 +14,8 @@
  * Routes are standalone vector paths — they don't require position markers.
  */
 
+import { shouldSuppressShortcut } from "../shortcuts/shortcut-registry.js";
+
 import type { CanvasToolHandler } from "../canvas/canvas.js";
 import {
   getEditorState,
@@ -590,8 +592,7 @@ export function initRouteToolKeyboard(
   getHoveredPoint: () => { routeId: string; pointIndex: number } | null,
 ): void {
   document.addEventListener("keydown", (e) => {
-    const tag = (e.target as HTMLElement).tagName;
-    if (tag === "INPUT" || tag === "TEXTAREA") return;
+    if (shouldSuppressShortcut(e)) return;
 
     const { activeTool, selectedRouteIds, routeCreationPreview } = getEditorState();
     if (activeTool !== "route") return;

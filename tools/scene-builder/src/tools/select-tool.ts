@@ -8,6 +8,7 @@
 
 import type { CanvasToolHandler } from "../canvas/canvas.js";
 import { screenToScene, getCanvasContainer } from "../canvas/canvas.js";
+import { shouldSuppressShortcut } from "../shortcuts/shortcut-registry.js";
 import { snap } from "./snap.js";
 import { showGuideLines, hideGuideLines, snapToCenter } from "./guide-lines.js";
 import {
@@ -346,8 +347,7 @@ export function initSelectToolKeyboard(): void {
   });
 
   document.addEventListener("keydown", (e) => {
-    const tag = (e.target as HTMLElement).tagName;
-    if (tag === "INPUT" || tag === "TEXTAREA") return;
+    if (shouldSuppressShortcut(e)) return;
 
     const { activeTool, selectedIds } = getEditorState();
     if (activeTool !== "select") return;

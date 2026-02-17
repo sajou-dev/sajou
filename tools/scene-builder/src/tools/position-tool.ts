@@ -8,6 +8,7 @@
  */
 
 import type { CanvasToolHandler } from "../canvas/canvas.js";
+import { shouldSuppressShortcut } from "../shortcuts/shortcut-registry.js";
 import {
   getEditorState,
   setPositionSelection,
@@ -230,8 +231,7 @@ export function createPositionTool(): CanvasToolHandler {
 /** Initialize Position tool keyboard shortcuts (Delete, Escape). */
 export function initPositionToolKeyboard(): void {
   document.addEventListener("keydown", (e) => {
-    const tag = (e.target as HTMLElement).tagName;
-    if (tag === "INPUT" || tag === "TEXTAREA") return;
+    if (shouldSuppressShortcut(e)) return;
 
     const { activeTool, selectedPositionIds } = getEditorState();
     if (activeTool !== "position") return;

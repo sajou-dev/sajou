@@ -11,6 +11,7 @@
  *   - step-chain.ts         — horizontal pill-based step renderer
  */
 
+import { shouldSuppressShortcut } from "../shortcuts/shortcut-registry.js";
 import {
   getChoreographyState,
   subscribeChoreography,
@@ -87,9 +88,7 @@ function initChoreographyKeyboard(zoneEl: HTMLElement): void {
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Delete" && e.key !== "Backspace") return;
 
-    // Don't interfere with text inputs
-    const tag = (e.target as HTMLElement).tagName;
-    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+    if (shouldSuppressShortcut(e)) return;
 
     // Only act when choreographer zone is visible
     if (zoneEl.offsetParent === null) return;

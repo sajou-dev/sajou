@@ -12,6 +12,7 @@
  */
 
 import * as THREE from "three";
+import { shouldSuppressShortcut } from "../shortcuts/shortcut-registry.js";
 import { getSceneState, subscribeScene } from "../state/scene-state.js";
 import { getEditorState, subscribeEditor } from "../state/editor-state.js";
 import { isRunModeActive } from "../run-mode/run-mode-state.js";
@@ -437,8 +438,7 @@ function handlePanEnd(): void {
 
 function handleKeyDown(e: KeyboardEvent): void {
   if (e.code === "Space") {
-    const tag = (e.target as HTMLElement).tagName;
-    if (tag === "INPUT" || tag === "TEXTAREA") return;
+    if (shouldSuppressShortcut(e)) return;
     e.preventDefault();
     spaceDown = true;
     updateCursor();
