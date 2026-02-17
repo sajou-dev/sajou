@@ -1,7 +1,7 @@
 /**
  * Toolbar module.
  *
- * Thin vertical bar (~40px) pinned to the left edge.
+ * Thin vertical bar (~42px) docked to the left edge of the visual node.
  * Two sections: canvas tools (top) and panel toggles (bottom).
  * Uses Lucide Icons (inline SVG) per brand guidelines.
  * Also wires zoom keyboard shortcuts and the zoom bar buttons.
@@ -141,7 +141,6 @@ const PANEL_TOGGLES: PanelToggleDef[] = [
   { panelId: "settings", label: "Settings", iconKey: "settings", shortcut: "" },
   { panelId: "lighting", label: "Lighting", iconKey: "light", shortcut: "" },
   { panelId: "particles", label: "Particles", iconKey: "particle", shortcut: "" },
-  { panelId: "shader-editor", label: "Shader", iconKey: "shader", shortcut: "" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -158,7 +157,7 @@ function syncHelpBtn(): void {
 // Build DOM
 // ---------------------------------------------------------------------------
 
-/** Initialize the toolbar content inside a floating panel. */
+/** Initialize the toolbar content inside the toolbar dock element. */
 export function initToolbarPanel(toolbar: HTMLElement): void {
   toolbar.innerHTML = "";
 

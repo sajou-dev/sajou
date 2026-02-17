@@ -162,9 +162,9 @@ export async function initWorkspace(): Promise<void> {
   initWiringOverlay();
   initWiringDrag();
 
-  // Toolbar as floating panel — tied to visual editor node
-  const toolbarPanel = createPanel({ id: "toolbar", title: "Tools", minWidth: 90, minHeight: 200, ownerNode: "visual" });
-  initToolbarPanel(toolbarPanel.contentEl);
+  // Toolbar pinned inside the visual node (left edge)
+  const toolbarDock = document.getElementById("toolbar-dock");
+  if (toolbarDock) initToolbarPanel(toolbarDock);
 
   // Help bar (contextual tool hints at bottom)
   initHelpBar();

@@ -8,7 +8,7 @@
  * Lazily initializes CodeMirror, uniforms, and preview canvas on first need.
  */
 
-import { getEditorState, subscribeEditor, showPanel } from "../state/editor-state.js";
+import { getEditorState, subscribeEditor, togglePanel } from "../state/editor-state.js";
 
 // ---------------------------------------------------------------------------
 // Module state
@@ -30,6 +30,25 @@ export function initShaderView(): void {
   previewPanel.className = "shader-preview-panel";
   previewPanel.id = "shader-preview-panel";
   container.appendChild(previewPanel);
+
+  // Mini-bar with shader editor toggle (inside preview panel for correct positioning)
+  const miniBar = document.createElement("div");
+  miniBar.id = "shader-mini-bar";
+
+  const editorBtn = document.createElement("button");
+  editorBtn.className = "zoom-btn shader-mini-btn";
+  editorBtn.title = "Toggle shader editor";
+  editorBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"/><path d="m6 8-4 4 4 4"/><path d="m14.5 4-5 16"/></svg>`;
+  editorBtn.addEventListener("click", () => togglePanel("shader-editor"));
+  miniBar.appendChild(editorBtn);
+
+  previewPanel.appendChild(miniBar);
+
+  // Sync editor button active state
+  subscribeEditor(() => {
+    const { panelLayouts } = getEditorState();
+    editorBtn.classList.toggle("shader-mini-btn--active", panelLayouts["shader-editor"]?.visible ?? false);
+  });
 
   // Subscribe to pipeline layout changes for lazy init
   subscribeEditor(onLayoutChange);
@@ -79,20 +98,10 @@ async function lazyInitPanel(): Promise<void> {
 // Layout sync
 // ---------------------------------------------------------------------------
 
-/** Trigger lazy inits when shader node becomes extended or panel opens. */
+/** Trigger lazy init when shader-editor panel becomes visible. */
 function onLayoutChange(): void {
-  const { pipelineLayout, panelLayouts } = getEditorState();
-  const isExtended = pipelineLayout.extended.includes("shader");
+  const { panelLayouts } = getEditorState();
 
-  // Auto-open shader-editor panel when shader node becomes extended
-  if (isExtended) {
-    const shaderPanelVisible = panelLayouts["shader-editor"]?.visible;
-    if (!shaderPanelVisible) {
-      showPanel("shader-editor");
-    }
-  }
-
-  // Lazy init code panel when shader-editor panel becomes visible
   if (panelLayouts["shader-editor"]?.visible && !panelInitialized) {
     void lazyInitPanel();
   }

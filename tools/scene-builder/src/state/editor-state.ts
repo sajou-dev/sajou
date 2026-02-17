@@ -33,7 +33,6 @@ function createDefault(): EditorState {
       "signal-timeline": defaultPanelLayout(40, 100, 480, 520),
       lighting: defaultPanelLayout(40, 100, 300, 400),
       particles: defaultPanelLayout(40, 100, 300, 450),
-      toolbar: defaultPanelLayout(20, 60, 60, 460, true),
       "shader-editor": defaultPanelLayout(80, 60, 520, 500),
     },
     gridEnabled: true,

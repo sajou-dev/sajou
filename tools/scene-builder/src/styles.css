@@ -518,7 +518,7 @@ button {
 }
 
 /* Theme zone — inside pipeline visual node.
-   Canvas + zoom-bar stacked vertically (toolbar is now a floating panel). */
+   Canvas + zoom-bar + toolbar-dock positioned absolutely. */
 .zone-theme {
   display: flex;
   flex-direction: column;
@@ -527,24 +527,38 @@ button {
   min-height: 0;
 }
 
-.toolbar-section {
+/* Toolbar dock — floating bar at top-right of visual node (same style as zoom-bar) */
+#toolbar-dock {
+  position: absolute;
+  top: 10px;
+  right: 10px;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 2px;
-  padding: 0 2px;
-  overflow-y: auto;
-  overflow-x: hidden;
+  padding: 2px 4px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  z-index: 60;
+  user-select: none;
 }
 
-/* Visual separator between the two toolbar columns */
+.toolbar-section {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 4px;
+}
+
+/* Visual separator between the two toolbar sections */
 .toolbar-columns > .toolbar-section + .toolbar-section {
-  border-left: 1px solid var(--color-border);
+  border-left: 1px solid var(--color-border-hover);
+  margin-left: 6px;
+  padding-left: 10px;
 }
 
 .toolbar-btn {
-  width: 34px;
-  height: 34px;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -569,20 +583,18 @@ button {
   background: var(--color-accent-light);
 }
 
-/* Help toggle pinned to bottom of toolbar */
+/* Help toggle pinned to right end of toolbar */
 .toolbar-btn--help {
-  margin-top: auto;
-  margin-bottom: 2px;
-  align-self: center;
+  margin-left: auto;
 }
 
-/* Panel-open indicator dot (left edge since toolbar is on the right) */
+/* Panel-open indicator dot (bottom edge for horizontal toolbar) */
 .toolbar-btn--panel-open::after {
   content: "";
   position: absolute;
-  top: 50%;
-  left: 2px;
-  transform: translateY(-50%);
+  bottom: 1px;
+  left: 50%;
+  transform: translateX(-50%);
   width: 4px;
   height: 4px;
   border-radius: 50%;
@@ -619,7 +631,7 @@ button {
 #zoom-bar {
   position: absolute;
   bottom: 10px;
-  left: 52px;
+  left: 10px;
   display: flex;
   align-items: center;
   gap: 0;
@@ -796,19 +808,14 @@ button {
   border-radius: 0 0 var(--radius-xl) var(--radius-xl);
 }
 
-/* Toolbar panel: two-column layout with help button at bottom */
-.panel[data-panel-id="toolbar"] .panel-content {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 4px;
-}
-
+/* Toolbar: horizontal layout with tool + panel sections, centered */
 .toolbar-columns {
   display: flex;
+  align-items: center;
+  justify-content: center;
   gap: 2px;
   flex: 1;
-  min-height: 0;
+  min-width: 0;
 }
 
 .panel-placeholder {
@@ -5364,13 +5371,18 @@ button {
  * ============================================================================ */
 
 .action-palette {
+  position: absolute;
+  top: 10px;
+  right: 10px;
   display: flex;
   flex-wrap: wrap;
   gap: 5px;
-  padding: 6px 8px;
-  border-bottom: 1px solid var(--color-border);
-  background: var(--color-elevated);
-  flex-shrink: 0;
+  padding: 4px 6px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  z-index: 60;
+  user-select: none;
 }
 
 .action-palette-block {
@@ -5440,6 +5452,7 @@ button {
   flex-direction: column;
   gap: 8px;
   padding: 8px;
+  padding-top: 44px; /* clearance for floating action-palette bar */
   padding-left: 40px; /* lane space for source→choreo connection lines */
   overflow-y: auto;
   flex: 1;
@@ -5458,6 +5471,11 @@ button {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
+}
+
+/* Alternating left indent on odd racks for visual separation */
+.rack-list > .rack:nth-child(odd) {
+  margin-left: 18px;
 }
 
 .rack--reordering {
@@ -7220,6 +7238,28 @@ button {
   display: block;
   width: 100%;
   height: 100%;
+}
+
+/* Shader mini-bar — same style as zoom-bar */
+#shader-mini-bar {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  z-index: 60;
+  user-select: none;
+}
+
+.shader-mini-btn {
+  border-radius: var(--radius-sm);
+}
+
+.shader-mini-btn--active {
+  color: var(--color-accent);
 }
 
 /* Preset dropdown — fixed positioning to escape overflow: hidden parent */
