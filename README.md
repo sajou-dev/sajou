@@ -12,11 +12,11 @@ Every AI agent today shares the same interface: a chat. sajou offers something d
 
 Think of it like MadMapper for AI agents: signals come in (MIDI/OSC/ArtNet style), choreographies define the visual sequences, and themes render them on screen.
 
-- **Signals**: standardized JSON events from any agent backend (OpenClaw, LangChain, custom)
-- **Choreographer**: declarative JSON sequences that describe what happens visually when a signal arrives
-- **Themes**: complete visual scenes (sprites, 3D models, particles, sounds) that render the choreographies
+- **Signals**: standardized JSON events from any agent backend (OpenClaw, LangChain, custom) — plus MIDI controllers and local AI services
+- **Choreographer**: declarative JSON sequences that describe what happens visually when a signal arrives — authored with interlocking blocks
+- **Stage**: Three.js renderer with lighting, particles, and a full GLSL shader editor with auto-detect
 
-Same data, different theme, completely different experience.
+Same data, different scene, completely different experience.
 
 Read the full vision in [SAJOU-MANIFESTO.md](./SAJOU-MANIFESTO.md)
 
@@ -51,9 +51,9 @@ sajou/
 │   ├── core/              # Signal bus + Choreographer runtime (vanilla TS, zero deps)
 │   ├── schema/            # JSON Schemas + TypeScript types for signal protocol
 │   ├── stage/             # Three.js renderer library (EntityManager, LightManager, cameras)
-│   ├── theme-api/         # Theme contract and renderer interfaces
-│   ├── theme-citadel/     # WC3/Tiny Swords theme (PixiJS v8)
-│   ├── theme-office/      # Corporate/office theme (PixiJS v8)
+│   ├── theme-api/         # Theme contract interfaces (early prototype)
+│   ├── theme-citadel/     # WC3/Tiny Swords theme (early prototype)
+│   ├── theme-office/      # Corporate/office theme (early prototype)
 │   └── emitter/           # Test signal emitter (WebSocket)
 ├── adapters/
 │   └── tap/               # Signal tap — hooks into Claude Code, bridges to scene-builder
@@ -79,7 +79,8 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed package descriptions and c
 - **Language**: TypeScript (strict mode)
 - **Core**: Vanilla TS, zero framework dependency — the choreographer is framework-agnostic
 - **Stage**: Three.js (WebGLRenderer + Canvas2D overlay)
-- **Signal sources**: WebSocket, SSE, OpenAI-compatible, Anthropic API, OpenClaw gateway
+- **Signal sources**: WebSocket, SSE, OpenAI-compatible, Anthropic API, OpenClaw gateway, MIDI
+- **Code editor**: CodeMirror 6 (GLSL)
 - **Monorepo**: pnpm workspaces
 - **Build**: Vite
 - **Test**: Vitest
@@ -95,11 +96,28 @@ The scene-builder connects to multiple signal sources simultaneously:
 | **OpenAI** | Probes `/v1/models` | LM Studio, Ollama, vLLM, any OpenAI-compatible API |
 | **Anthropic** | URL contains "anthropic" | Anthropic Messages API with streaming |
 | **OpenClaw** | Port 18789 or "openclaw" in URL | Multi-channel agent gateway (Telegram, WhatsApp, Slack, Discord...) |
+| **MIDI** | Web MIDI API | Hardware controllers — knobs, faders, pads mapped to uniforms and parameters |
 | **Local** | Automatic | Claude Code hooks via tap adapter (`/__signals__/stream`) |
+
+Local sources (Claude Code, OpenClaw, LM Studio, Ollama) are auto-discovered at startup.
+
+## Scene-builder
+
+The main authoring tool — a visual editor for building sajou scenes.
+
+- **Pipeline layout**: node-based workspace with signal, choreographer, visual, and shader nodes
+- **Interlocking blocks**: choreography authoring with sentence-blocks, drag-reorder, and action palette
+- **Shader editor**: CodeMirror 6 with GLSL highlighting, live preview canvas, multi-pass ping-pong feedback, 3 built-in presets, JSON export/import
+- **Uniform annotations**: `@ui` (slider, color, toggle, xy), `@bind` (choreographer wiring), `@object` (grouped controls)
+- **GLSL auto-detect**: static analysis finds extractable literals (vec constructors, smoothstep, mix, pow, time multipliers, SDF radii...) with confidence scoring and Expose/Unexpose toggle
+- **Choreo→shader wiring**: bind choreography actions to shader uniforms
+- **Lighting**: ambient, directional, point lights with flicker modulation
+- **Particles**: CPU-simulated emitters with color-over-life, radial/directional modes, glow
+- **State persistence**: IndexedDB + localStorage, auto-save, scene ZIP import/export
 
 ## Status
 
-**v0.2.0** — Core runtime, signal protocol, Three.js stage renderer with lighting and particle systems, tap adapter for Claude Code, OpenClaw gateway integration, multi-source signal connections. The scene-builder is the main authoring tool.
+**v0.2.0** — Core runtime, signal protocol, Three.js stage, shader editor with GLSL auto-detect, pipeline layout, interlocking blocks choreographer, MIDI input, tap adapter for Claude Code, OpenClaw gateway, multi-source signal connections.
 
 This is a personal project. If it turns out well, it will become public.
 
