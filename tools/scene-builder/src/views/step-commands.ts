@@ -226,6 +226,29 @@ export function moveStepCmd(choreoId: string, stepId: string, direction: -1 | 1)
   executeCommand(cmd);
 }
 
+/** Reorder a top-level step to a new index within its choreography. */
+export function reorderStepCmd(choreoId: string, stepId: string, toIndex: number): void {
+  const { choreographies } = getChoreographyState();
+  const snapshot = choreographies.map((c) => ({ ...c, steps: cloneSteps(c.steps) }));
+  const updated = choreographies.map((c) => {
+    if (c.id !== choreoId) return c;
+    const fromIndex = c.steps.findIndex((s) => s.id === stepId);
+    if (fromIndex < 0 || fromIndex === toIndex) return c;
+    const steps = [...c.steps];
+    const [moved] = steps.splice(fromIndex, 1);
+    // After removal, indices above fromIndex shift down by 1
+    const insertAt = toIndex > fromIndex ? toIndex - 1 : toIndex;
+    steps.splice(insertAt, 0, moved!);
+    return { ...c, steps };
+  });
+  const cmd: UndoableCommand = {
+    execute() { updateChoreographyState({ choreographies: updated }); },
+    undo() { updateChoreographyState({ choreographies: snapshot }); },
+    description: "Reorder step",
+  };
+  executeCommand(cmd);
+}
+
 /** Update fields of a specific step within a choreography. */
 export function updateStepCmd(choreoId: string, stepId: string, updates: Partial<ChoreographyStepDef>): void {
   const { choreographies } = getChoreographyState();

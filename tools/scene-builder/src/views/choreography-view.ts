@@ -20,6 +20,7 @@ import { subscribeWiring } from "../state/wiring-state.js";
 import { subscribeActiveSource } from "../workspace/connector-bar-horizontal.js";
 import { renderAllRacks } from "./rack-renderer.js";
 import { initRackDrag } from "./rack-drag.js";
+import { initStepReorder } from "./step-reorder.js";
 import { initActionPalette } from "./action-palette.js";
 
 // ---------------------------------------------------------------------------
@@ -51,6 +52,9 @@ export function initChoreographyView(): void {
 
   // Initialize drag interactions (drag-from-rail + rack reorder)
   initRackDrag();
+
+  // Initialize step reorder (drag grip within chains)
+  initStepReorder();
 
   // Initialize keyboard shortcuts (Delete to remove selected rack)
   initChoreographyKeyboard(zoneEl);

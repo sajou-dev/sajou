@@ -264,6 +264,14 @@ function renderBlock(
   const color = ACTION_COLORS[step.action] ?? "#888899";
   block.style.setProperty("--block-color", color);
 
+  // Drag grip (reorder handle)
+  const grip = document.createElement("span");
+  grip.className = "nc-block-grip";
+  grip.textContent = "\u2847"; // ⠿ (braille pattern)
+  grip.dataset.stepId = step.id;
+  grip.dataset.choreoId = choreoId;
+  block.appendChild(grip);
+
   // Icon
   const icon = document.createElement("span");
   icon.className = "nc-block-icon";
