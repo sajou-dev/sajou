@@ -211,7 +211,10 @@ function initShaderMini(): void {
           // ignore
         }
       }
-      el.appendChild(img);
+      // Only show the swatch if we have a valid capture (avoid broken image icon)
+      if (img.src) {
+        el.appendChild(img);
+      }
     }
   }
 
