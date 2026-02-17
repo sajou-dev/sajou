@@ -327,7 +327,7 @@ export function createSelectTool(): CanvasToolHandler {
 /** Initialize Select tool keyboard shortcuts (Delete, Escape) and double-click. */
 export function initSelectToolKeyboard(): void {
   // Double-click on canvas → open Entity Editor for the clicked entity
-  getCanvasContainer().addEventListener("dblclick", (e) => {
+  getCanvasContainer()?.addEventListener("dblclick", (e) => {
     const { activeTool } = getEditorState();
     if (activeTool !== "select") return;
 

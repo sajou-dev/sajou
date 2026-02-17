@@ -8,7 +8,7 @@
 import { initCanvas, setToolHandler } from "../canvas/canvas.js";
 import { initSceneRenderer } from "../canvas/scene-renderer.js";
 import { initCanvasDropHandler } from "../canvas/canvas-drop-handler.js";
-import { initToolbar } from "./toolbar.js";
+import { initToolbarPanel } from "./toolbar.js";
 import { initHeader } from "./header.js";
 import { restoreState, initAutoSave } from "../state/persistence.js";
 import { initHelpBar } from "./help-bar.js";
@@ -23,10 +23,13 @@ import {
   setParticleSelection,
 } from "../state/editor-state.js";
 import { createPanel } from "./panel.js";
+import { initPipelineLayout } from "./pipeline-layout.js";
+import { initMiniPreviews } from "./pipeline-mini-previews.js";
 import { initViewTabs } from "./view-tabs.js";
 import { initRideau } from "./rideau.js";
 import { initConnectorBarH } from "./connector-bar-horizontal.js";
 import { initConnectorBarV } from "./connector-bar-vertical.js";
+import { initConnectorBarShader } from "./connector-bar-shader.js";
 import { initWiringOverlay } from "./wiring-overlay.js";
 import { initWiringDrag } from "./wiring-drag.js";
 
@@ -44,6 +47,7 @@ import { initParticlePanel } from "../panels/particle-panel.js";
 // Views
 import { initSignalView } from "../views/signal-view.js";
 import { initChoreographyView } from "../views/choreography-view.js";
+import { initShaderView, initShaderEditorPanel } from "../shader-editor/shader-view.js";
 
 // Tools
 import { createSelectTool, initSelectToolKeyboard } from "../tools/select-tool.js";
@@ -136,26 +140,31 @@ export async function initWorkspace(): Promise<void> {
   // Header buttons
   initHeader();
 
-  // View tabs (zone focus indicators in V2)
+  // Pipeline layout — creates DOM zones BEFORE views mount into them
+  initPipelineLayout();
+
+  // View tabs (no-op — replaced by pipeline layout)
   initViewTabs();
 
-  // V2: All views init eagerly — zones are always visible in the spatial layout
+  // V3: All views init eagerly — mounted inside pipeline nodes
   initSignalView();
   initChoreographyView();
 
-  // Rideau (curtain slider between zone-left and Theme)
+  // Rideau (no-op — replaced by pipeline layout)
   initRideau();
 
   // Connector bars (badges showing wired connections between zones)
   initConnectorBarH();
   initConnectorBarV();
+  initConnectorBarShader();
 
   // Wiring overlay (SVG bezier curves) + drag-to-connect interaction
   initWiringOverlay();
   initWiringDrag();
 
-  // Toolbar (tools + panel toggles — lives in Theme zone)
-  initToolbar();
+  // Toolbar pinned inside the visual node (left edge)
+  const toolbarDock = document.getElementById("toolbar-dock");
+  if (toolbarDock) initToolbarPanel(toolbarDock);
 
   // Help bar (contextual tool hints at bottom)
   initHelpBar();
@@ -165,6 +174,12 @@ export async function initWorkspace(): Promise<void> {
 
   // Scene renderer (syncs state → Three.js entities + Canvas2D overlays)
   initSceneRenderer();
+
+  // Shader editor view (hidden by default, toggled via header button)
+  initShaderView();
+
+  // Mini-previews for collapsed pipeline nodes
+  initMiniPreviews();
 
   // Canvas drop handler (drag asset from Asset Manager → auto-place)
   initCanvasDropHandler();
@@ -199,6 +214,9 @@ export async function initWorkspace(): Promise<void> {
 
   const particlesPanel = createPanel({ id: "particles", title: "Particles", minWidth: 280, minHeight: 350 });
   initParticlePanel(particlesPanel.contentEl);
+
+  const shaderPanel = createPanel({ id: "shader-editor", title: "Shader Editor", minWidth: 400, minHeight: 350, ownerNode: "shader" });
+  initShaderEditorPanel(shaderPanel.contentEl);
 
   // Start auto-saving state changes AFTER all views and stores are initialized.
   initAutoSave();

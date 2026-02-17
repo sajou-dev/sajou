@@ -5,7 +5,7 @@
  * Used by all panels (Asset Palette, Inspector, Layers, etc.).
  */
 
-import type { PanelId } from "../types.js";
+import type { PanelId, PipelineNodeId } from "../types.js";
 import { getEditorState, updatePanelLayout, togglePanel, subscribeEditor } from "../state/editor-state.js";
 
 // ---------------------------------------------------------------------------
@@ -17,6 +17,8 @@ export interface PanelConfig {
   title: string;
   minWidth?: number;
   minHeight?: number;
+  /** When set, panel is hidden whenever this pipeline node is not extended. */
+  ownerNode?: PipelineNodeId;
 }
 
 export interface PanelInstance {
@@ -90,8 +92,14 @@ export function createPanel(config: PanelConfig): PanelInstance {
 
   // Apply initial layout from state, clamping to parent bounds
   function applyLayout(): void {
-    const layout = getEditorState().panelLayouts[id];
-    el.style.display = layout.visible ? "flex" : "none";
+    const state = getEditorState();
+    const layout = state.panelLayouts[id];
+
+    // If panel is owned by a pipeline node, hide when that node is mini
+    const ownerExtended = config.ownerNode
+      ? state.pipelineLayout.extended.includes(config.ownerNode)
+      : true;
+    el.style.display = layout.visible && ownerExtended ? "flex" : "none";
 
     // Clamp position + size within parent bounds (visual only, no state write)
     const parent = el.parentElement;
@@ -196,8 +204,8 @@ export function createPanel(config: PanelConfig): PanelInstance {
 
   const unsub = subscribeEditor(() => applyLayout());
 
-  // Append to theme zone (panels overlay the visual editor)
-  const panelParent = document.getElementById("zone-theme") ?? document.getElementById("workspace")!;
+  // Append to workspace (panels float above the entire pipeline)
+  const panelParent = document.getElementById("workspace")!;
   panelParent.appendChild(el);
 
   return {

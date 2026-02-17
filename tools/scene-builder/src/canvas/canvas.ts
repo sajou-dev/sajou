@@ -70,8 +70,9 @@ let overlayDrawCallback:
 type ControllerChangeListener = (ctrl: CameraController) => void;
 const controllerChangeListeners: ControllerChangeListener[] = [];
 
-const canvasContainer = document.getElementById("canvas-container")!;
-const zoomLevelBtn = document.getElementById("zoom-level")!;
+/** Resolved in initCanvas() — null before init. */
+let canvasContainer: HTMLElement | null = null;
+let zoomLevelBtn: HTMLElement | null = null;
 
 let canvasWidth = 800;
 let canvasHeight = 600;
@@ -138,8 +139,8 @@ export function getPan(): { x: number; y: number } {
   return { x: 0, y: 0 };
 }
 
-/** Get the canvas container DOM element. */
-export function getCanvasContainer(): HTMLElement {
+/** Get the canvas container DOM element (null before initCanvas). */
+export function getCanvasContainer(): HTMLElement | null {
   return canvasContainer;
 }
 
@@ -303,7 +304,7 @@ export function zoomOut(): void {
 
 function updateZoomDisplay(): void {
   const z = controller?.getEffectiveZoom() ?? 1;
-  zoomLevelBtn.textContent = `${Math.round(z * 100)}%`;
+  if (zoomLevelBtn) zoomLevelBtn.textContent = `${Math.round(z * 100)}%`;
 }
 
 // ---------------------------------------------------------------------------
@@ -335,6 +336,7 @@ export function switchController(mode: ViewMode): void {
 
 /** Update the canvas cursor based on active tool. */
 export function updateCursor(): void {
+  if (!canvasContainer) return;
   if (panning) {
     canvasContainer.style.cursor = "grabbing";
   } else if (spaceDown) {
@@ -414,7 +416,7 @@ function handlePanStart(e: MouseEvent): void {
     lastX: e.clientX,
     lastY: e.clientY,
   };
-  canvasContainer.style.cursor = "grabbing";
+  if (canvasContainer) canvasContainer.style.cursor = "grabbing";
 }
 
 function handlePanMove(e: MouseEvent): void {
@@ -455,7 +457,7 @@ function handleKeyUp(e: KeyboardEvent): void {
 // ---------------------------------------------------------------------------
 
 function resizeToContainer(): void {
-  if (!webGLRenderer || !overlayCanvas || !controller) return;
+  if (!webGLRenderer || !overlayCanvas || !controller || !canvasContainer) return;
   canvasWidth = canvasContainer.clientWidth || 800;
   canvasHeight = canvasContainer.clientHeight || 600;
 
@@ -499,6 +501,10 @@ function startRenderLoop(): void {
 
 /** Initialize the Three.js canvas + Canvas2D overlay. */
 export function initCanvas(): void {
+  canvasContainer = document.getElementById("canvas-container");
+  zoomLevelBtn = document.getElementById("zoom-level");
+  if (!canvasContainer) return;
+
   canvasWidth = canvasContainer.clientWidth || 800;
   canvasHeight = canvasContainer.clientHeight || 600;
 

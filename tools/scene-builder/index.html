@@ -26,51 +26,12 @@
         </svg>
         <span id="btn-run-label">Run</span>
       </button>
-      <button id="btn-preview" class="header-btn header-btn--accent" title="Preview scene (Ctrl+P)">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none">
-          <polygon points="5 3 19 12 5 21 5 3"/>
-        </svg>
-        Preview
-      </button>
       <button id="btn-import" class="header-btn">Import</button>
       <button id="btn-export" class="header-btn header-btn--primary">Export</button>
     </div>
   </header>
   <div id="workspace">
-    <!-- Left column: Signal (top) + Connector bar H + Choreographer (bottom) -->
-    <div id="zone-left" class="zone-left">
-      <div id="zone-signal" class="zone zone-signal"></div>
-      <div id="connector-bar-h" class="connector-bar-h"></div>
-      <div id="zone-choreographer" class="zone zone-choreographer"></div>
-    </div>
-    <!-- Rideau (vertical slider between left column and theme) -->
-    <div id="rideau" class="rideau"></div>
-    <!-- Theme zone (full right side) -->
-    <div id="zone-theme" class="zone zone-theme">
-      <aside id="toolbar"></aside>
-      <div id="canvas-container"></div>
-      <div id="zoom-bar">
-        <button id="zoom-out" class="zoom-btn" title="Zoom out (-)">&#8722;</button>
-        <button id="zoom-level" class="zoom-level" title="Click for presets">100%</button>
-        <button id="zoom-in" class="zoom-btn" title="Zoom in (+)">&#43;</button>
-        <button id="view-mode-toggle" class="zoom-btn view-mode-btn" title="Toggle isometric view (I)">
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
-            <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
-            <line x1="12" y1="22.08" x2="12" y2="12"/>
-          </svg>
-        </button>
-        <div id="zoom-presets" class="zoom-presets">
-          <div class="zoom-presets-inner">
-            <button data-zoom="0.25">25%</button>
-            <button data-zoom="0.5">50%</button>
-            <button data-zoom="1">100%</button>
-            <button data-zoom="2">200%</button>
-            <button data-zoom="fit">Fit</button>
-          </div>
-        </div>
-      </div>
-    </div>
+    <!-- Pipeline layout is built by pipeline-layout.ts -->
     <!-- Wiring overlay — SVG bezier curves between zone endpoints -->
     <svg id="wiring-overlay" class="wiring-overlay"></svg>
   </div>

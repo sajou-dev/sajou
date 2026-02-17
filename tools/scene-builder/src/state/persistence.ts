@@ -31,6 +31,12 @@ import {
   subscribeSignalTimeline,
 } from "./signal-timeline-state.js";
 import {
+  getShaderState,
+  setShaderState,
+  resetShaderState,
+  subscribeShaders,
+} from "../shader-editor/shader-state.js";
+import {
   getSignalSourcesState,
   updateSignalSourcesState,
   resetSignalSources,
@@ -50,11 +56,13 @@ import type {
   EditorState,
   PanelId,
   PanelLayout,
+  PipelineLayout,
   InterfaceState,
   ViewMode,
 } from "../types.js";
 import type { WiringState } from "./wiring-state.js";
 import type { BindingState } from "./binding-store.js";
+import type { ShaderEditorState } from "../shader-editor/shader-types.js";
 
 // ---------------------------------------------------------------------------
 // Versioned envelope
@@ -170,6 +178,7 @@ interface PersistedEditorPrefs {
   rideauSplit: number;
   interfaceState: InterfaceState;
   viewMode: ViewMode;
+  pipelineLayout?: PipelineLayout;
 }
 
 function serializeEditorPrefs(): string {
@@ -182,6 +191,7 @@ function serializeEditorPrefs(): string {
     rideauSplit: s.rideauSplit,
     interfaceState: s.interfaceState,
     viewMode: s.viewMode,
+    pipelineLayout: s.pipelineLayout,
   };
   return JSON.stringify(prefs);
 }
@@ -197,13 +207,29 @@ function restoreEditorPrefs(): void {
     const prefs = parsed as Partial<PersistedEditorPrefs>;
     const update: Partial<EditorState> = {};
 
-    if (prefs.panelLayouts) update.panelLayouts = prefs.panelLayouts;
+    if (prefs.panelLayouts) {
+      // Merge with current defaults so new panels added after persistence get their layout
+      update.panelLayouts = { ...getEditorState().panelLayouts, ...prefs.panelLayouts };
+    }
     if (typeof prefs.gridEnabled === "boolean") update.gridEnabled = prefs.gridEnabled;
     if (typeof prefs.gridSize === "number") update.gridSize = prefs.gridSize;
     if (typeof prefs.snapToGrid === "boolean") update.snapToGrid = prefs.snapToGrid;
     if (typeof prefs.rideauSplit === "number") update.rideauSplit = prefs.rideauSplit;
     if (typeof prefs.interfaceState === "number") update.interfaceState = prefs.interfaceState;
     if (prefs.viewMode) update.viewMode = prefs.viewMode;
+
+    // Pipeline layout — restore (solo: keep first entry) or migrate from rideauSplit
+    if (prefs.pipelineLayout) {
+      const first = prefs.pipelineLayout.extended[0] ?? "visual";
+      update.pipelineLayout = { extended: [first] };
+    } else if (typeof prefs.rideauSplit === "number") {
+      // Migration: derive from rideauSplit
+      if (prefs.rideauSplit >= 0.95) {
+        update.pipelineLayout = { extended: ["signal"] };
+      } else {
+        update.pipelineLayout = { extended: ["visual"] };
+      }
+    }
 
     if (Object.keys(update).length > 0) {
       updateEditorState(update);
@@ -314,6 +340,9 @@ export function initAutoSave(): void {
   subscribeSignalTimeline(() =>
     debouncedSave("timeline", () => getSignalTimelineState()),
   );
+  subscribeShaders(() =>
+    debouncedSave("shaders", () => getShaderState()),
+  );
 
   // Assets — incremental, debounced
   subscribeAssets(() => {
@@ -413,7 +442,17 @@ export async function restoreState(): Promise<boolean> {
       });
     }
 
-    // 8. Restore assets (ArrayBuffer → File → objectUrl)
+    // 8. Restore shader state
+    const shaderRecord = await dbGet<VersionedData<ShaderEditorState>>("shaders", "current");
+    if (shaderRecord?.data) {
+      setShaderState({
+        ...shaderRecord.data,
+        selectedShaderId: null,
+        playing: true,
+      });
+    }
+
+    // 9. Restore assets (ArrayBuffer → File → objectUrl)
     const assetRecords = await dbGetAll<StoredAsset>("assets");
     if (assetRecords.length > 0) {
       const assetFiles: AssetFile[] = [];
@@ -480,6 +519,7 @@ export async function forcePersistAll(): Promise<void> {
     dbPut("wires", "current", wrap(getWiringState())),
     dbPut("bindings", "current", wrap(getBindingState())),
     dbPut("timeline", "current", wrap(getSignalTimelineState())),
+    dbPut("shaders", "current", wrap(getShaderState())),
   ]);
 
   // Assets: save all (force, not incremental)
@@ -530,6 +570,7 @@ export async function newScene(): Promise<void> {
   resetWiringState();
   resetBindingState();
   resetSignalTimeline();
+  resetShaderState();
   resetSignalSources();
   clearHistory();
 
@@ -558,6 +599,7 @@ function flushPendingSaves(): void {
     dbPut("wires", "current", wrap(getWiringState())).catch(() => {});
     dbPut("bindings", "current", wrap(getBindingState())).catch(() => {});
     dbPut("timeline", "current", wrap(getSignalTimelineState())).catch(() => {});
+    dbPut("shaders", "current", wrap(getShaderState())).catch(() => {});
   } catch {
     // Best effort — page is unloading
   }

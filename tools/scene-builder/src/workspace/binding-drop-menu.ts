@@ -14,6 +14,7 @@
 
 import { addBinding } from "../state/binding-store.js";
 import type { BindingValueType } from "../types.js";
+import { MIDI_SOURCE_FIELDS, suggestMapping } from "../midi/midi-presets.js";
 
 // ---------------------------------------------------------------------------
 // Module state
@@ -102,10 +103,97 @@ export interface BindingDropMenuOptions {
   hasTopology: boolean;
   /** Animation state names if entity is a spritesheet (empty for static). */
   animationStates: string[];
+  /** Signal type that triggers this choreography (for MIDI field selector). */
+  triggerSignalType?: string;
 }
 
 /** Show the radial binding menu at the drop point. */
 export function showBindingDropMenu(options: BindingDropMenuOptions): void {
+  hideBindingDropMenu();
+
+  const { triggerSignalType } = options;
+  const midiFields = triggerSignalType ? MIDI_SOURCE_FIELDS[triggerSignalType] : undefined;
+
+  if (midiFields && midiFields.length > 0) {
+    // MIDI flow: show field selector first, then radial on selection
+    showMidiFieldSelector(options, midiFields);
+  } else {
+    // Standard flow: show radial directly
+    showRadialMenu(options);
+  }
+}
+
+/** Show the MIDI source field selector before the radial menu. */
+function showMidiFieldSelector(
+  options: BindingDropMenuOptions,
+  fields: Array<{ field: string; label: string }>,
+): void {
+  const { x, y } = options;
+
+  const overlay = document.createElement("div");
+  overlay.className = "radial-overlay";
+
+  const panel = document.createElement("div");
+  panel.className = "midi-field-selector";
+  panel.style.left = `${x}px`;
+  panel.style.top = `${y}px`;
+
+  const title = document.createElement("div");
+  title.className = "midi-field-selector-title";
+  title.textContent = "Source field";
+  panel.appendChild(title);
+
+  const btnRow = document.createElement("div");
+  btnRow.className = "midi-field-selector-row";
+
+  for (const { field, label } of fields) {
+    const btn = document.createElement("button");
+    btn.className = "midi-field-btn";
+    btn.textContent = label;
+    btn.title = field;
+
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      // Remove field selector, show radial with selected field
+      hideBindingDropMenu();
+      showRadialMenu(options, field);
+    });
+
+    btnRow.appendChild(btn);
+  }
+
+  panel.appendChild(btnRow);
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
+  menuEl = overlay;
+
+  // Animate in
+  requestAnimationFrame(() => {
+    panel.classList.add("midi-field-selector--open");
+  });
+
+  // Close on overlay click or Escape
+  const onOverlayClick = (e: MouseEvent) => {
+    if (e.target === overlay) hideBindingDropMenu();
+  };
+  const onKeyDown = (e: KeyboardEvent) => {
+    if (e.key === "Escape") hideBindingDropMenu();
+  };
+
+  overlay.addEventListener("mousedown", onOverlayClick);
+  document.addEventListener("keydown", onKeyDown);
+
+  cleanupFn = () => {
+    overlay.removeEventListener("mousedown", onOverlayClick);
+    document.removeEventListener("keydown", onKeyDown);
+  };
+}
+
+/** Show the radial property selector. */
+function showRadialMenu(
+  options: BindingDropMenuOptions,
+  selectedSourceField?: string,
+): void {
   hideBindingDropMenu();
 
   const {
@@ -114,6 +202,7 @@ export function showBindingDropMenu(options: BindingDropMenuOptions): void {
     targetSemanticId,
     hasTopology,
     animationStates,
+    triggerSignalType,
   } = options;
 
   const items = buildItems(hasTopology, animationStates);
@@ -163,12 +252,20 @@ export function showBindingDropMenu(options: BindingDropMenuOptions): void {
 
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
+
+      // Suggest mapping for MIDI source field → target property
+      const mapping = (selectedSourceField && triggerSignalType)
+        ? suggestMapping(triggerSignalType, selectedSourceField, item.key)
+        : undefined;
+
       addBinding({
         targetEntityId: targetSemanticId,
         property: item.key,
         sourceChoreographyId: choreographyId,
         sourceType: item.sourceType,
         ...(item.action ? { action: item.action } : {}),
+        ...(selectedSourceField ? { sourceField: selectedSourceField } : {}),
+        ...(mapping ? { mapping } : {}),
       });
       hideBindingDropMenu();
     });

@@ -32,7 +32,7 @@ import {
 } from "./signal-source-popover.js";
 import { initRawLog, addLogEntry, addDebugEntry } from "./signal-raw-log.js";
 import { createSimulatorBar } from "./simulator-bar.js";
-import { scanAndSyncLocal } from "../state/local-discovery.js";
+import { scanAndSyncLocal, initMIDIHotPlug } from "../state/local-discovery.js";
 
 // ---------------------------------------------------------------------------
 // DOM references
@@ -94,6 +94,9 @@ export function initSignalView(): void {
 
   // ── Auto-discover local services (replaces connectLocalSSE) ──
   scanAndSyncLocal();
+
+  // ── MIDI hot-plug: auto-rescan when devices are plugged/unplugged ──
+  initMIDIHotPlug();
 }
 
 // ---------------------------------------------------------------------------

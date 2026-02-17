@@ -177,9 +177,9 @@ function executeValueBinding(
   if (!handle) return;
 
   // Extract numeric value from signal payload
-  const raw = extractNumericValue(signal.payload, binding.property);
+  const raw = extractNumericValue(signal.payload, binding.property, binding.sourceField);
   if (raw === null) {
-    console.warn(`[bindings] No numeric value found in payload for ${binding.property}`);
+    console.warn(`[bindings] No numeric value found in payload for ${binding.sourceField ?? binding.property}`);
     return;
   }
 
@@ -234,6 +234,7 @@ function executeTeleportTo(placedId: string, binding: EntityBinding, adapter: Re
  * Extract a numeric value from the signal payload.
  *
  * Strategy:
+ *   0. Explicit sourceField (e.g. "velocity") → payload[sourceField]
  *   1. Try the binding property as a path (e.g., "opacity" → payload.opacity)
  *   2. Try "value" as a conventional field
  *   3. Find the first numeric field in the payload
@@ -241,7 +242,13 @@ function executeTeleportTo(placedId: string, binding: EntityBinding, adapter: Re
 function extractNumericValue(
   payload: Record<string, unknown>,
   bindingProperty: string,
+  sourceField?: string,
 ): number | null {
+  // Strategy 0: explicit source field from binding
+  if (sourceField && typeof payload[sourceField] === "number") {
+    return payload[sourceField] as number;
+  }
+
   // Strategy 1: direct path from binding property name
   const directKeys = bindingProperty.split(".");
   const lastKey = directKeys[directKeys.length - 1];

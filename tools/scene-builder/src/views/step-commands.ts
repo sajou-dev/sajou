@@ -26,6 +26,8 @@ export const SIGNAL_TYPES: SignalType[] = [
   "task_dispatch", "tool_call", "tool_result",
   "token_usage", "agent_state_change", "error", "completion",
   "text_delta", "thinking", "event",
+  "midi.note_on", "midi.note_off", "midi.control_change",
+  "midi.pitch_bend", "midi.program_change",
 ];
 
 /** Signal type badge colors. */
@@ -40,13 +42,18 @@ export const SIGNAL_TYPE_COLORS: Record<string, string> = {
   text_delta: "#4DC9F6",
   thinking: "#D4A0E0",
   event: "#8E8EA0",
+  "midi.note_on": "#FF6B9D",
+  "midi.note_off": "#C75B8F",
+  "midi.control_change": "#FFB347",
+  "midi.pitch_bend": "#87CEEB",
+  "midi.program_change": "#98D8C8",
 };
 
 /** Short display labels for signal types. */
 export const SIGNAL_TYPE_LABELS: Record<string, string> = {
   task_dispatch: "task",
-  tool_call: "tool\u2197",
-  tool_result: "tool\u2199",
+  tool_call: "t.call",
+  tool_result: "t.result",
   token_usage: "tokens",
   agent_state_change: "state",
   error: "error",
@@ -54,6 +61,11 @@ export const SIGNAL_TYPE_LABELS: Record<string, string> = {
   text_delta: "text",
   thinking: "think",
   event: "event",
+  "midi.note_on": "note on",
+  "midi.note_off": "note off",
+  "midi.control_change": "CC",
+  "midi.pitch_bend": "bend",
+  "midi.program_change": "prog",
 };
 
 export const ACTION_COLORS: Record<string, string> = {
@@ -206,6 +218,29 @@ export function moveStepCmd(choreoId: string, stepId: string, direction: -1 | 1)
     return steps.map((s) => s.children ? { ...s, children: swapInList(s.children) } : s);
   }
   const updated = choreographies.map((c) => c.id === choreoId ? { ...c, steps: swapInList(c.steps) } : c);
+  const cmd: UndoableCommand = {
+    execute() { updateChoreographyState({ choreographies: updated }); },
+    undo() { updateChoreographyState({ choreographies: snapshot }); },
+    description: "Reorder step",
+  };
+  executeCommand(cmd);
+}
+
+/** Reorder a top-level step to a new index within its choreography. */
+export function reorderStepCmd(choreoId: string, stepId: string, toIndex: number): void {
+  const { choreographies } = getChoreographyState();
+  const snapshot = choreographies.map((c) => ({ ...c, steps: cloneSteps(c.steps) }));
+  const updated = choreographies.map((c) => {
+    if (c.id !== choreoId) return c;
+    const fromIndex = c.steps.findIndex((s) => s.id === stepId);
+    if (fromIndex < 0 || fromIndex === toIndex) return c;
+    const steps = [...c.steps];
+    const [moved] = steps.splice(fromIndex, 1);
+    // After removal, indices above fromIndex shift down by 1
+    const insertAt = toIndex > fromIndex ? toIndex - 1 : toIndex;
+    steps.splice(insertAt, 0, moved!);
+    return { ...c, steps };
+  });
   const cmd: UndoableCommand = {
     execute() { updateChoreographyState({ choreographies: updated }); },
     undo() { updateChoreographyState({ choreographies: snapshot }); },

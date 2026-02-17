@@ -5,14 +5,14 @@
  * Not saved to the scene file.
  */
 
-import type { EditorState, InterfaceState, NodeCanvasViewport, PanelId, PanelLayout, ToolId, ViewId, ViewMode } from "../types.js";
+import type { EditorState, InterfaceState, NodeCanvasViewport, PanelId, PanelLayout, PipelineLayout, PipelineNodeId, ToolId, ViewId, ViewMode } from "../types.js";
 
 // ---------------------------------------------------------------------------
 // Default state
 // ---------------------------------------------------------------------------
 
-function defaultPanelLayout(x: number, y: number, w: number, h: number): PanelLayout {
-  return { x, y, width: w, height: h, visible: false };
+function defaultPanelLayout(x: number, y: number, w: number, h: number, visible = false): PanelLayout {
+  return { x, y, width: w, height: h, visible };
 }
 
 function createDefault(): EditorState {
@@ -33,6 +33,7 @@ function createDefault(): EditorState {
       "signal-timeline": defaultPanelLayout(40, 100, 480, 520),
       lighting: defaultPanelLayout(40, 100, 300, 400),
       particles: defaultPanelLayout(40, 100, 300, 450),
+      "shader-editor": defaultPanelLayout(80, 60, 520, 500),
     },
     gridEnabled: true,
     gridSize: 32,
@@ -49,6 +50,7 @@ function createDefault(): EditorState {
     viewMode: "top-down",
     selectedLightIds: [],
     selectedParticleIds: [],
+    pipelineLayout: { extended: ["visual"] },
   };
 }
 
@@ -210,6 +212,35 @@ export function setViewMode(mode: ViewMode): void {
 /** Toggle between top-down and isometric view. */
 export function toggleViewMode(): void {
   setViewMode(state.viewMode === "top-down" ? "isometric" : "top-down");
+}
+
+// ---------------------------------------------------------------------------
+// Pipeline layout
+// ---------------------------------------------------------------------------
+
+/** Set which pipeline node is extended (solo — exactly one). */
+export function setPipelineExtended(nodes: PipelineNodeId[]): void {
+  const first = nodes[0] ?? "visual";
+  state = { ...state, pipelineLayout: { extended: [first] } };
+  notify();
+}
+
+/** Extend a pipeline node (solo — collapses all others). */
+export function togglePipelineNode(id: PipelineNodeId): void {
+  // Already the only extended node — no-op
+  if (state.pipelineLayout.extended.length === 1 && state.pipelineLayout.extended[0] === id) return;
+  state = { ...state, pipelineLayout: { extended: [id] } };
+  notify();
+}
+
+/** Focus a single pipeline node (alias for togglePipelineNode). */
+export function focusPipelineNode(id: PipelineNodeId): void {
+  togglePipelineNode(id);
+}
+
+/** Get the primary focused pipeline node (first extended, fallback "visual"). */
+export function getPipelineFocusedNode(): PipelineNodeId {
+  return state.pipelineLayout.extended[0] ?? "visual";
 }
 
 /** Subscribe to editor state changes. Returns unsubscribe function. */

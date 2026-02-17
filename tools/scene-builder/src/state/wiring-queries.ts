@@ -12,6 +12,7 @@
 import {
   getWiresTo,
   getWiresBetween,
+  type WireConnection,
 } from "./wiring-state.js";
 import { getChoreographyState } from "./choreography-state.js";
 
@@ -107,4 +108,13 @@ export function getSourcesForChoreo(choreoId: string): SourceProvenance[] {
   }
 
   return result;
+}
+
+/**
+ * Get all choreographer → shader wire connections.
+ *
+ * Each wire's `toId` encodes `{shaderId}:{uniformName}`.
+ */
+export function getShaderBindings(): WireConnection[] {
+  return getWiresBetween("choreographer", "shader");
 }

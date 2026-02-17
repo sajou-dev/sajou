@@ -22,6 +22,8 @@ import { setWiringState, resetWiringState } from "../state/wiring-state.js";
 import { setBindingState, resetBindingState } from "../state/binding-store.js";
 import { clearHistory } from "../state/undo.js";
 import { forcePersistAll } from "../state/persistence.js";
+import { setShaderState, resetShaderState } from "../shader-editor/shader-state.js";
+import type { ShaderEditorState } from "../shader-editor/shader-types.js";
 import type {
   SceneState,
   EntityEntry,
@@ -176,6 +178,24 @@ function parseChoreoJson(data: Uint8Array | undefined): ChoreographyExportJson |
 }
 
 /**
+ * Parse shaders.json from ZIP. Returns null if absent (backward-compat).
+ */
+function parseShaderJson(data: Uint8Array | undefined): ShaderEditorState["shaders"] | null {
+  if (!data) return null;
+  const text = strFromU8(data);
+  const parsed: unknown = JSON.parse(text);
+
+  if (
+    typeof parsed !== "object" || parsed === null ||
+    !("shaders" in parsed)
+  ) {
+    return null; // Malformed — skip silently
+  }
+
+  return (parsed as { shaders: ShaderEditorState["shaders"] }).shaders;
+}
+
+/**
  * Extract asset files from ZIP entries under assets/.
  * Creates File objects and object URLs for each image file.
  */
@@ -254,6 +274,7 @@ export async function importScene(): Promise<void> {
   const sceneJson = parseSceneJson(sceneData);
   const entitiesJson = parseEntitiesJson(entitiesData);
   const choreoJson = parseChoreoJson(zipEntries["choreographies.json"]);
+  const shaderDefs = parseShaderJson(zipEntries["shaders.json"]);
 
   // Extract asset files
   const assetFiles = extractAssets(zipEntries);
@@ -265,6 +286,7 @@ export async function importScene(): Promise<void> {
   resetChoreographyState();
   resetWiringState();
   resetBindingState();
+  resetShaderState();
   clearHistory();
 
   // --- Populate stores ---
@@ -321,6 +343,16 @@ export async function importScene(): Promise<void> {
     if (choreoJson.bindings && choreoJson.bindings.length > 0) {
       setBindingState({ bindings: choreoJson.bindings });
     }
+  }
+
+  // 6. Shaders (optional — old ZIPs may lack this file)
+  if (shaderDefs && shaderDefs.length > 0) {
+    setShaderState({
+      shaders: shaderDefs,
+      selectedShaderId: shaderDefs[0].id,
+      activeMode: "glsl",
+      playing: true,
+    });
   }
 
   // Persist imported state immediately so it survives a page reload

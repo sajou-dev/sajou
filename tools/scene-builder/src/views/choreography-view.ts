@@ -1,14 +1,14 @@
 /**
- * Choreography view — node-based editor (TouchDesigner style).
+ * Choreography view — rack-based editor.
  *
- * Orchestrator module: creates a pannable/zoomable canvas in `#zone-choreographer`
- * and wires together the node renderer, drag system, and state subscriptions.
+ * Orchestrator module: creates a scrollable rack list in `#zone-choreographer`
+ * and wires together the rack renderer, drag system, and state subscriptions.
  *
  * The actual rendering, drag, and inline editing logic lives in:
- *   - node-canvas.ts    — pan/zoom surface with SVG grid
- *   - node-renderer.ts  — renders choreography nodes with ports
- *   - node-drag.ts      — drag-to-create from bar H + node repositioning
- *   - node-detail-inline.ts — inline step editor under selected node
+ *   - rack-renderer.ts      — renders choreographies as vertical racks
+ *   - rack-drag.ts          — drag-from-rail to create + rack reorder
+ *   - node-detail-inline.ts — inline detail (when, interrupts, target)
+ *   - step-chain.ts         — horizontal pill-based step renderer
  */
 
 import {
@@ -18,23 +18,23 @@ import {
 } from "../state/choreography-state.js";
 import { subscribeWiring } from "../state/wiring-state.js";
 import { subscribeActiveSource } from "../workspace/connector-bar-horizontal.js";
-import { createNodeCanvas } from "./node-canvas.js";
-import { renderAllNodes } from "./node-renderer.js";
-import { initNodeDrag } from "./node-drag.js";
-import type { NodeCanvas } from "./node-canvas.js";
+import { renderAllRacks } from "./rack-renderer.js";
+import { initRackDrag } from "./rack-drag.js";
+import { initStepReorder } from "./step-reorder.js";
+import { initActionPalette } from "./action-palette.js";
 
 // ---------------------------------------------------------------------------
 // State
 // ---------------------------------------------------------------------------
 
 let initialized = false;
-let canvas: NodeCanvas | null = null;
+let rackListEl: HTMLElement | null = null;
 
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
-/** Initialize the Choreography view (node-based editor). Idempotent. */
+/** Initialize the Choreography view (rack-based editor). Idempotent. */
 export function initChoreographyView(): void {
   if (initialized) return;
   initialized = true;
@@ -42,39 +42,47 @@ export function initChoreographyView(): void {
   const zoneEl = document.getElementById("zone-choreographer");
   if (!zoneEl) return;
 
-  // Create the pan/zoom canvas
-  canvas = createNodeCanvas(zoneEl);
+  // Action palette at top of zone
+  initActionPalette(zoneEl);
 
-  // Initialize drag interactions (reposition + drag-to-create)
-  initNodeDrag(canvas);
+  // Create the scrollable rack list
+  rackListEl = document.createElement("div");
+  rackListEl.className = "rack-list";
+  zoneEl.appendChild(rackListEl);
 
-  // Initialize keyboard shortcuts (Delete to remove selected node)
+  // Initialize drag interactions (drag-from-rail + rack reorder)
+  initRackDrag();
+
+  // Initialize step reorder (drag grip within chains)
+  initStepReorder();
+
+  // Initialize keyboard shortcuts (Delete to remove selected rack)
   initChoreographyKeyboard(zoneEl);
 
   // Initial render
-  renderNodes();
+  renderRacks();
 
   // Subscribe to state changes
-  subscribeChoreography(renderNodes);
-  subscribeWiring(renderNodes);
-  subscribeActiveSource(renderNodes);
+  subscribeChoreography(renderRacks);
+  subscribeWiring(renderRacks);
+  subscribeActiveSource(renderRacks);
 }
 
 // ---------------------------------------------------------------------------
 // Render
 // ---------------------------------------------------------------------------
 
-/** Re-render all nodes into the canvas. */
-function renderNodes(): void {
-  if (!canvas) return;
-  renderAllNodes(canvas.nodesContainer);
+/** Re-render all racks into the list. */
+function renderRacks(): void {
+  if (!rackListEl) return;
+  renderAllRacks(rackListEl);
 }
 
 // ---------------------------------------------------------------------------
 // Keyboard shortcuts
 // ---------------------------------------------------------------------------
 
-/** Initialize Delete/Backspace shortcut for removing selected choreography node. */
+/** Initialize Delete/Backspace shortcut for removing selected choreography. */
 function initChoreographyKeyboard(zoneEl: HTMLElement): void {
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Delete" && e.key !== "Backspace") return;

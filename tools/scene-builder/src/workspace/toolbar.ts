@@ -1,7 +1,7 @@
 /**
  * Toolbar module.
  *
- * Thin vertical bar (~40px) pinned to the left edge.
+ * Thin vertical bar (~42px) docked to the left edge of the visual node.
  * Two sections: canvas tools (top) and panel toggles (bottom).
  * Uses Lucide Icons (inline SVG) per brand guidelines.
  * Also wires zoom keyboard shortcuts and the zoom bar buttons.
@@ -99,6 +99,11 @@ const ICON = {
     '<path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>' +
     '<path d="M12 17h.01"/>'
   ),
+  shader: lucide(
+    '<path d="m18 16 4-4-4-4"/>' +
+    '<path d="m6 8-4 4 4 4"/>' +
+    '<path d="m14.5 4-5 16"/>'
+  ),
 };
 
 // ---------------------------------------------------------------------------
@@ -152,9 +157,8 @@ function syncHelpBtn(): void {
 // Build DOM
 // ---------------------------------------------------------------------------
 
-/** Initialize the toolbar, zoom bar, and keyboard shortcuts. */
-export function initToolbar(): void {
-  const toolbar = document.getElementById("toolbar")!;
+/** Initialize the toolbar content inside the toolbar dock element. */
+export function initToolbarPanel(toolbar: HTMLElement): void {
   toolbar.innerHTML = "";
 
   // Tool buttons
@@ -174,10 +178,6 @@ export function initToolbar(): void {
     });
     toolSection.appendChild(btn);
   }
-
-  // Divider
-  const divider = document.createElement("div");
-  divider.className = "toolbar-divider";
 
   // Panel toggles
   const panelSection = document.createElement("div");
@@ -203,9 +203,13 @@ export function initToolbar(): void {
     syncHelpBtn();
   });
 
-  toolbar.appendChild(toolSection);
-  toolbar.appendChild(divider);
-  toolbar.appendChild(panelSection);
+  // Two-column layout: tools | panels
+  const columns = document.createElement("div");
+  columns.className = "toolbar-columns";
+  columns.appendChild(toolSection);
+  columns.appendChild(panelSection);
+
+  toolbar.appendChild(columns);
   toolbar.appendChild(helpBtn);
 
   // Sync active states

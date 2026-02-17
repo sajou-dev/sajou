@@ -176,6 +176,8 @@ export interface EntityBinding {
   mapping?: BindingMapping;
   /** Optional action config (for event→action bindings). */
   action?: BindingAction;
+  /** Payload field to extract value from (e.g. "velocity", "value"). Auto-detect if absent. */
+  sourceField?: string;
 }
 
 /** Position type hints for choreography semantics. */
@@ -393,8 +395,21 @@ export interface SceneState {
 // Editor state (UI layer)
 // ---------------------------------------------------------------------------
 
-/** Workspace view identifiers (top-level tab navigation — V1 compat). */
+/** Workspace view identifiers (keyboard focus zone — V1 compat). */
 export type ViewId = "signal" | "orchestrator" | "visual";
+
+// ---------------------------------------------------------------------------
+// Pipeline layout (V3 — horizontal rail)
+// ---------------------------------------------------------------------------
+
+/** Pipeline node identifiers (left-to-right). */
+export type PipelineNodeId = "signal" | "choreographer" | "visual" | "shader";
+
+/** Pipeline layout configuration — which nodes are extended. */
+export interface PipelineLayout {
+  /** Node IDs currently extended (max 2). Rest are mini. */
+  extended: PipelineNodeId[];
+}
 
 /** Zone identifiers for the V2 spatial layout. */
 export type ZoneId = "signal" | "choreographer" | "theme";
@@ -416,7 +431,7 @@ export type ViewMode = "top-down" | "isometric";
 export type ToolId = "select" | "hand" | "background" | "place" | "position" | "route" | "light" | "particle";
 
 /** Panel identifiers. */
-export type PanelId = "entity-palette" | "asset-manager" | "entity-editor" | "inspector" | "layers" | "settings" | "signal-timeline" | "lighting" | "particles";
+export type PanelId = "entity-palette" | "asset-manager" | "entity-editor" | "inspector" | "layers" | "settings" | "signal-timeline" | "lighting" | "particles" | "shader-editor";
 
 /** Saved panel position and size. */
 export interface PanelLayout {
@@ -494,6 +509,8 @@ export interface EditorState {
   selectedLightIds: string[];
   /** Selected particle emitter IDs (particle tool). */
   selectedParticleIds: string[];
+  /** Pipeline layout — which nodes are extended vs mini. */
+  pipelineLayout: PipelineLayout;
 }
 
 // ---------------------------------------------------------------------------
@@ -717,7 +734,12 @@ export type SignalType =
   | "completion"
   | "text_delta"
   | "thinking"
-  | "event";
+  | "event"
+  | "midi.note_on"
+  | "midi.note_off"
+  | "midi.control_change"
+  | "midi.pitch_bend"
+  | "midi.program_change";
 
 /** Agent lifecycle states (mirrors @sajou/schema AgentState). */
 export type AgentState = "idle" | "thinking" | "acting" | "waiting" | "done" | "error";
@@ -872,9 +894,9 @@ export interface ChoreographyDef {
   interrupts: boolean;
   /** Ordered sequence of steps. */
   steps: ChoreographyStepDef[];
-  /** Editor-only: node X position on the choreographer canvas. */
+  /** Editor-only: node X position (legacy, unused by rack model). */
   nodeX: number;
-  /** Editor-only: node Y position on the choreographer canvas. */
+  /** Editor-only: node Y position (legacy, unused by rack model). */
   nodeY: number;
   /** Editor-only: whether the node is collapsed (header only). */
   collapsed: boolean;

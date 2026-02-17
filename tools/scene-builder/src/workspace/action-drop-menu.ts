@@ -56,8 +56,7 @@ interface RadialItem {
 // Geometry
 // ---------------------------------------------------------------------------
 
-const RING_RADIUS = 100;
-const ITEM_SIZE = 56;
+const RING_RADIUS = 110;
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -103,8 +102,8 @@ export function showActionDropMenu(options: ActionDropMenuOptions): void {
 
     const btn = document.createElement("button");
     btn.className = "radial-item";
-    btn.style.left = `${ix - ITEM_SIZE / 2}px`;
-    btn.style.top = `${iy - ITEM_SIZE / 2}px`;
+    btn.style.left = `${ix}px`;
+    btn.style.top = `${iy}px`;
     btn.title = item.label;
 
     const iconSpan = document.createElement("span");
@@ -115,7 +114,7 @@ export function showActionDropMenu(options: ActionDropMenuOptions): void {
     labelSpan.className = "radial-item-label";
     labelSpan.textContent = item.label;
     if (item.isSignalRef) {
-      labelSpan.style.fontStyle = "italic";
+      labelSpan.classList.add("radial-item-label--ref");
     }
 
     btn.appendChild(iconSpan);

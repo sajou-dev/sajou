@@ -1,9 +1,8 @@
 /**
- * Node detail header — compact header rendered above the step chain.
+ * Node detail — dock-level parameter editor.
  *
- * Displays: wired input badges (or signal type fallback), interrupts toggle.
- * The step list and step detail have been replaced by the step chain (step-chain.ts)
- * and step popover (step-popover.ts).
+ * Shows dock params only: inputs/on, when filter, target entity, interrupts.
+ * Step params are rendered inline inside each block (step-chain.ts).
  */
 
 import type { ChoreographyDef, WhenConditionDef, WhenOperatorDef } from "../types.js";
@@ -37,12 +36,12 @@ export function renderNodeDetail(choreo: ChoreographyDef): HTMLElement {
   return renderNodeHeader(choreo);
 }
 
-/** Render the compact header for a choreography node (preferred name). */
+/** Render the dock-level detail (inputs, when, target, interrupts). */
 export function renderNodeHeader(choreo: ChoreographyDef): HTMLElement {
   const header = document.createElement("div");
   header.className = "nc-node-detail";
 
-  // Prevent node drag when interacting with header
+  // Prevent rack drag when interacting with detail
   header.addEventListener("mousedown", (e) => e.stopPropagation());
 
   const section = document.createElement("div");

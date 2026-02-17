@@ -36,6 +36,7 @@ import { screenToScene } from "../canvas/canvas.js";
 import { hitTestAnyEntity } from "../tools/hit-test.js";
 import { showBindingDropMenu } from "./binding-drop-menu.js";
 import { updateChoreographyCmd } from "../views/step-commands.js";
+import { getChoreoInputInfo } from "../state/wiring-queries.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -53,6 +54,8 @@ interface DragSession {
   targetZone: WireZone;
   /** Active source at drag start (for auto-creating signal→signal-type wires). */
   sourceContext: string | null;
+  /** Parent choreography ID (when dragging an action badge from the V-bar). */
+  choreoId: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -101,8 +104,9 @@ function onMouseDown(e: MouseEvent): void {
     // Source badges no longer initiate drags — color-coding suffices
     return;
   } else if (zone === "signal-type") {
-    // Signal type badge (on bar-H) → drag down to a choreographer node input
-    targetZone = "choreographer";
+    // Signal-type → choreo binding is now implicit (rack model).
+    // Drag-from-rail to create racks is handled by rack-drag.ts.
+    return;
   } else if (zone === "choreographer") {
     // Could be on H-bar (not draggable) or a node output port / V-bar badge
     const isOnHBar = badge.closest(".connector-bar-h") !== null;
@@ -122,6 +126,7 @@ function onMouseDown(e: MouseEvent): void {
     fromId: id,
     targetZone,
     sourceContext: getActiveBarHSource(),
+    choreoId: badge.dataset.choreoId ?? null,
   };
 
   // Add dragging class to badge
@@ -152,6 +157,12 @@ function onMouseMove(e: MouseEvent): void {
   // Check if hovering over a valid DOM target badge
   const targetBadge = findTargetBadgeAt(e.clientX, e.clientY, session.targetZone);
   updateTargetHighlight(session.targetZone, targetBadge);
+
+  // When dragging from choreographer, also check shader badges as targets
+  if (session.fromZone === "choreographer") {
+    const shaderBadge = findTargetBadgeAt(e.clientX, e.clientY, "shader");
+    updateTargetHighlight("shader", shaderBadge);
+  }
 
   // Level 2: when dragging choreo→theme, also hit-test entities on canvas
   if (session.targetZone === "theme") {
@@ -188,6 +199,26 @@ function onMouseUp(e: MouseEvent): void {
     updateEditorState({ bindingDragActive: false, bindingDropHighlightId: null });
   }
 
+  // Check if released on a shader badge first (choreo→shader wire)
+  if (fromZone === "choreographer") {
+    const shaderBadge = findTargetBadgeAt(e.clientX, e.clientY, "shader");
+    if (shaderBadge) {
+      const toId = shaderBadge.dataset.wireId;
+      if (toId && !hasWire(fromZone, fromId, "shader", toId)) {
+        addWire({
+          fromZone: fromZone as "signal" | "signal-type" | "choreographer",
+          fromId,
+          toZone: "shader",
+          toId,
+        });
+      }
+      // Clean up shader highlight
+      highlightTargets("shader", false);
+      session = null;
+      return;
+    }
+  }
+
   // Check if released on a valid DOM target badge
   const targetBadge = findTargetBadgeAt(e.clientX, e.clientY, targetZone);
   if (targetBadge) {
@@ -199,7 +230,7 @@ function onMouseUp(e: MouseEvent): void {
         addWire({
           fromZone: fromZone as "signal" | "signal-type" | "choreographer",
           fromId,
-          toZone: targetZone as "signal-type" | "choreographer" | "theme",
+          toZone: targetZone as "signal-type" | "choreographer" | "theme" | "shader",
           toId,
         });
       }
@@ -225,12 +256,18 @@ function onMouseUp(e: MouseEvent): void {
         autoTransition(fromZone, targetZone);
       }
     }
+    // Clean up shader highlight if we were also highlighting those
+    if (fromZone === "choreographer") highlightTargets("shader", false);
     session = null;
     return;
   }
 
   // Level 2: if no DOM badge hit and targeting theme, try entity hit-test
   if (targetZone === "theme" && fromZone === "choreographer") {
+    // Resolve the choreography ID: use choreoId from the badge (rack model),
+    // falling back to fromId for backward compat (legacy node model).
+    const effectiveChoreoId = session?.choreoId ?? fromId;
+
     const scenePos = screenToScene(e);
     const hit = hitTestAnyEntity(scenePos.x, scenePos.y);
     if (hit) {
@@ -262,16 +299,21 @@ function onMouseUp(e: MouseEvent): void {
       }
 
       // Assign this entity as the choreography's default target
-      updateChoreographyCmd(fromId, { defaultTargetEntityId: semanticId });
+      updateChoreographyCmd(effectiveChoreoId, { defaultTargetEntityId: semanticId });
+
+      // Resolve the trigger signal type for MIDI field selection
+      const choreoInput = getChoreoInputInfo(effectiveChoreoId);
+      const triggerSignalType = choreoInput.effectiveTypes[0];
 
       // Show contextual binding menu at drop point
       showBindingDropMenu({
         x: e.clientX,
         y: e.clientY,
-        choreographyId: fromId,
+        choreographyId: effectiveChoreoId,
         targetSemanticId: semanticId,
         hasTopology: hasTopo,
         animationStates,
+        triggerSignalType,
       });
     }
   }
@@ -321,6 +363,19 @@ function highlightTargets(zone: WireZone, highlight: boolean): void {
     } else {
       (badge as HTMLElement).classList.remove("connector-badge--drop-target");
       (badge as HTMLElement).classList.remove("connector-badge--drop-hover");
+    }
+  }
+
+  // When highlighting theme targets, also highlight shader badges
+  if (zone === "theme") {
+    const shaderBadges = document.querySelectorAll('[data-wire-zone="shader"]');
+    for (const badge of shaderBadges) {
+      if (highlight) {
+        (badge as HTMLElement).classList.add("connector-badge--drop-target");
+      } else {
+        (badge as HTMLElement).classList.remove("connector-badge--drop-target");
+        (badge as HTMLElement).classList.remove("connector-badge--drop-hover");
+      }
     }
   }
 }

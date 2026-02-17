@@ -98,7 +98,104 @@
       "Bash(/opt/homebrew/bin/npx vite build)",
       "Bash(/opt/homebrew/bin/pnpm install:*)",
       "Bash(export PATH=\"/opt/homebrew/bin:/usr/bin:$PATH\")",
-      "Bash(export PATH=\"/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH\")"
+      "Bash(export PATH=\"/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH\")",
+      "Bash(kill:*)",
+      "Bash(wait:*)",
+      "Bash(npx tsx:*)",
+      "Bash(git -C:*)",
+      "Bash(npx sajou-emit:*)",
+      "Bash(git branch:*)",
+      "Bash(in iso view\".\nEOF\n\\)\")",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:docs.openclaw.ai)",
+      "WebFetch(domain:deepwiki.com)",
+      "WebFetch(domain:www.npmjs.com)",
+      "WebFetch(domain:medium.com)",
+      "Bash(git pull:*)",
+      "Bash(cat:*)",
+      "Bash(grep:*)",
+      "Bash(git tag:*)",
+      "Bash(wc:*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx sajou-emit --stdin",
+            "timeout": 5,
+            "statusMessage": "sajou-tap",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx sajou-emit --stdin",
+            "timeout": 5,
+            "statusMessage": "sajou-tap",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx sajou-emit --stdin",
+            "timeout": 5,
+            "statusMessage": "sajou-tap",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx sajou-emit --stdin",
+            "timeout": 5,
+            "statusMessage": "sajou-tap",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx sajou-emit --stdin",
+            "timeout": 5,
+            "statusMessage": "sajou-tap",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx sajou-emit --stdin",
+            "timeout": 5,
+            "statusMessage": "sajou-tap",
+            "async": true
+          }
+        ]
+      }
     ]
   }
 }
