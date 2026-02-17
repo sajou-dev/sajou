@@ -27,7 +27,9 @@ import {
   SIGNAL_TYPES,
   SIGNAL_TYPE_COLORS,
   SIGNAL_TYPE_LABELS,
+  PROTOCOL_SIGNAL_TYPES,
 } from "../views/step-commands.js";
+import type { TransportProtocol } from "../types.js";
 
 // ---------------------------------------------------------------------------
 // Active source selection
@@ -192,6 +194,48 @@ function createSourceBadge(source: { id: string; name: string; color: string; se
   return badge;
 }
 
+/**
+ * Compute which signal types should be visible in the rail.
+ *
+ * - Active source selected → types for that protocol ∪ wired types
+ * - No active source → union of types from all connected sources ∪ wired types
+ * - No connected sources → all types (fallback)
+ */
+function computeVisibleTypes(
+  sources: Array<{ protocol: TransportProtocol; status: string }>,
+  activeSource: { protocol: TransportProtocol } | null,
+  wiredTypes: Set<string>,
+): Set<string> {
+  let protocolTypes: Set<string>;
+
+  if (activeSource) {
+    const supported = PROTOCOL_SIGNAL_TYPES[activeSource.protocol];
+    // Empty array = generic transport, show all
+    protocolTypes = supported.length > 0
+      ? new Set(supported)
+      : new Set(SIGNAL_TYPES);
+  } else {
+    const connected = sources.filter((s) => s.status === "connected");
+    if (connected.length === 0) {
+      return new Set(SIGNAL_TYPES);
+    }
+    protocolTypes = new Set<string>();
+    for (const src of connected) {
+      const supported = PROTOCOL_SIGNAL_TYPES[src.protocol];
+      if (supported.length === 0) {
+        // Generic transport — show everything
+        return new Set(SIGNAL_TYPES);
+      }
+      for (const t of supported) protocolTypes.add(t);
+    }
+  }
+
+  // Wired types are always visible (they have choreographies attached)
+  for (const t of wiredTypes) protocolTypes.add(t);
+
+  return protocolTypes;
+}
+
 /** Render signal-type badges in the rail separator. */
 function renderTypes(): void {
   if (!typesEl) return;
@@ -219,7 +263,11 @@ function renderTypes(): void {
     ? sources.find((s) => s.id === activeSourceId) ?? null
     : null;
 
+  // Compute visible types based on protocol filtering
+  const visibleTypes = computeVisibleTypes(sources, activeSource, wiredTypes);
+
   for (const signalType of SIGNAL_TYPES) {
+    if (!visibleTypes.has(signalType)) continue;
     const badge = document.createElement("button");
     badge.className = "pl-rail-badge";
 
