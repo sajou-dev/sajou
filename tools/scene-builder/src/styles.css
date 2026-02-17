@@ -3760,6 +3760,16 @@ button {
   color: var(--color-accent);
 }
 
+.sv-token-autofilled {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  color: #4A9E6E;
+}
+
 /* ── Simulator bar (between sources and raw log) ── */
 
 .sv-simulator-bar {
