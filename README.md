@@ -117,9 +117,28 @@ The main authoring tool — a visual editor for building sajou scenes.
 
 ## Status
 
-**v0.2.0** — Core runtime, signal protocol, Three.js stage, shader editor with GLSL auto-detect, pipeline layout, interlocking blocks choreographer, MIDI input, tap adapter for Claude Code, OpenClaw gateway, multi-source signal connections.
-
 This is a personal project. If it turns out well, it will become public.
+
+### Changelog
+
+**v0.2.0** — Shader editor, pipeline layout, MIDI input
+- Shader editor: GLSL canvas, CodeMirror, uniforms (`@ui`/`@bind`/`@object`), presets, multi-pass ping-pong, export/import
+- GLSL auto-detect: static analysis of extractable literals with confidence scoring and Expose/Unexpose toggle
+- Pipeline layout: node-based workspace replacing the old canvas
+- Interlocking blocks choreographer: dock/rack model, sentence-blocks, drag-reorder, action palette
+- Choreo→shader wiring: bind choreography actions to shader uniforms
+- MIDI input: parser, access manager, discovery, transport, UI
+- Step drag-reorder within choreography chains
+
+**v0.1.0** — Foundation
+- Core runtime: signal bus, choreographer with tween-based timing, matcher, resolver
+- Signal protocol: 14 well-known types (9 agent + 5 user interaction), JSON envelope format
+- Three.js stage: entity manager, lighting (ambient, directional, point + flicker), particles (radial, directional, color-over-life), spritesheet animation
+- Scene-builder: dual-canvas architecture (WebGL + Canvas2D overlay), entity tools, scene export/import ZIP
+- Signal sources: WebSocket, SSE, OpenAI-compatible, Anthropic API, OpenClaw gateway
+- Local discovery: auto-detect Claude Code, OpenClaw, LM Studio, Ollama
+- Tap adapter: Claude Code hooks bridge to scene-builder
+- State persistence: IndexedDB + localStorage, auto-save/restore
 
 ## Development
 
