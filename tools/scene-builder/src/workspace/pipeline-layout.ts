@@ -9,6 +9,7 @@
  */
 
 import type { PipelineNodeId, ViewId } from "../types.js";
+import { shouldSuppressShortcut } from "../shortcuts/shortcut-registry.js";
 import {
   getEditorState,
   subscribeEditor,
@@ -267,10 +268,7 @@ function initPipelineInteractions(): void {
 
   // Keyboard: 1/2/3/4 to extend nodes
   document.addEventListener("keydown", (e: KeyboardEvent) => {
-    // Guard: skip if typing in inputs, textareas, selects, or CodeMirror
-    const tag = (e.target as HTMLElement).tagName;
-    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
-    if ((e.target as HTMLElement).closest(".cm-editor")) return;
+    if (shouldSuppressShortcut(e)) return;
     if (e.ctrlKey || e.metaKey || e.altKey) return;
 
     const nodeId = KEY_TO_NODE[e.key];

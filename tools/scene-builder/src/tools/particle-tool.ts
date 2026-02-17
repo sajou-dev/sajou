@@ -8,6 +8,7 @@
  */
 
 import type { CanvasToolHandler } from "../canvas/canvas.js";
+import { shouldSuppressShortcut } from "../shortcuts/shortcut-registry.js";
 import {
   getEditorState,
   setParticleSelection,
@@ -195,8 +196,7 @@ export function createParticleTool(): CanvasToolHandler {
 /** Initialize Particle tool keyboard shortcuts (Delete, Escape). */
 export function initParticleToolKeyboard(): void {
   document.addEventListener("keydown", (e) => {
-    const tag = (e.target as HTMLElement).tagName;
-    if (tag === "INPUT" || tag === "TEXTAREA") return;
+    if (shouldSuppressShortcut(e)) return;
 
     const { activeTool, selectedParticleIds } = getEditorState();
     if (activeTool !== "particle") return;

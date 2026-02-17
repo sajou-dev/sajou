@@ -8,6 +8,7 @@
  */
 
 import type { CanvasToolHandler } from "../canvas/canvas.js";
+import { shouldSuppressShortcut } from "../shortcuts/shortcut-registry.js";
 import {
   getEditorState,
   setLightSelection,
@@ -207,8 +208,7 @@ export function createLightTool(): CanvasToolHandler {
 /** Initialize Light tool keyboard shortcuts (Delete, Escape). */
 export function initLightToolKeyboard(): void {
   document.addEventListener("keydown", (e) => {
-    const tag = (e.target as HTMLElement).tagName;
-    if (tag === "INPUT" || tag === "TEXTAREA") return;
+    if (shouldSuppressShortcut(e)) return;
 
     const { activeTool, selectedLightIds } = getEditorState();
     if (activeTool !== "light") return;

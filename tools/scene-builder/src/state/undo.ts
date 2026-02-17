@@ -6,6 +6,7 @@
  */
 
 import type { UndoableCommand } from "../types.js";
+import { shouldSuppressShortcut } from "../shortcuts/shortcut-registry.js";
 
 // ---------------------------------------------------------------------------
 // Stack
@@ -58,8 +59,7 @@ export function clearHistory(): void {
 /** Initialize undo/redo keyboard shortcuts. */
 export function initUndoManager(): void {
   document.addEventListener("keydown", (e) => {
-    const tag = (e.target as HTMLElement).tagName;
-    if (tag === "INPUT" || tag === "TEXTAREA") return;
+    if (shouldSuppressShortcut(e)) return;
 
     if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) {
       e.preventDefault();

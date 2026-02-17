@@ -7216,6 +7216,63 @@ button {
 }
 
 /* ===========================================================================
+ * Shortcuts Panel
+ * =========================================================================== */
+
+.sk-root {
+  padding: 4px 0;
+}
+
+.sk-section {
+  padding: 4px 8px 8px;
+}
+
+.sk-section + .sk-section {
+  border-top: 1px solid var(--color-border);
+}
+
+.sk-heading {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--color-text-dim);
+  margin-bottom: 4px;
+  padding: 4px 0 2px;
+}
+
+.sk-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 3px 0;
+}
+
+.sk-label {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.sk-keys {
+  display: flex;
+  gap: 3px;
+}
+
+.sk-keys kbd {
+  display: inline-block;
+  background: var(--color-border);
+  color: var(--color-text);
+  border-radius: 3px;
+  padding: 0 5px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 18px;
+  min-width: 18px;
+  text-align: center;
+}
+
+/* ===========================================================================
  * Shader Editor
  * =========================================================================== */
 
