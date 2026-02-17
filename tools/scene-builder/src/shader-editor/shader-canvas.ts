@@ -76,7 +76,7 @@ let passCount = 1;
 export function initShaderCanvas(el: HTMLElement): void {
   container = el;
 
-  renderer = new THREE.WebGLRenderer({ antialias: false });
+  renderer = new THREE.WebGLRenderer({ antialias: false, preserveDrawingBuffer: true });
   renderer.setPixelRatio(window.devicePixelRatio);
   renderer.setSize(el.clientWidth, el.clientHeight);
   el.appendChild(renderer.domElement);
