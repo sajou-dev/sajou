@@ -310,9 +310,18 @@ function buildPopoverContent(content: HTMLElement, source: SignalSource): void {
     keyInput.value = source.apiKey;
     keyInput.disabled = isActive;
     keyInput.addEventListener("change", () => {
-      updateSource(source.id, { apiKey: keyInput.value });
+      updateSource(source.id, { apiKey: keyInput.value, tokenAutoFilled: false });
     });
     keyWrap.appendChild(keyInput);
+
+    // Auto-filled badge — show when token was auto-filled from config
+    if (source.tokenAutoFilled && source.apiKey) {
+      const badge = document.createElement("span");
+      badge.className = "sv-token-autofilled";
+      badge.title = "Auto-filled from local config";
+      badge.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+      keyWrap.appendChild(badge);
+    }
 
     // "Paste from config" button for OpenClaw local source
     if (source.id === "local:openclaw" && !isActive) {

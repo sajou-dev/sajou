@@ -958,6 +958,8 @@ export interface SignalSource {
   streaming: boolean;
   /** Whether this source is locally discovered or manually added remote. */
   category: SourceCategory;
+  /** Whether the API key was auto-filled from a local config file. */
+  tokenAutoFilled?: boolean;
 }
 
 /** Full state for the signal sources panel (V2 multi-source). */

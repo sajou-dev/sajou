@@ -100,6 +100,7 @@ export function createLocalSource(service: DiscoveredService): SignalSource {
     selectedModel: "",
     streaming: false,
     category: "local",
+    tokenAutoFilled: false,
   };
 }
 
