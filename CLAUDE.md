@@ -353,8 +353,10 @@ When in doubt about any visual decision, defer to the brand guide.
 
 ## End-of-chapter protocol
 
-When you finish implementing a work chapter (a plan, a feature branch, a coherent set of tasks):
+**This protocol is mandatory.** Execute it every time you finish implementing a work chapter (a plan, a feature branch, a coherent set of tasks). Do not skip any step.
 
 1. **Update reference documentation** — reflect the changes in the relevant docs (`ARCHITECTURE.md`, `CLAUDE.md`, ADRs, etc.). The codebase docs must stay in sync with the code.
 
-2. **Log remarks, ideas, and open questions** — during implementation, ideas, edge cases, future improvements, and unresolved questions inevitably surface. Capture them in a dedicated section at the end of your work summary so we can integrate them into the next work plan. Nothing should be lost to context window eviction.
+2. **Update VitePress documentation** — if the change affects user-facing behavior, a system described in the guides, or a reference format, update the corresponding page in `docs/guide/` or `docs/reference/`. New systems get a new page. The doc site is the project's living manual — it must stay accurate.
+
+3. **Log remarks, ideas, and open questions** — during implementation, ideas, edge cases, future improvements, and unresolved questions inevitably surface. Capture them in a dedicated section at the end of your work summary so we can integrate them into the next work plan. Nothing should be lost to context window eviction.
