@@ -5,7 +5,8 @@
  * canvas. The code editor + uniforms panel live in a floating panel created
  * by initShaderEditorPanel().
  *
- * Lazily initializes CodeMirror, uniforms, and preview canvas on first need.
+ * Lazily initializes CodeMirror, uniforms, detected values, and preview
+ * canvas on first need.
  */
 
 import { getEditorState, subscribeEditor, togglePanel } from "../state/editor-state.js";
@@ -68,8 +69,13 @@ export function initShaderEditorPanel(contentEl: HTMLElement): void {
   uniformsPanel.className = "shader-uniforms-panel";
   uniformsPanel.id = "shader-uniforms-panel";
 
+  const detectedPanel = document.createElement("div");
+  detectedPanel.className = "shader-detected-panel";
+  detectedPanel.id = "shader-detected-panel";
+
   contentEl.appendChild(codePanel);
   contentEl.appendChild(uniformsPanel);
+  contentEl.appendChild(detectedPanel);
 }
 
 // ---------------------------------------------------------------------------
@@ -91,6 +97,12 @@ async function lazyInitPanel(): Promise<void> {
   if (uniformsEl) {
     const { initShaderUniformsPanel } = await import("./shader-uniforms-panel.js");
     initShaderUniformsPanel(uniformsEl);
+  }
+
+  const detectedEl = document.getElementById("shader-detected-panel");
+  if (detectedEl) {
+    const { initDetectedValuesPanel } = await import("./detected-values-panel.js");
+    initDetectedValuesPanel(detectedEl);
   }
 }
 
