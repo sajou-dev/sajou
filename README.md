@@ -139,10 +139,8 @@ pnpm typecheck
 
 ## Domains
 
-- sajou.org
-- sajou.app
-- sajou.dev
+|| sajou.dev | sajou.org | sajou.app ||
 
 ---
 
-*Le petit singe qui observe tout depuis les branches.*
+*sajou - a visual choreographer for AI agents.*
