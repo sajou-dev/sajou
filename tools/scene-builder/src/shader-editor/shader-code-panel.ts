@@ -350,6 +350,7 @@ function createNewShader(): void {
     vertexSource: DEFAULT_VERTEX_SOURCE,
     fragmentSource: DEFAULT_FRAGMENT_SOURCE,
     uniforms: [],
+    objects: [],
     passes: 1,
     bufferResolution: 0,
   };

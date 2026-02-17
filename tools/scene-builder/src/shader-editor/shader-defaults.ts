@@ -7,9 +7,10 @@
 
 /** Auto-injected uniform block (prepended to every fragment shader). */
 export const UNIFORM_PREFIX = `precision highp float;
+#define HW_PERFORMANCE 1
 uniform float iTime;
 uniform float iTimeDelta;
-uniform vec2  iResolution;
+uniform vec3  iResolution;
 uniform vec4  iMouse;
 uniform int   iFrame;
 `;

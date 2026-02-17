@@ -62,6 +62,7 @@ export function importShaders(): void {
           addShader({
             ...shader,
             id: crypto.randomUUID(),
+            objects: shader.objects ?? [],
           });
         }
       } catch (err: unknown) {

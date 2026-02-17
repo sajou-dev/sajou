@@ -43,7 +43,7 @@ uniform vec3 uColor2;    // @ui: color
 
 void main() {
   vec2 uv = vUv;
-  vec2 texel = 1.0 / iResolution;
+  vec2 texel = 1.0 / iResolution.xy;
 
   if (iFrame < 2) {
     // Initialize: uniform chemical A=1, B=0, seed a spot in center
@@ -172,6 +172,7 @@ export const SHADER_PRESETS: readonly ShaderPreset[] = [
       vertexSource: DEFAULT_VERTEX_SOURCE,
       fragmentSource: MINIMAL_GRADIENT_FRAG,
       uniforms: [],
+      objects: [],
       passes: 1,
       bufferResolution: 0,
     }),
@@ -191,6 +192,7 @@ export const SHADER_PRESETS: readonly ShaderPreset[] = [
         { name: "uColor1", type: "vec3", control: "color", value: [0.1, 0.1, 0.3], defaultValue: [0.1, 0.1, 0.3], min: 0, max: 1, step: 0.01 },
         { name: "uColor2", type: "vec3", control: "color", value: [0.9, 0.6, 0.2], defaultValue: [0.9, 0.6, 0.2], min: 0, max: 1, step: 0.01 },
       ],
+      objects: [],
       passes: 2,
       bufferResolution: 0,
     }),
@@ -209,6 +211,7 @@ export const SHADER_PRESETS: readonly ShaderPreset[] = [
         { name: "uScale", type: "float", control: "slider", value: 5.0, defaultValue: 5.0, min: 1, max: 20, step: 0.5 },
         { name: "uColor", type: "vec3", control: "color", value: [0.91, 0.66, 0.32], defaultValue: [0.91, 0.66, 0.32], min: 0, max: 1, step: 0.01 },
       ],
+      objects: [],
       passes: 1,
       bufferResolution: 0,
     }),

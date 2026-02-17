@@ -9,7 +9,7 @@
  * Auto-injected uniforms (iTime, iResolution, etc.) are excluded.
  */
 
-import type { ShaderUniformDef, UniformType, UniformControl } from "./shader-types.js";
+import type { ShaderUniformDef, ShaderObjectDef, UniformType, UniformControl } from "./shader-types.js";
 import { AUTO_UNIFORMS } from "./shader-defaults.js";
 
 // ---------------------------------------------------------------------------
@@ -17,26 +17,54 @@ import { AUTO_UNIFORMS } from "./shader-defaults.js";
 // ---------------------------------------------------------------------------
 
 /** Regex matching `uniform <type> <name>;` with optional trailing comment. */
-const UNIFORM_REGEX = /uniform\s+(float|int|bool|vec2|vec3|vec4)\s+(\w+)\s*;(?:\s*\/\/\s*(.*))?/g;
+const UNIFORM_REGEX = /uniform\s+(float|int|bool|vec2|vec3|vec4)\s+(\w+)\s*;(?:\s*\/\/\s*(.*))?/;
 
 /** Regex matching `@ui:` annotation in a comment. */
 const UI_ANNOTATION_REGEX = /@ui:\s*(.+)/;
 
+/** Regex matching `// @object: <id>, label: <display name>` on a standalone line. */
+const OBJECT_REGEX = /\/\/\s*@object:\s*(\w+)(?:\s*,\s*label:\s*(.+))?/;
+
+/** Regex matching `@bind: <semantic>` within a comment. */
+const BIND_REGEX = /@bind:\s*(\w+)/;
+
+/** Result of parsing a shader source for uniforms and object groups. */
+export interface ParseResult {
+  /** Parsed uniform definitions. */
+  uniforms: ShaderUniformDef[];
+  /** Virtual objects declared via @object annotations. */
+  objects: ShaderObjectDef[];
+}
+
 /**
- * Parse all user-defined uniforms from GLSL source code.
- * Returns uniform definitions with control metadata.
+ * Parse all user-defined uniforms and @object groups from GLSL source code.
+ * Returns uniform definitions with control/binding metadata, and object groups.
  */
-export function parseUniforms(source: string): ShaderUniformDef[] {
-  const results: ShaderUniformDef[] = [];
+export function parseShaderSource(source: string): ParseResult {
+  const uniforms: ShaderUniformDef[] = [];
+  const objects: ShaderObjectDef[] = [];
+  let currentObjectId: string | undefined;
 
-  let match: RegExpExecArray | null;
-  // Reset lastIndex for global regex
-  UNIFORM_REGEX.lastIndex = 0;
+  const lines = source.split("\n");
 
-  while ((match = UNIFORM_REGEX.exec(source)) !== null) {
-    const type = match[1] as UniformType;
-    const name = match[2];
-    const comment = match[3]?.trim() ?? "";
+  for (const line of lines) {
+    // Check for @object annotation (standalone comment, not a uniform line)
+    const objectMatch = line.match(OBJECT_REGEX);
+    if (objectMatch && !line.match(UNIFORM_REGEX)) {
+      const id = objectMatch[1];
+      const label = objectMatch[2]?.trim() ?? id;
+      objects.push({ id, label });
+      currentObjectId = id;
+      continue;
+    }
+
+    // Check for uniform declaration
+    const uniformMatch = line.match(UNIFORM_REGEX);
+    if (!uniformMatch) continue;
+
+    const type = uniformMatch[1] as UniformType;
+    const name = uniformMatch[2];
+    const comment = uniformMatch[3]?.trim() ?? "";
 
     // Skip auto-injected uniforms
     if (AUTO_UNIFORMS.has(name)) continue;
@@ -49,7 +77,7 @@ export function parseUniforms(source: string): ShaderUniformDef[] {
     const step = annotation.step ?? defaultStep(type);
     const defaultValue = defaultValueForType(type, min, max);
 
-    results.push({
+    const def: ShaderUniformDef = {
       name,
       type,
       control,
@@ -58,10 +86,30 @@ export function parseUniforms(source: string): ShaderUniformDef[] {
       min,
       max,
       step,
-    });
+    };
+
+    if (currentObjectId) {
+      def.objectId = currentObjectId;
+    }
+
+    if (annotation.bind) {
+      def.bind = { semantic: annotation.bind };
+    }
+
+    uniforms.push(def);
   }
 
-  return results;
+  return { uniforms, objects };
+}
+
+/**
+ * Parse all user-defined uniforms from GLSL source code.
+ * Returns uniform definitions with control metadata.
+ *
+ * @deprecated Use `parseShaderSource()` for full object/binding support.
+ */
+export function parseUniforms(source: string): ShaderUniformDef[] {
+  return parseShaderSource(source).uniforms;
 }
 
 // ---------------------------------------------------------------------------
@@ -73,15 +121,26 @@ interface ParsedAnnotation {
   min?: number;
   max?: number;
   step?: number;
+  bind?: string;
 }
 
-/** Parse a `@ui: ...` annotation from a comment string. */
+/** Parse `@ui: ...` and `@bind: ...` annotations from a comment string. */
 function parseAnnotation(comment: string): ParsedAnnotation {
-  const uiMatch = comment.match(UI_ANNOTATION_REGEX);
-  if (!uiMatch) return {};
-
-  const parts = uiMatch[1].split(",").map((s) => s.trim());
   const result: ParsedAnnotation = {};
+
+  // Extract @bind semantic
+  const bindMatch = comment.match(BIND_REGEX);
+  if (bindMatch) {
+    result.bind = bindMatch[1];
+  }
+
+  // Extract @ui controls
+  const uiMatch = comment.match(UI_ANNOTATION_REGEX);
+  if (!uiMatch) return result;
+
+  // The @ui match may include `@bind:` at the end — strip everything from the next `@` onward
+  const uiContent = uiMatch[1].replace(/@\w+:.*$/, "").trim();
+  const parts = uiContent.split(",").map((s) => s.trim()).filter(Boolean);
 
   for (const part of parts) {
     const colonIdx = part.indexOf(":");

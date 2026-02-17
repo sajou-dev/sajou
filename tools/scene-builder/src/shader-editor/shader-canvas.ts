@@ -57,7 +57,7 @@ let mouseY = 0;
 let mouseDown = false;
 
 /** Number of lines in the auto-injected prefix (for error line offset). */
-const PREFIX_LINE_COUNT = UNIFORM_PREFIX.split("\n").length - 1;
+let prefixLineCount = UNIFORM_PREFIX.split("\n").length - 1;
 
 /** Listeners notified on compile result change. */
 type CompileListener = (result: CompileResult) => void;
@@ -124,15 +124,38 @@ function stripVersion(source: string): string {
   return source.replace(/^#version\s+\d+(\s+es)?\s*\n/, "");
 }
 
+/** Detect ShaderToy convention: has mainImage() but no void main(). */
+const MAIN_IMAGE_RE = /void\s+mainImage\s*\(/;
+const VOID_MAIN_RE = /void\s+main\s*\(/;
+
+/** ShaderToy compatibility suffix — bridges mainImage to main. */
+const SHADERTOY_SUFFIX = `
+void main() {
+  mainImage(fragColor, gl_FragCoord.xy);
+}
+`;
+
 /** Build the final fragment source by prepending the uniform block. */
 function buildFragmentSource(userFragment: string): string {
-  const prefix = passCount >= 2
+  let prefix = passCount >= 2
     ? UNIFORM_PREFIX + MULTIPASS_PREFIX
     : UNIFORM_PREFIX;
 
   // Strip #version — Three.js handles it via glslVersion: GLSL3
   const stripped = stripVersion(userFragment);
-  return prefix + stripped;
+
+  const isShaderToy = MAIN_IMAGE_RE.test(stripped) && !VOID_MAIN_RE.test(stripped);
+
+  let suffix = "";
+  if (isShaderToy) {
+    prefix += "out vec4 fragColor;\n";
+    suffix = SHADERTOY_SUFFIX;
+  }
+
+  // Update prefix line count for error offset mapping
+  prefixLineCount = prefix.split("\n").length - 1;
+
+  return prefix + stripped + suffix;
 }
 
 /** Create the standard uniform object. */
@@ -140,7 +163,7 @@ function createUniforms(): Record<string, THREE.IUniform> {
   return {
     iTime: { value: 0.0 },
     iTimeDelta: { value: 0.0 },
-    iResolution: { value: new THREE.Vector2(1, 1) },
+    iResolution: { value: new THREE.Vector3(1, 1, 1) },
     iMouse: { value: new THREE.Vector4(0, 0, 0, 0) },
     iFrame: { value: 0 },
   };
@@ -277,7 +300,7 @@ function parseGlslErrors(log: string): CompileError[] {
   while ((match = regex.exec(log)) !== null) {
     const rawLine = parseInt(match[1], 10);
     // Adjust for the injected uniform prefix
-    const userLine = Math.max(1, rawLine - PREFIX_LINE_COUNT);
+    const userLine = Math.max(1, rawLine - prefixLineCount);
     errors.push({ line: userLine, message: match[2].trim() });
   }
 
@@ -408,7 +431,7 @@ function tick(): void {
 
   const w = container?.clientWidth ?? 1;
   const h = container?.clientHeight ?? 1;
-  material.uniforms["iResolution"].value.set(w * window.devicePixelRatio, h * window.devicePixelRatio);
+  material.uniforms["iResolution"].value.set(w * window.devicePixelRatio, h * window.devicePixelRatio, w / h);
 
   const mx = mouseX / w;
   const my = 1.0 - mouseY / h;
@@ -456,7 +479,7 @@ function onResize(): void {
   renderer.setSize(w, h);
 
   if (material) {
-    material.uniforms["iResolution"].value.set(w * window.devicePixelRatio, h * window.devicePixelRatio);
+    material.uniforms["iResolution"].value.set(w * window.devicePixelRatio, h * window.devicePixelRatio, w / h);
   }
 }
 

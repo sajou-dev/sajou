@@ -15,6 +15,20 @@ export type UniformControl = "slider" | "color" | "toggle" | "xy";
 /** GLSL uniform types supported by the editor. */
 export type UniformType = "float" | "int" | "bool" | "vec2" | "vec3" | "vec4";
 
+/** Semantic binding hint for choreographer integration. */
+export interface UniformBinding {
+  /** Semantic role (e.g. "position", "scale", "rotation", "intensity"). */
+  semantic: string;
+}
+
+/** A group of uniforms representing a virtual object in the shader. */
+export interface ShaderObjectDef {
+  /** Object identifier (e.g. "sphere", "camera"). */
+  id: string;
+  /** Display label for the UI panel. */
+  label: string;
+}
+
 /** A single user-defined uniform exposed in the editor. */
 export interface ShaderUniformDef {
   /** Uniform name as declared in GLSL source (e.g. "uSpeed"). */
@@ -33,6 +47,10 @@ export interface ShaderUniformDef {
   max: number;
   /** Step increment for sliders. */
   step: number;
+  /** Object this uniform belongs to (undefined = ungrouped). */
+  objectId?: string;
+  /** Semantic binding for choreographer integration. */
+  bind?: UniformBinding;
 }
 
 // ---------------------------------------------------------------------------
@@ -56,6 +74,8 @@ export interface ShaderDef {
   fragmentSource: string;
   /** User-defined uniforms (excludes auto-injected iTime etc.). */
   uniforms: ShaderUniformDef[];
+  /** Virtual objects declared via @object annotations. */
+  objects: ShaderObjectDef[];
   /** Number of render passes (1 = single-pass, 2+ = ping-pong feedback). */
   passes: number;
   /** Buffer resolution for feedback passes (0 = match canvas). */

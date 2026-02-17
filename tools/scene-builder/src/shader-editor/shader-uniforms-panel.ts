@@ -7,9 +7,9 @@
  */
 
 import { getShaderState, updateShader, subscribeShaders } from "./shader-state.js";
-import { parseUniforms } from "./shader-uniform-parser.js";
+import { parseShaderSource } from "./shader-uniform-parser.js";
 import { setUniform } from "./shader-canvas.js";
-import type { ShaderUniformDef } from "./shader-types.js";
+import type { ShaderUniformDef, ShaderObjectDef } from "./shader-types.js";
 
 // ---------------------------------------------------------------------------
 // State
@@ -47,8 +47,8 @@ function syncPanel(): void {
     return;
   }
 
-  // Parse current uniforms from the fragment source
-  const parsed = parseUniforms(shader.fragmentSource);
+  // Parse current uniforms and objects from the fragment source
+  const { uniforms: parsed, objects } = parseShaderSource(shader.fragmentSource);
 
   // Merge parsed uniforms with stored values (preserve user-set values)
   const merged = mergeUniforms(shader.uniforms, parsed);
@@ -57,16 +57,17 @@ function syncPanel(): void {
   const newKeys = merged.map((u) => `${u.name}:${u.type}`).join(",");
   if (newKeys !== cachedUniformKeys) {
     cachedUniformKeys = newKeys;
-    buildControls(merged, shader.id);
+    buildControls(merged, objects, shader.id);
 
-    // Update shader state with merged uniforms
-    updateShader(shader.id, { uniforms: merged });
+    // Update shader state with merged uniforms and objects
+    updateShader(shader.id, { uniforms: merged, objects });
   }
 }
 
 /**
  * Merge stored uniform values with newly parsed uniform definitions.
  * Preserves user-set values for uniforms that still exist.
+ * Carries forward objectId and bind from the parsed definitions.
  */
 function mergeUniforms(stored: ShaderUniformDef[], parsed: ShaderUniformDef[]): ShaderUniformDef[] {
   return parsed.map((p) => {
@@ -82,7 +83,7 @@ function mergeUniforms(stored: ShaderUniformDef[], parsed: ShaderUniformDef[]): 
 // DOM construction
 // ---------------------------------------------------------------------------
 
-function buildControls(uniforms: ShaderUniformDef[], shaderId: string): void {
+function buildControls(uniforms: ShaderUniformDef[], objects: ShaderObjectDef[], shaderId: string): void {
   if (!containerEl) return;
   containerEl.innerHTML = "";
 
@@ -93,21 +94,82 @@ function buildControls(uniforms: ShaderUniformDef[], shaderId: string): void {
   title.textContent = "Uniforms";
   containerEl.appendChild(title);
 
-  for (const u of uniforms) {
-    switch (u.control) {
-      case "slider":
-        buildSliderControl(u, shaderId);
-        break;
-      case "color":
-        buildColorControl(u, shaderId);
-        break;
-      case "toggle":
-        buildToggleControl(u, shaderId);
-        break;
-      case "xy":
-        buildXYControl(u, shaderId);
-        break;
+  // If no objects, render flat list (backwards compatible)
+  if (objects.length === 0) {
+    for (const u of uniforms) {
+      buildControl(u, shaderId, containerEl);
     }
+    return;
+  }
+
+  // Group uniforms by objectId
+  const grouped = new Map<string | undefined, ShaderUniformDef[]>();
+  for (const u of uniforms) {
+    const key = u.objectId;
+    let list = grouped.get(key);
+    if (!list) {
+      list = [];
+      grouped.set(key, list);
+    }
+    list.push(u);
+  }
+
+  // Render each object group as a collapsible <details>
+  for (const obj of objects) {
+    const group = grouped.get(obj.id);
+    if (!group || group.length === 0) continue;
+
+    const details = document.createElement("details");
+    details.className = "shader-object-group";
+    details.open = true;
+
+    const summary = document.createElement("summary");
+    summary.className = "shader-object-header";
+    summary.textContent = obj.label;
+    details.appendChild(summary);
+
+    for (const u of group) {
+      buildControl(u, shaderId, details);
+    }
+
+    containerEl.appendChild(details);
+  }
+
+  // Ungrouped uniforms
+  const ungrouped = grouped.get(undefined);
+  if (ungrouped && ungrouped.length > 0) {
+    const details = document.createElement("details");
+    details.className = "shader-object-group";
+    details.open = true;
+
+    const summary = document.createElement("summary");
+    summary.className = "shader-object-header";
+    summary.textContent = "Ungrouped";
+    details.appendChild(summary);
+
+    for (const u of ungrouped) {
+      buildControl(u, shaderId, details);
+    }
+
+    containerEl.appendChild(details);
+  }
+}
+
+/** Dispatch a single uniform control to the appropriate builder. */
+function buildControl(u: ShaderUniformDef, shaderId: string, parent: HTMLElement): void {
+  switch (u.control) {
+    case "slider":
+      buildSliderControl(u, shaderId, parent);
+      break;
+    case "color":
+      buildColorControl(u, shaderId, parent);
+      break;
+    case "toggle":
+      buildToggleControl(u, shaderId, parent);
+      break;
+    case "xy":
+      buildXYControl(u, shaderId, parent);
+      break;
   }
 }
 
@@ -115,12 +177,11 @@ function buildControls(uniforms: ShaderUniformDef[], shaderId: string): void {
 // Slider control (float / int)
 // ---------------------------------------------------------------------------
 
-function buildSliderControl(u: ShaderUniformDef, shaderId: string): void {
-  if (!containerEl) return;
-
+function buildSliderControl(u: ShaderUniformDef, shaderId: string, parent: HTMLElement): void {
   const label = document.createElement("label");
   label.className = "shader-uniform-label";
   label.textContent = u.name;
+  if (u.bind) appendBindBadge(label, u.bind.semantic);
 
   const row = document.createElement("div");
   row.className = "shader-uniform-row";
@@ -161,20 +222,19 @@ function buildSliderControl(u: ShaderUniformDef, shaderId: string): void {
   row.appendChild(slider);
   row.appendChild(valueDisplay);
 
-  containerEl.appendChild(label);
-  containerEl.appendChild(row);
+  parent.appendChild(label);
+  parent.appendChild(row);
 }
 
 // ---------------------------------------------------------------------------
 // Color control (vec3)
 // ---------------------------------------------------------------------------
 
-function buildColorControl(u: ShaderUniformDef, shaderId: string): void {
-  if (!containerEl) return;
-
+function buildColorControl(u: ShaderUniformDef, shaderId: string, parent: HTMLElement): void {
   const label = document.createElement("label");
   label.className = "shader-uniform-label";
   label.textContent = u.name;
+  if (u.bind) appendBindBadge(label, u.bind.semantic);
 
   const row = document.createElement("div");
   row.className = "shader-uniform-row";
@@ -214,17 +274,15 @@ function buildColorControl(u: ShaderUniformDef, shaderId: string): void {
   row.appendChild(colorInput);
   row.appendChild(valueDisplay);
 
-  containerEl.appendChild(label);
-  containerEl.appendChild(row);
+  parent.appendChild(label);
+  parent.appendChild(row);
 }
 
 // ---------------------------------------------------------------------------
 // Toggle control (bool)
 // ---------------------------------------------------------------------------
 
-function buildToggleControl(u: ShaderUniformDef, shaderId: string): void {
-  if (!containerEl) return;
-
+function buildToggleControl(u: ShaderUniformDef, shaderId: string, parent: HTMLElement): void {
   const row = document.createElement("div");
   row.className = "shader-uniform-row";
 
@@ -242,6 +300,7 @@ function buildToggleControl(u: ShaderUniformDef, shaderId: string): void {
   label.style.marginBottom = "0";
   label.htmlFor = checkId;
   label.textContent = u.name;
+  if (u.bind) appendBindBadge(label, u.bind.semantic);
 
   checkbox.addEventListener("change", () => {
     const val = checkbox.checked;
@@ -262,20 +321,19 @@ function buildToggleControl(u: ShaderUniformDef, shaderId: string): void {
   row.appendChild(checkbox);
   row.appendChild(label);
 
-  containerEl.appendChild(row);
+  parent.appendChild(row);
 }
 
 // ---------------------------------------------------------------------------
 // XY control (vec2) — two sliders
 // ---------------------------------------------------------------------------
 
-function buildXYControl(u: ShaderUniformDef, shaderId: string): void {
-  if (!containerEl) return;
-
+function buildXYControl(u: ShaderUniformDef, shaderId: string, parent: HTMLElement): void {
   const label = document.createElement("label");
   label.className = "shader-uniform-label";
   label.textContent = u.name;
-  containerEl.appendChild(label);
+  if (u.bind) appendBindBadge(label, u.bind.semantic);
+  parent.appendChild(label);
 
   const vals = Array.isArray(u.value) ? u.value as number[] : [0.5, 0.5];
 
@@ -334,8 +392,20 @@ function buildXYControl(u: ShaderUniformDef, shaderId: string): void {
     row.appendChild(axisSpan);
     row.appendChild(slider);
     row.appendChild(valueDisplay);
-    containerEl.appendChild(row);
+    parent.appendChild(row);
   }
+}
+
+// ---------------------------------------------------------------------------
+// Bind badge
+// ---------------------------------------------------------------------------
+
+/** Append a small bind badge (e.g. "position") to a label element. */
+function appendBindBadge(label: HTMLElement, semantic: string): void {
+  const badge = document.createElement("span");
+  badge.className = "shader-bind-badge";
+  badge.textContent = semantic;
+  label.appendChild(badge);
 }
 
 // ---------------------------------------------------------------------------
