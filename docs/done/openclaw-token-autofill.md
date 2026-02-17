@@ -41,3 +41,6 @@ En production (build statique), l'endpoint n'existe pas — le champ reste manue
 - **Auto-fill silencieux** : l'endpoint est appelé au detect du protocole `openclaw`, le champ se pré-remplit
 - **Bouton "Paste from config"** : l'utilisateur clique explicitement pour remplir — plus visible, moins magique
 - **Documentation seule** : placeholder ou tooltip indiquant `~/.openclaw/openclaw.json` — zéro code serveur
+
+---
+Complété — v0.1.0+ (2026-02-17)
