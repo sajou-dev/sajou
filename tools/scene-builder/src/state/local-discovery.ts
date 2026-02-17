@@ -13,7 +13,7 @@ import type { TransportProtocol } from "../types.js";
 import type { DiscoveredService } from "./signal-source-state.js";
 import { upsertLocalSources, getSource, updateSource } from "./signal-source-state.js";
 import { discoverMIDIDevices, registerMIDIHotPlug } from "../midi/midi-discovery.js";
-import { connectLocalSSE } from "../views/signal-connection.js";
+import { connectLocalSSE, connectSource } from "../views/signal-connection.js";
 
 /** Raw service descriptor from the discovery endpoint. */
 interface DiscoveryResponse {
@@ -94,12 +94,16 @@ export async function scanAndSyncLocal(): Promise<void> {
     }
   }
 
-  // Auto-connect Claude Code if available and not already connected
-  const claudeService = services.find((s) => s.id === "local:claude-code" && s.available);
-  if (claudeService) {
-    const source = getSource("local:claude-code");
-    if (source && source.status === "disconnected") {
+  // Auto-connect available local sources that are ready
+  for (const service of services) {
+    if (!service.available) continue;
+    const source = getSource(service.id);
+    if (!source || source.status !== "disconnected") continue;
+
+    if (source.id === "local:claude-code") {
       void connectLocalSSE(source.id);
+    } else if (source.id === "local:openclaw" && source.apiKey) {
+      void connectSource(source.id, source.url, source.apiKey);
     }
   }
 }
