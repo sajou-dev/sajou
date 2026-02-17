@@ -13,7 +13,7 @@
  */
 
 import { addBinding } from "../state/binding-store.js";
-import type { BindingValueType } from "../types.js";
+import type { BindingValueType, BindingTransition, ChoreographyEasing } from "../types.js";
 import { MIDI_SOURCE_FIELDS, suggestMapping } from "../midi/midi-presets.js";
 
 // ---------------------------------------------------------------------------
@@ -75,6 +75,22 @@ function buildItems(
 
   return items;
 }
+
+// ---------------------------------------------------------------------------
+// Transition defaults per float property
+// ---------------------------------------------------------------------------
+
+/** Properties that support temporal transitions (float-type bindings). */
+const FLOAT_PROPERTIES = new Set(["scale", "opacity", "rotation", "position.x", "position.y"]);
+
+/** Default transition values per float property. */
+const TRANSITION_DEFAULTS: Record<string, BindingTransition> = {
+  scale: { targetValue: 1.5, durationMs: 300, easing: "easeOut", revert: false, revertDelayMs: 0 },
+  opacity: { targetValue: 0.0, durationMs: 300, easing: "easeOut", revert: false, revertDelayMs: 0 },
+  rotation: { targetValue: 180, durationMs: 500, easing: "easeInOut", revert: false, revertDelayMs: 0 },
+  "position.x": { targetValue: 50, durationMs: 400, easing: "easeOut", revert: false, revertDelayMs: 0 },
+  "position.y": { targetValue: 50, durationMs: 400, easing: "easeOut", revert: false, revertDelayMs: 0 },
+};
 
 // ---------------------------------------------------------------------------
 // Geometry constants
@@ -253,7 +269,22 @@ function showRadialMenu(
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
 
-      // Suggest mapping for MIDI source field → target property
+      // Float properties → show transition config popup
+      if (FLOAT_PROPERTIES.has(item.key)) {
+        hideBindingDropMenu();
+        showTransitionConfigPopup({
+          x, y,
+          choreographyId,
+          targetSemanticId,
+          property: item.key,
+          sourceType: item.sourceType,
+          selectedSourceField,
+          triggerSignalType,
+        });
+        return;
+      }
+
+      // Non-float properties → immediate binding (existing behavior)
       const mapping = (selectedSourceField && triggerSignalType)
         ? suggestMapping(triggerSignalType, selectedSourceField, item.key)
         : undefined;
@@ -301,6 +332,191 @@ function showRadialMenu(
     overlay.removeEventListener("mousedown", onOverlayClick);
     document.removeEventListener("keydown", onKeyDown);
   };
+}
+
+// ---------------------------------------------------------------------------
+// Transition config popup
+// ---------------------------------------------------------------------------
+
+interface TransitionConfigOptions {
+  x: number;
+  y: number;
+  choreographyId: string;
+  targetSemanticId: string;
+  property: string;
+  sourceType: BindingValueType;
+  selectedSourceField?: string;
+  triggerSignalType?: string;
+}
+
+/** Show a config popup for a float property transition. */
+function showTransitionConfigPopup(options: TransitionConfigOptions): void {
+  const {
+    x, y, choreographyId, targetSemanticId, property, sourceType,
+    selectedSourceField, triggerSignalType,
+  } = options;
+
+  const defaults = TRANSITION_DEFAULTS[property] ?? {
+    targetValue: 1, durationMs: 300, easing: "easeOut" as ChoreographyEasing, revert: false, revertDelayMs: 0,
+  };
+
+  const overlay = document.createElement("div");
+  overlay.className = "radial-overlay";
+
+  const panel = document.createElement("div");
+  panel.className = "binding-transition-config";
+  panel.style.left = `${x}px`;
+  panel.style.top = `${y}px`;
+
+  // Title
+  const title = document.createElement("div");
+  title.className = "binding-transition-config-title";
+  title.textContent = property;
+  panel.appendChild(title);
+
+  // Target value
+  const targetRow = createRow("Target");
+  const targetInput = document.createElement("input");
+  targetInput.type = "number";
+  targetInput.className = "binding-transition-config-input";
+  targetInput.value = String(defaults.targetValue);
+  targetInput.step = "0.1";
+  targetRow.appendChild(targetInput);
+  panel.appendChild(targetRow);
+
+  // Duration
+  const durationRow = createRow("Duration");
+  const durationInput = document.createElement("input");
+  durationInput.type = "number";
+  durationInput.className = "binding-transition-config-input";
+  durationInput.value = String(defaults.durationMs);
+  durationInput.min = "16";
+  durationInput.step = "50";
+  const msLabel = document.createElement("span");
+  msLabel.className = "binding-transition-config-label";
+  msLabel.style.minWidth = "auto";
+  msLabel.textContent = "ms";
+  durationRow.appendChild(durationInput);
+  durationRow.appendChild(msLabel);
+  panel.appendChild(durationRow);
+
+  // Easing
+  const easingRow = createRow("Easing");
+  const easingSelect = document.createElement("select");
+  easingSelect.className = "binding-transition-config-select";
+  for (const name of ["linear", "easeIn", "easeOut", "easeInOut"] as const) {
+    const opt = document.createElement("option");
+    opt.value = name;
+    opt.textContent = name;
+    if (name === defaults.easing) opt.selected = true;
+    easingSelect.appendChild(opt);
+  }
+  easingRow.appendChild(easingSelect);
+  panel.appendChild(easingRow);
+
+  // Revert toggle
+  const revertRow = document.createElement("div");
+  revertRow.className = "binding-transition-config-checkbox";
+  const revertCheckbox = document.createElement("input");
+  revertCheckbox.type = "checkbox";
+  revertCheckbox.id = "btc-revert";
+  revertCheckbox.checked = defaults.revert;
+  const revertLabel = document.createElement("label");
+  revertLabel.htmlFor = "btc-revert";
+  revertLabel.textContent = "Revert after";
+  revertRow.appendChild(revertCheckbox);
+  revertRow.appendChild(revertLabel);
+  panel.appendChild(revertRow);
+
+  // Revert delay (hidden unless checked)
+  const revertDelayRow = createRow("Delay");
+  revertDelayRow.style.display = defaults.revert ? "flex" : "none";
+  const revertDelayInput = document.createElement("input");
+  revertDelayInput.type = "number";
+  revertDelayInput.className = "binding-transition-config-input";
+  revertDelayInput.value = String(defaults.revertDelayMs);
+  revertDelayInput.min = "0";
+  revertDelayInput.step = "50";
+  const msLabel2 = document.createElement("span");
+  msLabel2.className = "binding-transition-config-label";
+  msLabel2.style.minWidth = "auto";
+  msLabel2.textContent = "ms";
+  revertDelayRow.appendChild(revertDelayInput);
+  revertDelayRow.appendChild(msLabel2);
+  panel.appendChild(revertDelayRow);
+
+  revertCheckbox.addEventListener("change", () => {
+    revertDelayRow.style.display = revertCheckbox.checked ? "flex" : "none";
+  });
+
+  // Apply button
+  const applyBtn = document.createElement("button");
+  applyBtn.className = "binding-transition-config-apply";
+  applyBtn.textContent = "Apply";
+  applyBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+
+    const transition: BindingTransition = {
+      targetValue: parseFloat(targetInput.value) || defaults.targetValue,
+      durationMs: Math.max(16, parseInt(durationInput.value, 10) || defaults.durationMs),
+      easing: easingSelect.value as ChoreographyEasing,
+      revert: revertCheckbox.checked,
+      revertDelayMs: revertCheckbox.checked
+        ? Math.max(0, parseInt(revertDelayInput.value, 10) || 0)
+        : 0,
+    };
+
+    const mapping = (selectedSourceField && triggerSignalType)
+      ? suggestMapping(triggerSignalType, selectedSourceField, property)
+      : undefined;
+
+    addBinding({
+      targetEntityId: targetSemanticId,
+      property,
+      sourceChoreographyId: choreographyId,
+      sourceType: sourceType === "float" ? "event" : sourceType,
+      ...(selectedSourceField ? { sourceField: selectedSourceField } : {}),
+      ...(mapping ? { mapping } : {}),
+      transition,
+    });
+
+    hideBindingDropMenu();
+  });
+  panel.appendChild(applyBtn);
+
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
+  menuEl = overlay;
+
+  // Focus target input
+  requestAnimationFrame(() => targetInput.focus());
+
+  // Close on overlay click or Escape
+  const onOverlayClick = (e: MouseEvent) => {
+    if (e.target === overlay) hideBindingDropMenu();
+  };
+  const onKeyDown = (e: KeyboardEvent) => {
+    if (e.key === "Escape") hideBindingDropMenu();
+  };
+
+  overlay.addEventListener("mousedown", onOverlayClick);
+  document.addEventListener("keydown", onKeyDown);
+
+  cleanupFn = () => {
+    overlay.removeEventListener("mousedown", onOverlayClick);
+    document.removeEventListener("keydown", onKeyDown);
+  };
+}
+
+/** Helper: create a labeled row for the transition config popup. */
+function createRow(labelText: string): HTMLElement {
+  const row = document.createElement("div");
+  row.className = "binding-transition-config-row";
+  const label = document.createElement("span");
+  label.className = "binding-transition-config-label";
+  label.textContent = labelText;
+  row.appendChild(label);
+  return row;
 }
 
 /** Hide and remove the radial binding menu. */

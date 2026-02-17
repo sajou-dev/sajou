@@ -2200,6 +2200,121 @@ button {
   color: var(--color-bg);
 }
 
+/* -- Binding transition config popup -- */
+
+.binding-transition-config {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  min-width: 180px;
+  border-radius: var(--radius-lg, 12px);
+  border: 1.5px solid rgba(232, 168, 81, 0.35);
+  background: var(--color-surface);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  animation: nc-popover-in 0.15s ease-out;
+}
+
+.binding-transition-config-title {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-accent);
+  margin-bottom: 2px;
+}
+
+.binding-transition-config-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.binding-transition-config-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--color-text-dim);
+  min-width: 52px;
+  flex-shrink: 0;
+}
+
+.binding-transition-config-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 3px 6px;
+  outline: none;
+}
+
+.binding-transition-config-input:focus {
+  border-color: var(--color-accent-dim);
+}
+
+.binding-transition-config-select {
+  flex: 1;
+  min-width: 0;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 3px 6px;
+  outline: none;
+}
+
+.binding-transition-config-select:focus {
+  border-color: var(--color-accent-dim);
+}
+
+.binding-transition-config-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.binding-transition-config-checkbox input[type="checkbox"] {
+  accent-color: var(--color-accent);
+}
+
+.binding-transition-config-checkbox label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--color-text-dim);
+  cursor: pointer;
+}
+
+.binding-transition-config-apply {
+  margin-top: 4px;
+  padding: 5px 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--color-accent);
+  color: var(--color-bg);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s, transform 0.1s;
+}
+
+.binding-transition-config-apply:hover {
+  background: var(--color-accent-bright, #f0b865);
+}
+
+.binding-transition-config-apply:active {
+  transform: scale(0.97);
+}
+
 /* -- Wiring toast (drop feedback) -- */
 
 .wiring-toast {
