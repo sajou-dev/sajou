@@ -11,6 +11,7 @@ import type { ToolId, PanelId } from "../types.js";
 import { getEditorState, setActiveTool, togglePanel, subscribeEditor, toggleGrid, toggleViewMode } from "../state/editor-state.js";
 import { zoomIn, zoomOut, setZoomLevel, fitToView } from "../canvas/canvas.js";
 import { toggleHelpBar, isHelpBarVisible } from "./help-bar.js";
+import { shouldSuppressShortcut } from "../shortcuts/shortcut-registry.js";
 
 // ---------------------------------------------------------------------------
 // Lucide SVG icons (inline, stroke="currentColor")
@@ -279,8 +280,7 @@ function initZoomBar(): void {
 
 function initShortcuts(): void {
   document.addEventListener("keydown", (e) => {
-    const tag = (e.target as HTMLElement).tagName;
-    if (tag === "INPUT" || tag === "TEXTAREA") return;
+    if (shouldSuppressShortcut(e)) return;
 
     // Ctrl/Cmd shortcuts (zoom presets)
     if (e.ctrlKey || e.metaKey) {
@@ -322,11 +322,8 @@ function initShortcuts(): void {
       // Grid
       case "g": case "G": toggleGrid(); break;
 
-      // Help bar
-      case "?":
-        toggleHelpBar();
-        syncHelpBtn();
-        break;
+      // Shortcuts panel
+      case "?": togglePanel("shortcuts"); break;
 
       // Zoom
       case "+": case "=": zoomIn(); break;

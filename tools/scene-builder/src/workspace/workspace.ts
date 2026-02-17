@@ -43,6 +43,7 @@ import { initSettingsPanel } from "../panels/settings-panel.js";
 import { initSignalTimelinePanel } from "../panels/signal-timeline-panel.js";
 import { initLightingPanel } from "../panels/lighting-panel.js";
 import { initParticlePanel } from "../panels/particle-panel.js";
+import { initShortcutsPanel } from "../panels/shortcuts-panel.js";
 
 // Views
 import { initSignalView } from "../views/signal-view.js";
@@ -217,6 +218,9 @@ export async function initWorkspace(): Promise<void> {
 
   const shaderPanel = createPanel({ id: "shader-editor", title: "Shader Editor", minWidth: 400, minHeight: 350, ownerNode: "shader" });
   initShaderEditorPanel(shaderPanel.contentEl);
+
+  const shortcutsPanel = createPanel({ id: "shortcuts", title: "Keyboard Shortcuts", minWidth: 280, minHeight: 300 });
+  initShortcutsPanel(shortcutsPanel.contentEl);
 
   // Start auto-saving state changes AFTER all views and stores are initialized.
   initAutoSave();
