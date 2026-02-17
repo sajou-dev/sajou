@@ -7,6 +7,7 @@
 
 import type {
   SignalType,
+  TransportProtocol,
   ChoreographyDef,
   ChoreographyStepDef,
   UndoableCommand,
@@ -29,6 +30,28 @@ export const SIGNAL_TYPES: SignalType[] = [
   "midi.note_on", "midi.note_off", "midi.control_change",
   "midi.pitch_bend", "midi.program_change",
 ];
+
+/**
+ * Signal types supported by each transport protocol.
+ * Empty array = show all types (generic transport, can't predict payload).
+ */
+export const PROTOCOL_SIGNAL_TYPES: Record<TransportProtocol, SignalType[]> = {
+  sse: [
+    "task_dispatch", "tool_call", "tool_result", "token_usage",
+    "agent_state_change", "error", "completion", "text_delta", "thinking", "event",
+  ],
+  openclaw: [
+    "task_dispatch", "tool_call", "tool_result", "token_usage",
+    "agent_state_change", "error", "completion", "text_delta", "thinking", "event",
+  ],
+  openai: ["text_delta", "thinking", "token_usage", "error", "completion", "event"],
+  anthropic: ["text_delta", "thinking", "token_usage", "error", "completion", "event"],
+  midi: [
+    "midi.note_on", "midi.note_off", "midi.control_change",
+    "midi.pitch_bend", "midi.program_change",
+  ],
+  websocket: [], // generic transport — show all types
+};
 
 /** Signal type badge colors. */
 export const SIGNAL_TYPE_COLORS: Record<string, string> = {
