@@ -70,7 +70,7 @@ Visual scene editor — the main authoring tool for creating and testing choreog
 - 3-zone workflow: Signal → Choreographer → Theme
 - Wiring system (patch bay), node canvas, step chain with popover editing
 - Zone painting for semantic regions on background
-- Export/import ZIP, run mode with live preview
+- Export/import ZIP, run mode with live preview, binding transitions
 - Signal sources split into **LOCAL** (auto-discovered) and **REMOTE** (manually added) categories
 - Local discovery: Vite plugin probes localhost for Claude Code (SSE), OpenClaw (TCP 18789), LM Studio (HTTP 1234), Ollama (HTTP 11434)
 - OpenClaw token auto-fill from `~/.openclaw/openclaw.json` → `gateway.auth.token` (CORS-restricted endpoint)
@@ -124,6 +124,18 @@ CPU-simulated particles rendered via `THREE.Points` + `BufferGeometry`:
 - `particle-panel.ts`: type radio, count, lifetime, velocity/direction with Canvas2D compass dial, color stops (up to 4), size, glow
 - Editor overlay: diamond markers, direction arrows, dashed extent circles
 - Preview mode: particles simulated in preview loop with same CPU logic
+
+#### Binding system
+
+Dynamic bindings connect choreographer triggers to entity properties:
+
+- **Binding types**: instant assignment (MIDI, continuous) or temporal transition (AI events, triggers)
+- **Temporal transitions** (`BindingTransition`): target value, duration, easing, optional revert with delay
+- **Animation engine**: rAF-driven interpolation in `run-mode-bindings.ts`, supports smooth interrupt (re-trigger from current value), revert (animate back to snapshot original), concurrent multi-property animations
+- **Easing**: linear, easeIn, easeOut, easeInOut, arc — local implementation (no `@sajou/core` dependency)
+- **Config popup**: radial menu shows a transition config popup for float properties (scale, opacity, rotation, position.x, position.y) with range hints; non-float properties (visible, animation.state, moveTo) use immediate binding
+- **Store**: `binding-store.ts` — `addBinding()`, `updateBindingTransition()`, `updateBindingMapping()`, `updateBindingAction()`
+- **Persistence**: `BindingState` serialized to IndexedDB; optional `transition` field is backward-compatible
 
 #### Canvas2D dial widgets
 
