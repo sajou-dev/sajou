@@ -83,6 +83,15 @@ function buildItems(
 /** Properties that support temporal transitions (float-type bindings). */
 const FLOAT_PROPERTIES = new Set(["scale", "opacity", "rotation", "position.x", "position.y"]);
 
+/** Property reference info for the config popup (range, unit, step). */
+const PROPERTY_HINTS: Record<string, { hint: string; min?: string; max?: string; step: string }> = {
+  scale: { hint: "0.1 – 10  (1 = original size)", min: "0.01", max: "20", step: "0.1" },
+  opacity: { hint: "0 – 1  (0 = transparent, 1 = opaque)", min: "0", max: "1", step: "0.05" },
+  rotation: { hint: "0 – 360  (degrees)", step: "5" },
+  "position.x": { hint: "pixels  (relative to current)", step: "1" },
+  "position.y": { hint: "pixels  (relative to current)", step: "1" },
+};
+
 /** Default transition values per float property. */
 const TRANSITION_DEFAULTS: Record<string, BindingTransition> = {
   scale: { targetValue: 1.5, durationMs: 300, easing: "easeOut", revert: false, revertDelayMs: 0 },
@@ -375,14 +384,25 @@ function showTransitionConfigPopup(options: TransitionConfigOptions): void {
   panel.appendChild(title);
 
   // Target value
+  const propHint = PROPERTY_HINTS[property];
   const targetRow = createRow("Target");
   const targetInput = document.createElement("input");
   targetInput.type = "number";
   targetInput.className = "binding-transition-config-input";
   targetInput.value = String(defaults.targetValue);
-  targetInput.step = "0.1";
+  targetInput.step = propHint?.step ?? "0.1";
+  if (propHint?.min !== undefined) targetInput.min = propHint.min;
+  if (propHint?.max !== undefined) targetInput.max = propHint.max;
   targetRow.appendChild(targetInput);
   panel.appendChild(targetRow);
+
+  // Range hint
+  if (propHint) {
+    const hint = document.createElement("div");
+    hint.className = "binding-transition-config-hint";
+    hint.textContent = propHint.hint;
+    panel.appendChild(hint);
+  }
 
   // Duration
   const durationRow = createRow("Duration");

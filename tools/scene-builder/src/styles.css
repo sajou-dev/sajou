@@ -2258,6 +2258,15 @@ button {
   border-color: var(--color-accent-dim);
 }
 
+.binding-transition-config-hint {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  color: var(--color-text-dim);
+  opacity: 0.7;
+  margin-top: -4px;
+  padding-left: 58px;
+}
+
 .binding-transition-config-select {
   flex: 1;
   min-width: 0;
