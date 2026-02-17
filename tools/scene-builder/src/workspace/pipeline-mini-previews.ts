@@ -185,6 +185,23 @@ function initShaderMini(): void {
   img.style.cssText = "width:32px;height:32px;border-radius:var(--radius-sm);border:1px solid var(--color-border)";
   img.alt = "Shader preview";
 
+  /** Last valid data URL captured while the shader was extended. */
+  let lastCapture = "";
+
+  /** Try to capture a snapshot from the shader canvas (call while extended). */
+  function captureSnapshot(): void {
+    const shaderCanvas = document.querySelector<HTMLCanvasElement>("#shader-preview-panel canvas");
+    if (!shaderCanvas || shaderCanvas.width === 0 || shaderCanvas.height === 0) return;
+    try {
+      const dataUrl = shaderCanvas.toDataURL("image/png");
+      if (dataUrl.length > 6) {
+        lastCapture = dataUrl;
+      }
+    } catch {
+      // Security error if canvas is tainted — ignore
+    }
+  }
+
   function render(): void {
     const el = getMiniEl("shader");
     if (!el) return;
@@ -200,25 +217,11 @@ function initShaderMini(): void {
     name.textContent = selected?.name ?? "No shader";
     el.appendChild(name);
 
-    // Mini swatch (capture from shader preview canvas)
+    // Show last captured swatch when mini
     const { pipelineLayout } = getEditorState();
-    if (!pipelineLayout.extended.includes("shader")) {
-      const shaderCanvas = document.querySelector<HTMLCanvasElement>("#shader-preview-panel canvas");
-      if (shaderCanvas && shaderCanvas.width > 0 && shaderCanvas.height > 0) {
-        try {
-          const dataUrl = shaderCanvas.toDataURL("image/png");
-          // "data:," is what a 0x0 canvas returns — skip it
-          if (dataUrl.length > 6) {
-            img.src = dataUrl;
-          }
-        } catch {
-          // Security error if canvas is tainted — ignore
-        }
-      }
-      // Only show the swatch if we have a real capture
-      if (img.src && img.src.length > 6) {
-        el.appendChild(img);
-      }
+    if (!pipelineLayout.extended.includes("shader") && lastCapture) {
+      img.src = lastCapture;
+      el.appendChild(img);
     }
   }
 
@@ -226,10 +229,12 @@ function initShaderMini(): void {
   subscribeEditor(render);
   render();
 
-  // Periodic swatch capture
+  // Periodic capture while extended, render while mini
   setInterval(() => {
     const { pipelineLayout } = getEditorState();
-    if (!pipelineLayout.extended.includes("shader")) {
+    if (pipelineLayout.extended.includes("shader")) {
+      captureSnapshot();
+    } else {
       render();
     }
   }, 2000);
