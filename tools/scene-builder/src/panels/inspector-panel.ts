@@ -138,22 +138,28 @@ export function initInspectorPanel(contentEl: HTMLElement): void {
     semanticInput.title = "Semantic name for choreographies. Leave empty for passive decor.";
     semanticInput.addEventListener("change", () => {
       const val = semanticInput.value.trim() || undefined;
-      // Validate uniqueness
-      if (val) {
-        const { entities } = getSceneState();
-        const duplicate = entities.find((e) => e.id !== placed.id && e.semanticId === val);
-        if (duplicate) {
-          semanticInput.value = placed.semanticId ?? "";
-          return;
-        }
-      }
       executeCommand(createUpdateCommand(
         placed.id,
         { semanticId: val } as Partial<PlacedEntity>,
         val ? `Set semantic ID "${val}"` : "Clear semantic ID",
       ));
     });
-    form.appendChild(createRow("Actor ID", semanticInput));
+    const actorRow = createRow("Actor ID", semanticInput);
+
+    // Shared-instance badge
+    const { entities: allEntities } = getSceneState();
+    const sharedCount = placed.semanticId
+      ? allEntities.filter((e) => e.semanticId === placed.semanticId).length
+      : 0;
+    if (sharedCount > 1) {
+      const badge = document.createElement("span");
+      badge.className = "ip-badge ip-badge--shared";
+      badge.textContent = "\u00D7" + sharedCount;
+      badge.title = sharedCount + " entities share this actor ID";
+      actorRow.appendChild(badge);
+    }
+
+    form.appendChild(actorRow);
 
     // Position (X/Y fields)
     const posRow = document.createElement("div");

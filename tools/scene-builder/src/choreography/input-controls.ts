@@ -414,12 +414,16 @@ function buildEntityRefControl(
   datalist.id = listId;
   input.setAttribute("list", listId);
 
-  // Populate with scene entities
+  // Populate with scene entities (deduplicate shared semanticIds)
   const scene = getSceneState();
+  const seenIds = new Set<string>();
   for (const entity of scene.entities) {
+    const refId = entity.semanticId ?? entity.id;
+    if (seenIds.has(refId)) continue;
+    seenIds.add(refId);
     const opt = document.createElement("option");
-    opt.value = entity.semanticId ?? entity.id;
-    opt.textContent = entity.semanticId ?? entity.id;
+    opt.value = refId;
+    opt.textContent = refId;
     datalist.appendChild(opt);
   }
 
