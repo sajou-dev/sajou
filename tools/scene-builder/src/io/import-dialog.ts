@@ -25,6 +25,8 @@ export interface ZipSummary {
   bindings: number;
   /** Number of shader definitions. */
   shaders: number;
+  /** Number of p5.js sketch definitions. */
+  p5Sketches: number;
 }
 
 /** Which sections the user chose to import. */
@@ -33,6 +35,7 @@ export interface ImportSelection {
   entitiesAndAssets: boolean;
   choreographiesAndWiring: boolean;
   shaders: boolean;
+  p5Sketches: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -70,6 +73,12 @@ const SECTIONS: SectionDef[] = [
     label: "Shaders",
     summary: (s) => `${s.shaders} shaders`,
     available: (s) => s.shaders > 0,
+  },
+  {
+    key: "p5Sketches",
+    label: "p5.js Sketches",
+    summary: (s) => `${s.p5Sketches} sketches`,
+    available: (s) => s.p5Sketches > 0,
   },
 ];
 
@@ -131,6 +140,7 @@ export function showImportDialog(summary: ZipSummary): Promise<ImportSelection |
       entitiesAndAssets: true,
       choreographiesAndWiring: true,
       shaders: true,
+      p5Sketches: true,
     };
 
     const checkboxes: { key: keyof ImportSelection; input: HTMLInputElement }[] = [];
@@ -231,7 +241,7 @@ export function showImportDialog(summary: ZipSummary): Promise<ImportSelection |
       }
       // Must have at least one section selected
       if (!selection.visualLayout && !selection.entitiesAndAssets &&
-          !selection.choreographiesAndWiring && !selection.shaders) {
+          !selection.choreographiesAndWiring && !selection.shaders && !selection.p5Sketches) {
         return; // Don't close — nothing selected
       }
       cleanup();

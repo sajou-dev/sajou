@@ -118,3 +118,12 @@ export function getSourcesForChoreo(choreoId: string): SourceProvenance[] {
 export function getShaderBindings(): WireConnection[] {
   return getWiresBetween("choreographer", "shader");
 }
+
+/**
+ * Get all choreographer → p5 wire connections.
+ *
+ * Each wire's `toId` encodes `p5:{sketchId}:{paramName}`.
+ */
+export function getP5Bindings(): WireConnection[] {
+  return getWiresBetween("choreographer", "p5");
+}

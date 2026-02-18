@@ -20,6 +20,8 @@ import { getWiringState, type WireConnection } from "../state/wiring-state.js";
 import { getBindingState } from "../state/binding-store.js";
 import { getShaderState } from "../shader-editor/shader-state.js";
 import type { ShaderEditorState } from "../shader-editor/shader-types.js";
+import { getP5State } from "../p5-editor/p5-state.js";
+import type { P5EditorState } from "../p5-editor/p5-types.js";
 import type {
   SceneState,
   EntityEntry,
@@ -62,6 +64,11 @@ interface ChoreographyExportJson {
 interface ShaderExportJson {
   version: 1;
   shaders: ShaderEditorState["shaders"];
+}
+
+interface P5ExportJson {
+  version: 1;
+  sketches: P5EditorState["sketches"];
 }
 
 // ---------------------------------------------------------------------------
@@ -280,6 +287,16 @@ export async function exportScene(): Promise<void> {
       shaders: shaderState.shaders,
     };
     zipData["shaders.json"] = strToU8(JSON.stringify(shaderJson, null, 2));
+  }
+
+  // 7c. Include p5 sketches if any exist
+  const p5State = getP5State();
+  if (p5State.sketches.length > 0) {
+    const p5Json: P5ExportJson = {
+      version: 1,
+      sketches: p5State.sketches,
+    };
+    zipData["p5.json"] = strToU8(JSON.stringify(p5Json, null, 2));
   }
 
   // 8. Read referenced asset files into the ZIP

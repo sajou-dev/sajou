@@ -20,6 +20,8 @@ import { addBinding, removeBinding } from "./binding-store.js";
 import { addSource, removeSource } from "./signal-source-state.js";
 import { getShaderState, addShader, updateShader, removeShader } from "../shader-editor/shader-state.js";
 import type { ShaderDef, ShaderUniformDef, ShaderObjectDef } from "../shader-editor/shader-types.js";
+import { getP5State, addSketch, updateSketch, removeSketch } from "../p5-editor/p5-state.js";
+import type { P5SketchDef, P5ParamDef } from "../p5-editor/p5-types.js";
 import type { PlacedEntity, ChoreographyDef, ChoreographyStepDef, BindingValueType } from "../types.js";
 
 /** Poll interval in milliseconds (fallback only). */
@@ -37,8 +39,8 @@ let sseConnected = false;
 /** Shape of a command as returned by the server. */
 interface PendingCommand {
   id: string;
-  action: "add" | "remove" | "update" | "set-uniform";
-  type: "entity" | "choreography" | "binding" | "wire" | "source" | "shader";
+  action: "add" | "remove" | "update" | "set-uniform" | "set-param";
+  type: "entity" | "choreography" | "binding" | "wire" | "source" | "shader" | "p5";
   data: Record<string, unknown>;
 }
 
@@ -257,6 +259,71 @@ function executeShaderCommand(action: string, data: Record<string, unknown>): vo
   }
 }
 
+/** Add, update, remove a p5 sketch or set a param value. */
+function executeP5Command(action: string, data: Record<string, unknown>): void {
+  if (action === "add") {
+    const id = (data["id"] as string) ?? crypto.randomUUID();
+    const rawParams = (data["params"] as Array<Record<string, unknown>>) ?? [];
+    const params: P5ParamDef[] = rawParams.map((p) => ({
+      name: p["name"] as string,
+      type: (p["type"] as P5ParamDef["type"]) ?? "float",
+      control: (p["control"] as P5ParamDef["control"]) ?? "slider",
+      value: p["value"] as number | boolean | number[],
+      defaultValue: (p["defaultValue"] ?? p["value"]) as number | boolean | number[],
+      min: (p["min"] as number) ?? 0,
+      max: (p["max"] as number) ?? 1,
+      step: (p["step"] as number) ?? 0.01,
+      bind: p["bind"] as P5ParamDef["bind"],
+    }));
+
+    const sketch: P5SketchDef = {
+      id,
+      name: (data["name"] as string) ?? "Untitled",
+      source: (data["source"] as string) ?? "",
+      params,
+      width: (data["width"] as number) ?? 0,
+      height: (data["height"] as number) ?? 0,
+    };
+    addSketch(sketch);
+  } else if (action === "update") {
+    const id = data["id"] as string;
+    const partial: Partial<P5SketchDef> = {};
+    if (data["name"] !== undefined) partial.name = data["name"] as string;
+    if (data["source"] !== undefined) partial.source = data["source"] as string;
+    if (data["width"] !== undefined) partial.width = data["width"] as number;
+    if (data["height"] !== undefined) partial.height = data["height"] as number;
+    if (data["params"] !== undefined) {
+      const rawParams = data["params"] as Array<Record<string, unknown>>;
+      partial.params = rawParams.map((p) => ({
+        name: p["name"] as string,
+        type: (p["type"] as P5ParamDef["type"]) ?? "float",
+        control: (p["control"] as P5ParamDef["control"]) ?? "slider",
+        value: p["value"] as number | boolean | number[],
+        defaultValue: (p["defaultValue"] ?? p["value"]) as number | boolean | number[],
+        min: (p["min"] as number) ?? 0,
+        max: (p["max"] as number) ?? 1,
+        step: (p["step"] as number) ?? 0.01,
+        bind: p["bind"] as P5ParamDef["bind"],
+      }));
+    }
+    updateSketch(id, partial);
+  } else if (action === "remove") {
+    const id = data["id"] as string;
+    removeSketch(id);
+  } else if (action === "set-param") {
+    const id = data["id"] as string;
+    const paramName = data["paramName"] as string;
+    const value = data["value"] as number | boolean | number[];
+    // Update just the target param's value in the sketch's params array
+    const sketch = getP5State().sketches.find((s) => s.id === id);
+    if (!sketch) return;
+    const updatedParams = sketch.params.map((p) =>
+      p.name === paramName ? { ...p, value } : p,
+    );
+    updateSketch(id, { params: updatedParams });
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Main dispatch
 // ---------------------------------------------------------------------------
@@ -281,6 +348,9 @@ function executeCommand(cmd: PendingCommand): void {
       break;
     case "shader":
       executeShaderCommand(cmd.action, cmd.data);
+      break;
+    case "p5":
+      executeP5Command(cmd.action, cmd.data);
       break;
   }
 }

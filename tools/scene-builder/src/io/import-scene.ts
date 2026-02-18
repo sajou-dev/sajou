@@ -30,6 +30,8 @@ import { clearHistory } from "../state/undo.js";
 import { forcePersistAll } from "../state/persistence.js";
 import { autoWireConnectedSources } from "../state/auto-wire.js";
 import { setShaderState, resetShaderState } from "../shader-editor/shader-state.js";
+import { setP5State, resetP5State } from "../p5-editor/p5-state.js";
+import type { P5EditorState } from "../p5-editor/p5-types.js";
 import { showImportDialog } from "./import-dialog.js";
 import type { ImportSelection, ZipSummary } from "./import-dialog.js";
 import type { ShaderEditorState } from "../shader-editor/shader-types.js";
@@ -86,6 +88,7 @@ interface ZipContents {
   entitiesJson: EntityExportJson;
   choreoJson: ChoreographyExportJson | null;
   shaderDefs: ShaderEditorState["shaders"] | null;
+  p5Sketches: P5EditorState["sketches"] | null;
   assetFiles: AssetFile[];
   summary: ZipSummary;
 }
@@ -215,6 +218,24 @@ function parseShaderJson(data: Uint8Array | undefined): ShaderEditorState["shade
 }
 
 /**
+ * Parse p5.json from ZIP. Returns null if absent (backward-compat).
+ */
+function parseP5Json(data: Uint8Array | undefined): P5EditorState["sketches"] | null {
+  if (!data) return null;
+  const text = strFromU8(data);
+  const parsed: unknown = JSON.parse(text);
+
+  if (
+    typeof parsed !== "object" || parsed === null ||
+    !("sketches" in parsed)
+  ) {
+    return null;
+  }
+
+  return (parsed as { sketches: P5EditorState["sketches"] }).sketches;
+}
+
+/**
  * Extract asset files from ZIP entries under assets/.
  * Creates File objects and object URLs for each image file.
  */
@@ -280,6 +301,7 @@ function parseZip(zipEntries: Record<string, Uint8Array>): ZipContents {
   const entitiesJson = parseEntitiesJson(entitiesData);
   const choreoJson = parseChoreoJson(zipEntries["choreographies.json"]);
   const shaderDefs = parseShaderJson(zipEntries["shaders.json"]);
+  const p5Sketches = parseP5Json(zipEntries["p5.json"]);
   const assetFiles = extractAssets(zipEntries);
 
   const summary: ZipSummary = {
@@ -290,9 +312,10 @@ function parseZip(zipEntries: Record<string, Uint8Array>): ZipContents {
     wires: choreoJson?.wires.length ?? 0,
     bindings: choreoJson?.bindings?.length ?? 0,
     shaders: shaderDefs?.length ?? 0,
+    p5Sketches: p5Sketches?.length ?? 0,
   };
 
-  return { sceneJson, entitiesJson, choreoJson, shaderDefs, assetFiles, summary };
+  return { sceneJson, entitiesJson, choreoJson, shaderDefs, p5Sketches, assetFiles, summary };
 }
 
 // ---------------------------------------------------------------------------
@@ -301,7 +324,7 @@ function parseZip(zipEntries: Record<string, Uint8Array>): ZipContents {
 
 /** Apply parsed ZIP contents to stores based on the user's selection. */
 async function applyImport(contents: ZipContents, selection: ImportSelection): Promise<void> {
-  const { sceneJson, entitiesJson, choreoJson, shaderDefs, assetFiles } = contents;
+  const { sceneJson, entitiesJson, choreoJson, shaderDefs, p5Sketches, assetFiles } = contents;
 
   // Reset only the selected sections
   if (selection.entitiesAndAssets) {
@@ -318,6 +341,9 @@ async function applyImport(contents: ZipContents, selection: ImportSelection): P
   }
   if (selection.shaders) {
     resetShaderState();
+  }
+  if (selection.p5Sketches) {
+    resetP5State();
   }
 
   clearHistory();
@@ -386,6 +412,15 @@ async function applyImport(contents: ZipContents, selection: ImportSelection): P
       shaders: shaderDefs,
       selectedShaderId: shaderDefs[0].id,
       activeMode: "glsl",
+      playing: true,
+    });
+  }
+
+  // p5 Sketches
+  if (selection.p5Sketches && p5Sketches && p5Sketches.length > 0) {
+    setP5State({
+      sketches: p5Sketches,
+      selectedSketchId: p5Sketches[0].id,
       playing: true,
     });
   }
