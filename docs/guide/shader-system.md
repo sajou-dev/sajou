@@ -220,11 +220,33 @@ Type colors on the connector badges follow this scheme:
 
 ---
 
+## External Uniform Control (MCP / HTTP)
+
+Shader uniforms can be set externally via the scene-builder's HTTP API:
+
+```
+POST /api/shaders/{shaderId}/uniforms
+Content-Type: application/json
+
+{ "uniformName": "uIntensity", "value": 0.8 }
+```
+
+When a uniform value is changed externally (via MCP `set_uniform` tool or direct HTTP call):
+
+1. The server enqueues a `set-uniform` command and broadcasts it via SSE.
+2. The browser's `command-consumer` updates the shader state store.
+3. The `shader-uniforms-panel` subscriber detects the value change, calls `setUniform()` on the Three.js material, and syncs the DOM slider position.
+
+This enables AI agents to drive shader parameters in real-time — for example, mapping different LLM actions (thinking, tool calls, errors) to different visual effects through the wiring graph.
+
+---
+
 ## Key Files
 
 | File | Purpose |
 |------|---------|
 | `tools/scene-builder/src/shader-editor/shader-canvas.ts` | Shader compilation and Three.js rendering |
+| `tools/scene-builder/src/shader-editor/shader-uniforms-panel.ts` | UI controls and external value sync |
 | `tools/scene-builder/src/shader-editor/shader-types.ts` | `ShaderDef` and related type definitions |
 | `tools/scene-builder/src/shader-editor/shader-uniform-parser.ts` | `@ui:` annotation parser |
 | `tools/scene-builder/src/shader-editor/shader-analyzer.ts` | Static literal detection and confidence scoring |
