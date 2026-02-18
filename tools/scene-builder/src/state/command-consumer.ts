@@ -15,6 +15,8 @@ import { getChoreographyState, updateChoreographyState, removeChoreography } fro
 import { addWire, removeWire } from "./wiring-state.js";
 import { addBinding, removeBinding } from "./binding-store.js";
 import { addSource, removeSource } from "./signal-source-state.js";
+import { getShaderState, addShader, updateShader, removeShader } from "../shader-editor/shader-state.js";
+import type { ShaderDef, ShaderUniformDef, ShaderObjectDef } from "../shader-editor/shader-types.js";
 import type { PlacedEntity, ChoreographyDef, ChoreographyStepDef, BindingValueType } from "../types.js";
 
 /** Poll interval in milliseconds. */
@@ -26,8 +28,8 @@ let pollTimer: ReturnType<typeof setInterval> | null = null;
 /** Shape of a command as returned by GET /api/commands/pending. */
 interface PendingCommand {
   id: string;
-  action: "add" | "remove" | "update";
-  type: "entity" | "choreography" | "binding" | "wire" | "source";
+  action: "add" | "remove" | "update" | "set-uniform";
+  type: "entity" | "choreography" | "binding" | "wire" | "source" | "shader";
   data: Record<string, unknown>;
 }
 
@@ -163,6 +165,89 @@ function executeSourceCommand(action: string, data: Record<string, unknown>): vo
   }
 }
 
+/** Add, update, remove a shader or set a uniform value. */
+function executeShaderCommand(action: string, data: Record<string, unknown>): void {
+  if (action === "add") {
+    const id = (data["id"] as string) ?? crypto.randomUUID();
+    const rawUniforms = (data["uniforms"] as Array<Record<string, unknown>>) ?? [];
+    const uniforms: ShaderUniformDef[] = rawUniforms.map((u) => ({
+      name: u["name"] as string,
+      type: (u["type"] as ShaderUniformDef["type"]) ?? "float",
+      control: (u["control"] as ShaderUniformDef["control"]) ?? "slider",
+      value: u["value"] as number | boolean | number[],
+      defaultValue: (u["defaultValue"] ?? u["value"]) as number | boolean | number[],
+      min: (u["min"] as number) ?? 0,
+      max: (u["max"] as number) ?? 1,
+      step: (u["step"] as number) ?? 0.01,
+      objectId: u["objectId"] as string | undefined,
+      bind: u["bind"] as ShaderUniformDef["bind"],
+    }));
+    const rawObjects = (data["objects"] as Array<Record<string, unknown>>) ?? [];
+    const objects: ShaderObjectDef[] = rawObjects.map((o) => ({
+      id: o["id"] as string,
+      label: o["label"] as string,
+    }));
+
+    const shader: ShaderDef = {
+      id,
+      name: (data["name"] as string) ?? "Untitled",
+      mode: "glsl",
+      vertexSource: (data["vertexSource"] as string) ?? "",
+      fragmentSource: (data["fragmentSource"] as string) ?? "",
+      uniforms,
+      objects,
+      passes: (data["passes"] as number) ?? 1,
+      bufferResolution: (data["bufferResolution"] as number) ?? 0,
+    };
+    addShader(shader);
+  } else if (action === "update") {
+    const id = data["id"] as string;
+    const partial: Partial<ShaderDef> = {};
+    if (data["name"] !== undefined) partial.name = data["name"] as string;
+    if (data["fragmentSource"] !== undefined) partial.fragmentSource = data["fragmentSource"] as string;
+    if (data["vertexSource"] !== undefined) partial.vertexSource = data["vertexSource"] as string;
+    if (data["passes"] !== undefined) partial.passes = data["passes"] as number;
+    if (data["bufferResolution"] !== undefined) partial.bufferResolution = data["bufferResolution"] as number;
+    if (data["uniforms"] !== undefined) {
+      const rawUniforms = data["uniforms"] as Array<Record<string, unknown>>;
+      partial.uniforms = rawUniforms.map((u) => ({
+        name: u["name"] as string,
+        type: (u["type"] as ShaderUniformDef["type"]) ?? "float",
+        control: (u["control"] as ShaderUniformDef["control"]) ?? "slider",
+        value: u["value"] as number | boolean | number[],
+        defaultValue: (u["defaultValue"] ?? u["value"]) as number | boolean | number[],
+        min: (u["min"] as number) ?? 0,
+        max: (u["max"] as number) ?? 1,
+        step: (u["step"] as number) ?? 0.01,
+        objectId: u["objectId"] as string | undefined,
+        bind: u["bind"] as ShaderUniformDef["bind"],
+      }));
+    }
+    if (data["objects"] !== undefined) {
+      const rawObjects = data["objects"] as Array<Record<string, unknown>>;
+      partial.objects = rawObjects.map((o) => ({
+        id: o["id"] as string,
+        label: o["label"] as string,
+      }));
+    }
+    updateShader(id, partial);
+  } else if (action === "remove") {
+    const id = data["id"] as string;
+    removeShader(id);
+  } else if (action === "set-uniform") {
+    const id = data["id"] as string;
+    const uniformName = data["uniformName"] as string;
+    const value = data["value"] as number | boolean | number[];
+    // Update just the target uniform's value in the shader's uniforms array
+    const shader = getShaderState().shaders.find((s) => s.id === id);
+    if (!shader) return;
+    const updatedUniforms = shader.uniforms.map((u) =>
+      u.name === uniformName ? { ...u, value } : u,
+    );
+    updateShader(id, { uniforms: updatedUniforms });
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Main dispatch
 // ---------------------------------------------------------------------------
@@ -184,6 +269,9 @@ function executeCommand(cmd: PendingCommand): void {
       break;
     case "source":
       executeSourceCommand(cmd.action, cmd.data);
+      break;
+    case "shader":
+      executeShaderCommand(cmd.action, cmd.data);
       break;
   }
 }

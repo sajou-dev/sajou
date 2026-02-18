@@ -453,3 +453,106 @@ export async function addSignalSource(data: {
 export async function removeSignalSource(id: string): Promise<WriteCommandResponse> {
   return sendCommand("/api/signals/sources", { action: "remove", id });
 }
+
+// ---------------------------------------------------------------------------
+// Shader operations
+// ---------------------------------------------------------------------------
+
+/** Shader definition as returned by the shaders endpoint. */
+export interface ShaderData {
+  readonly id: string;
+  readonly name: string;
+  readonly mode: string;
+  readonly vertexSource: string;
+  readonly fragmentSource: string;
+  readonly uniforms: ReadonlyArray<{
+    readonly name: string;
+    readonly type: string;
+    readonly control: string;
+    readonly value: number | boolean | number[];
+    readonly defaultValue: number | boolean | number[];
+    readonly min: number;
+    readonly max: number;
+    readonly step: number;
+    readonly objectId?: string;
+    readonly bind?: { readonly semantic: string };
+  }>;
+  readonly objects: ReadonlyArray<{
+    readonly id: string;
+    readonly label: string;
+  }>;
+  readonly passes: number;
+  readonly bufferResolution: number;
+}
+
+/**
+ * Get all shader definitions from the scene-builder.
+ */
+export async function getShaders(): Promise<readonly ShaderData[] | null> {
+  const resp = await fetchState<{ shaders: ShaderData[] }>("/api/shaders");
+  if (!resp?.ok) return null;
+  return resp.data?.shaders ?? null;
+}
+
+/**
+ * Create a new shader in the scene-builder.
+ * Returns the command ID. The shader ID should be pre-generated and passed in data.
+ */
+export async function createShader(data: {
+  readonly id: string;
+  readonly name: string;
+  readonly fragmentSource: string;
+  readonly vertexSource: string;
+  readonly uniforms?: ReadonlyArray<Record<string, unknown>>;
+  readonly objects?: ReadonlyArray<Record<string, unknown>>;
+  readonly passes?: number;
+}): Promise<WriteCommandResponse> {
+  return sendCommand("/api/shaders", data);
+}
+
+/**
+ * Update an existing shader by ID.
+ */
+export async function updateShader(
+  id: string,
+  data: Record<string, unknown>,
+): Promise<WriteCommandResponse> {
+  const url = `${getBaseUrl()}/api/shaders/${encodeURIComponent(id)}`;
+  const resp = await fetch(url, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+    signal: AbortSignal.timeout(5000),
+  });
+  return (await resp.json()) as WriteCommandResponse;
+}
+
+/**
+ * Remove a shader by ID.
+ */
+export async function removeShader(id: string): Promise<WriteCommandResponse> {
+  const url = `${getBaseUrl()}/api/shaders/${encodeURIComponent(id)}`;
+  const resp = await fetch(url, {
+    method: "DELETE",
+    signal: AbortSignal.timeout(5000),
+  });
+  return (await resp.json()) as WriteCommandResponse;
+}
+
+/**
+ * Set a uniform value on a shader. This is the real-time knob for AI agents.
+ */
+export async function setUniform(
+  shaderId: string,
+  uniformName: string,
+  value: number | boolean | number[],
+): Promise<WriteCommandResponse> {
+  const url = `${getBaseUrl()}/api/shaders/${encodeURIComponent(shaderId)}/uniforms`;
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ uniformName, value }),
+    signal: AbortSignal.timeout(5000),
+  });
+  return (await resp.json()) as WriteCommandResponse;
+}

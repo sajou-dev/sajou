@@ -870,6 +870,24 @@ function stateSyncPlugin() {
           return;
         }
 
+        // -----------------------------------------------------------------
+        // GET /api/shaders — all shader definitions
+        // -----------------------------------------------------------------
+        if (req.method === "GET" && url.startsWith("/api/shaders")) {
+          if (!cachedState) { noStateResponse(res); return; }
+
+          const shaderState = cachedState["shaders"] as Record<string, unknown> | undefined;
+          const shaders = (shaderState?.["shaders"] ?? []) as Array<Record<string, unknown>>;
+
+          res.writeHead(200, corsHeaders);
+          res.end(JSON.stringify({
+            ok: true,
+            lastPushAt,
+            data: { shaders },
+          }));
+          return;
+        }
+
         next();
       });
     },
@@ -895,9 +913,9 @@ interface SceneCommand {
   /** Unique command ID. */
   id: string;
   /** The mutation action. */
-  action: "add" | "remove" | "update";
+  action: "add" | "remove" | "update" | "set-uniform";
   /** Which store / entity type this command targets. */
-  type: "entity" | "choreography" | "binding" | "wire" | "source";
+  type: "entity" | "choreography" | "binding" | "wire" | "source" | "shader";
   /** Payload data — shape depends on action + type. */
   data: Record<string, unknown>;
   /** Timestamp when the command was queued. */
@@ -953,10 +971,10 @@ function commandQueuePlugin() {
         const method = req.method ?? "GET";
 
         // OPTIONS preflight for /api/ write endpoints
-        if (method === "OPTIONS" && (url.startsWith("/api/scene/entities") || url.startsWith("/api/choreographies") || url.startsWith("/api/bindings") || url.startsWith("/api/wiring") || url.startsWith("/api/signals/sources") || url.startsWith("/api/commands/"))) {
+        if (method === "OPTIONS" && (url.startsWith("/api/scene/entities") || url.startsWith("/api/choreographies") || url.startsWith("/api/bindings") || url.startsWith("/api/wiring") || url.startsWith("/api/signals/sources") || url.startsWith("/api/shaders") || url.startsWith("/api/commands/"))) {
           res.writeHead(204, {
             "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
             "Access-Control-Allow-Headers": "Content-Type",
             "Access-Control-Max-Age": "86400",
           });
@@ -1060,6 +1078,64 @@ function commandQueuePlugin() {
               return;
             }
             const cmd = enqueue(action as SceneCommand["action"], "source", body);
+            res.writeHead(200, corsHeaders);
+            res.end(JSON.stringify({ ok: true, commandId: cmd.id }));
+          }).catch((e) => {
+            res.writeHead(400, corsHeaders);
+            res.end(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }));
+          });
+          return;
+        }
+
+        // -----------------------------------------------------------------
+        // POST /api/shaders — create a shader
+        // -----------------------------------------------------------------
+        if (method === "POST" && url === "/api/shaders") {
+          readBody(req).then((body) => {
+            const cmd = enqueue("add", "shader", body);
+            res.writeHead(200, corsHeaders);
+            res.end(JSON.stringify({ ok: true, commandId: cmd.id }));
+          }).catch((e) => {
+            res.writeHead(400, corsHeaders);
+            res.end(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }));
+          });
+          return;
+        }
+
+        // -----------------------------------------------------------------
+        // PUT /api/shaders/:id — update a shader
+        // -----------------------------------------------------------------
+        if (method === "PUT" && url.startsWith("/api/shaders/")) {
+          const shaderId = url.slice("/api/shaders/".length).split("?")[0]!;
+          readBody(req).then((body) => {
+            const cmd = enqueue("update", "shader", { ...body, id: shaderId });
+            res.writeHead(200, corsHeaders);
+            res.end(JSON.stringify({ ok: true, commandId: cmd.id }));
+          }).catch((e) => {
+            res.writeHead(400, corsHeaders);
+            res.end(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }));
+          });
+          return;
+        }
+
+        // -----------------------------------------------------------------
+        // DELETE /api/shaders/:id — remove a shader
+        // -----------------------------------------------------------------
+        if (method === "DELETE" && url.startsWith("/api/shaders/") && !url.includes("/uniforms")) {
+          const shaderId = url.slice("/api/shaders/".length).split("?")[0]!;
+          const cmd = enqueue("remove", "shader", { id: shaderId });
+          res.writeHead(200, corsHeaders);
+          res.end(JSON.stringify({ ok: true, commandId: cmd.id }));
+          return;
+        }
+
+        // -----------------------------------------------------------------
+        // POST /api/shaders/:id/uniforms — set uniform values
+        // -----------------------------------------------------------------
+        if (method === "POST" && url.includes("/uniforms") && url.startsWith("/api/shaders/")) {
+          const shaderId = url.slice("/api/shaders/".length).split("/uniforms")[0]!;
+          readBody(req).then((body) => {
+            const cmd = enqueue("set-uniform", "shader", { ...body, id: shaderId });
             res.writeHead(200, corsHeaders);
             res.end(JSON.stringify({ ok: true, commandId: cmd.id }));
           }).catch((e) => {

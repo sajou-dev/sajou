@@ -22,6 +22,12 @@ import * as createBindingTool from "./tools/create-binding.js";
 import * as createWireTool from "./tools/create-wire.js";
 import * as removeItemTool from "./tools/remove-item.js";
 
+// Shader tools
+import * as createShaderTool from "./tools/create-shader.js";
+import * as updateShaderTool from "./tools/update-shader.js";
+import * as getShadersTool from "./tools/get-shaders.js";
+import * as setUniformTool from "./tools/set-uniform.js";
+
 /**
  * Create and configure the sajou MCP server with all tools registered.
  */
@@ -140,6 +146,44 @@ export function createServer(): McpServer {
       inputSchema: removeItemTool.inputSchema,
     },
     removeItemTool.handler,
+  );
+
+  // --- Shader tools ---
+
+  server.registerTool(
+    createShaderTool.name,
+    {
+      description: createShaderTool.description,
+      inputSchema: createShaderTool.inputSchema,
+    },
+    createShaderTool.handler,
+  );
+
+  server.registerTool(
+    updateShaderTool.name,
+    {
+      description: updateShaderTool.description,
+      inputSchema: updateShaderTool.inputSchema,
+    },
+    updateShaderTool.handler,
+  );
+
+  server.registerTool(
+    getShadersTool.name,
+    {
+      description: getShadersTool.description,
+      inputSchema: getShadersTool.inputSchema,
+    },
+    getShadersTool.handler,
+  );
+
+  server.registerTool(
+    setUniformTool.name,
+    {
+      description: setUniformTool.description,
+      inputSchema: setUniformTool.inputSchema,
+    },
+    setUniformTool.handler,
   );
 
   return server;

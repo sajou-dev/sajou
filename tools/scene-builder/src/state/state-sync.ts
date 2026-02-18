@@ -13,6 +13,7 @@ import { getWiringState, subscribeWiring } from "./wiring-state.js";
 import { getBindingState, subscribeBindings } from "./binding-store.js";
 import { getSignalSourcesState, subscribeSignalSources } from "./signal-source-state.js";
 import { getEditorState, subscribeEditor } from "./editor-state.js";
+import { getShaderState, subscribeShaders } from "../shader-editor/shader-state.js";
 
 /** Debounce interval in milliseconds. */
 const DEBOUNCE_MS = 300;
@@ -29,6 +30,7 @@ function collectSnapshot(): Record<string, unknown> {
     bindings: getBindingState(),
     signalSources: getSignalSourcesState(),
     editor: getEditorState(),
+    shaders: getShaderState(),
   };
 }
 
@@ -70,6 +72,7 @@ export function initStateSync(): void {
   subscribeBindings(schedulePush);
   subscribeSignalSources(schedulePush);
   subscribeEditor(schedulePush);
+  subscribeShaders(schedulePush);
 
   // Immediate push on init so server has state right away
   pushState();
