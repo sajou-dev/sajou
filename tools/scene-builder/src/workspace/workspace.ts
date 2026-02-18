@@ -11,6 +11,7 @@ import { initCanvasDropHandler } from "../canvas/canvas-drop-handler.js";
 import { initToolbarPanel } from "./toolbar.js";
 import { initHeader } from "./header.js";
 import { restoreState, initAutoSave } from "../state/persistence.js";
+import { initStateSync } from "../state/state-sync.js";
 import { initHelpBar } from "./help-bar.js";
 import { initUndoManager } from "../state/undo.js";
 import {
@@ -224,4 +225,7 @@ export async function initWorkspace(): Promise<void> {
 
   // Start auto-saving state changes AFTER all views and stores are initialized.
   initAutoSave();
+
+  // Start pushing state to the dev server for external tools (MCP server, CLI).
+  initStateSync();
 }

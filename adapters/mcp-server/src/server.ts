@@ -13,6 +13,7 @@ import * as getChoreographiesTool from "./tools/get-choreographies.js";
 import * as listThemesTool from "./tools/list-themes.js";
 import * as getCatalogTool from "./tools/get-catalog.js";
 import * as mapSignalsTool from "./tools/map-signals.js";
+import * as describeSceneTool from "./tools/describe-scene.js";
 
 /**
  * Create and configure the sajou MCP server with all tools registered.
@@ -76,6 +77,15 @@ export function createServer(): McpServer {
       inputSchema: mapSignalsTool.inputSchema,
     },
     mapSignalsTool.handler,
+  );
+
+  server.registerTool(
+    describeSceneTool.name,
+    {
+      description: describeSceneTool.description,
+      inputSchema: describeSceneTool.inputSchema,
+    },
+    describeSceneTool.handler,
   );
 
   return server;

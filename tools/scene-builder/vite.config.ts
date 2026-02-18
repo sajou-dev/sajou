@@ -633,9 +633,252 @@ function localDiscoveryPlugin() {
   };
 }
 
+// ---------------------------------------------------------------------------
+// State sync plugin — client pushes state, server caches & serves via REST
+// ---------------------------------------------------------------------------
+
+/**
+ * State sync plugin — bridges client-side SPA state to REST endpoints.
+ *
+ * The scene-builder state lives in the browser (module-level stores).
+ * This plugin provides a push/pull mechanism so external tools (MCP server,
+ * CLI) can query the current state via simple HTTP GET requests.
+ *
+ * Routes:
+ * - `POST /api/state/push`      — client pushes a snapshot of all state stores
+ * - `GET  /api/scene/state`     — entities, positions, routes, dimensions, mode
+ * - `GET  /api/choreographies`  — all choreography definitions + wiring info
+ * - `GET  /api/bindings`        — all entity bindings
+ * - `GET  /api/signals/sources` — connected signal sources
+ * - `GET  /api/wiring`          — all wire connections
+ */
+function stateSyncPlugin() {
+  /** Cached state snapshot pushed by the client. */
+  let cachedState: Record<string, unknown> | null = null;
+  /** Timestamp of last push. */
+  let lastPushAt: number | null = null;
+
+  /** CORS headers for all GET endpoints. */
+  const corsHeaders: Record<string, string> = {
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Origin": "*",
+  };
+
+  /** Return a JSON error when no state has been pushed yet. */
+  function noStateResponse(res: ServerResponse): void {
+    res.writeHead(200, corsHeaders);
+    res.end(JSON.stringify({
+      ok: false,
+      error: "No state available. The scene-builder client has not pushed state yet. Open the scene-builder UI and it will sync automatically.",
+      data: null,
+    }));
+  }
+
+  return {
+    name: "state-sync",
+    configureServer(server: { middlewares: { use: (fn: (req: IncomingMessage, res: ServerResponse, next: () => void) => void) => void } }) {
+      server.middlewares.use((req, res, next) => {
+        const url = req.url ?? "";
+
+        // OPTIONS preflight for /api/ endpoints
+        if (req.method === "OPTIONS" && (url.startsWith("/api/scene/") || url.startsWith("/api/choreographies") || url.startsWith("/api/bindings") || url.startsWith("/api/signals/") || url.startsWith("/api/wiring") || url.startsWith("/api/state/"))) {
+          res.writeHead(204, {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type",
+            "Access-Control-Max-Age": "86400",
+          });
+          res.end();
+          return;
+        }
+
+        // -----------------------------------------------------------------
+        // POST /api/state/push — client pushes full state snapshot
+        // -----------------------------------------------------------------
+        if (req.method === "POST" && url.startsWith("/api/state/push")) {
+          const bodyChunks: Buffer[] = [];
+          req.on("data", (chunk: Buffer) => bodyChunks.push(chunk));
+          req.on("end", () => {
+            try {
+              const raw = Buffer.concat(bodyChunks).toString("utf-8");
+              cachedState = JSON.parse(raw) as Record<string, unknown>;
+              lastPushAt = Date.now();
+
+              res.writeHead(200, corsHeaders);
+              res.end(JSON.stringify({ ok: true, receivedAt: lastPushAt }));
+            } catch (e) {
+              res.writeHead(400, corsHeaders);
+              res.end(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }));
+            }
+          });
+          return;
+        }
+
+        // -----------------------------------------------------------------
+        // GET /api/scene/state — scene entities, positions, dimensions, mode
+        // -----------------------------------------------------------------
+        if (req.method === "GET" && url.startsWith("/api/scene/state")) {
+          if (!cachedState) { noStateResponse(res); return; }
+
+          const scene = cachedState["scene"] as Record<string, unknown> | undefined;
+          const editor = cachedState["editor"] as Record<string, unknown> | undefined;
+
+          res.writeHead(200, corsHeaders);
+          res.end(JSON.stringify({
+            ok: true,
+            lastPushAt,
+            data: {
+              dimensions: scene?.["dimensions"] ?? null,
+              background: scene?.["background"] ?? null,
+              layers: scene?.["layers"] ?? [],
+              entities: scene?.["entities"] ?? [],
+              positions: scene?.["positions"] ?? [],
+              routes: scene?.["routes"] ?? [],
+              zoneTypes: scene?.["zoneTypes"] ?? [],
+              lighting: scene?.["lighting"] ?? null,
+              particles: scene?.["particles"] ?? [],
+              mode: editor?.["activeTool"] ?? null,
+              viewMode: editor?.["viewMode"] ?? null,
+            },
+          }));
+          return;
+        }
+
+        // -----------------------------------------------------------------
+        // GET /api/choreographies — all choreography definitions + wiring
+        // -----------------------------------------------------------------
+        if (req.method === "GET" && url.startsWith("/api/choreographies")) {
+          if (!cachedState) { noStateResponse(res); return; }
+
+          const choreoState = cachedState["choreographies"] as Record<string, unknown> | undefined;
+          const choreographies = (choreoState?.["choreographies"] ?? []) as Array<Record<string, unknown>>;
+          const wires = ((cachedState["wiring"] as Record<string, unknown> | undefined)?.["wires"] ?? []) as Array<Record<string, unknown>>;
+
+          // Enrich each choreography with wiring info
+          const enriched = choreographies.map((c) => {
+            const id = c["id"] as string;
+            // Find signal-type → choreographer wires targeting this choreo
+            const incomingWires = wires.filter(
+              (w) => w["toZone"] === "choreographer" && w["toId"] === id && w["fromZone"] === "signal-type",
+            );
+            const wiredSignalTypes = incomingWires.map((w) => w["fromId"] as string);
+
+            // Find signal → signal-type wires to resolve sources
+            const sourceWires = wires.filter((w) => w["fromZone"] === "signal" && w["toZone"] === "signal-type");
+            const sources: Array<{ sourceId: string; signalType: string }> = [];
+            for (const signalType of wiredSignalTypes) {
+              const sw = sourceWires.filter((w) => w["toId"] === signalType);
+              for (const w of sw) {
+                sources.push({ sourceId: w["fromId"] as string, signalType });
+              }
+            }
+
+            const steps = (c["steps"] ?? []) as Array<Record<string, unknown>>;
+
+            return {
+              id,
+              on: c["on"],
+              when: c["when"] ?? null,
+              interrupts: c["interrupts"] ?? false,
+              defaultTargetEntityId: c["defaultTargetEntityId"] ?? null,
+              stepCount: steps.length,
+              stepTypes: steps.map((s) => s["action"] as string),
+              wiredSignalTypes,
+              sources,
+            };
+          });
+
+          res.writeHead(200, corsHeaders);
+          res.end(JSON.stringify({
+            ok: true,
+            lastPushAt,
+            data: { choreographies: enriched },
+          }));
+          return;
+        }
+
+        // -----------------------------------------------------------------
+        // GET /api/bindings — all entity bindings
+        // -----------------------------------------------------------------
+        if (req.method === "GET" && url.startsWith("/api/bindings")) {
+          if (!cachedState) { noStateResponse(res); return; }
+
+          const bindingState = cachedState["bindings"] as Record<string, unknown> | undefined;
+          const bindings = (bindingState?.["bindings"] ?? []) as Array<Record<string, unknown>>;
+
+          res.writeHead(200, corsHeaders);
+          res.end(JSON.stringify({
+            ok: true,
+            lastPushAt,
+            data: { bindings },
+          }));
+          return;
+        }
+
+        // -----------------------------------------------------------------
+        // GET /api/signals/sources — connected signal sources
+        // -----------------------------------------------------------------
+        if (req.method === "GET" && url.startsWith("/api/signals/sources")) {
+          if (!cachedState) { noStateResponse(res); return; }
+
+          const sourcesState = cachedState["signalSources"] as Record<string, unknown> | undefined;
+          const sources = ((sourcesState?.["sources"] ?? []) as Array<Record<string, unknown>>).map((s) => ({
+            id: s["id"],
+            name: s["name"],
+            protocol: s["protocol"],
+            url: s["url"],
+            status: s["status"],
+            error: s["error"] ?? null,
+            category: s["category"],
+            eventsPerSecond: s["eventsPerSecond"] ?? 0,
+            streaming: s["streaming"] ?? false,
+          }));
+
+          res.writeHead(200, corsHeaders);
+          res.end(JSON.stringify({
+            ok: true,
+            lastPushAt,
+            data: { sources },
+          }));
+          return;
+        }
+
+        // -----------------------------------------------------------------
+        // GET /api/wiring — all wire connections
+        // -----------------------------------------------------------------
+        if (req.method === "GET" && url.startsWith("/api/wiring")) {
+          if (!cachedState) { noStateResponse(res); return; }
+
+          const wiringState = cachedState["wiring"] as Record<string, unknown> | undefined;
+          const wires = (wiringState?.["wires"] ?? []) as Array<Record<string, unknown>>;
+
+          res.writeHead(200, corsHeaders);
+          res.end(JSON.stringify({
+            ok: true,
+            lastPushAt,
+            data: {
+              wires: wires.map((w) => ({
+                id: w["id"],
+                fromZone: w["fromZone"],
+                fromId: w["fromId"],
+                toZone: w["toZone"],
+                toId: w["toId"],
+                mapping: w["mapping"] ?? null,
+              })),
+            },
+          }));
+          return;
+        }
+
+        next();
+      });
+    },
+  };
+}
+
 export default defineConfig({
   root: ".",
-  plugins: [corsProxyPlugin(), signalIngestionPlugin(), tapHookPlugin(), openclawTokenPlugin(), localDiscoveryPlugin()],
+  plugins: [corsProxyPlugin(), signalIngestionPlugin(), tapHookPlugin(), openclawTokenPlugin(), localDiscoveryPlugin(), stateSyncPlugin()],
   server: {
     host: "0.0.0.0",
     port: 5175,
