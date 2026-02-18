@@ -93,7 +93,7 @@ export default defineConfig({
     },
 
     socialLinks: [
-      { icon: "github", link: "https://github.com/synoul415/sajou" },
+      { icon: "github", link: "https://github.com/sajou-dev/sajou" },
     ],
 
     search: {
