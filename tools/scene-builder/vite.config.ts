@@ -680,8 +680,8 @@ function stateSyncPlugin() {
       server.middlewares.use((req, res, next) => {
         const url = req.url ?? "";
 
-        // OPTIONS preflight for /api/ endpoints
-        if (req.method === "OPTIONS" && (url.startsWith("/api/scene/") || url.startsWith("/api/choreographies") || url.startsWith("/api/bindings") || url.startsWith("/api/signals/") || url.startsWith("/api/wiring") || url.startsWith("/api/state/"))) {
+        // OPTIONS preflight for /api/ endpoints (state-sync read + push)
+        if (req.method === "OPTIONS" && (url.startsWith("/api/scene/state") || url.startsWith("/api/state/"))) {
           res.writeHead(204, {
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
@@ -876,9 +876,250 @@ function stateSyncPlugin() {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Command queue plugin — server→client write commands for MCP scene composition
+// ---------------------------------------------------------------------------
+
+/**
+ * A queued command from the MCP server that the client must execute.
+ *
+ * The flow:
+ * 1. MCP tool → bridge → POST /api/scene/entities (etc.)
+ * 2. Server plugin queues a SceneCommand
+ * 3. Client polls GET /api/commands/pending → receives pending commands
+ * 4. Client executes each command against the local stores
+ * 5. Client ACKs via POST /api/commands/ack
+ * 6. State-sync pushes the updated state back to the server
+ */
+interface SceneCommand {
+  /** Unique command ID. */
+  id: string;
+  /** The mutation action. */
+  action: "add" | "remove" | "update";
+  /** Which store / entity type this command targets. */
+  type: "entity" | "choreography" | "binding" | "wire" | "source";
+  /** Payload data — shape depends on action + type. */
+  data: Record<string, unknown>;
+  /** Timestamp when the command was queued. */
+  queuedAt: number;
+}
+
+function commandQueuePlugin() {
+  /** Pending commands waiting for client consumption. */
+  const pending: SceneCommand[] = [];
+  /** Set of command IDs that have been acknowledged. */
+  const acknowledged = new Set<string>();
+
+  /** CORS headers for all endpoints. */
+  const corsHeaders: Record<string, string> = {
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Origin": "*",
+  };
+
+  /** Read and parse a JSON body from a request. */
+  function readBody(req: IncomingMessage): Promise<Record<string, unknown>> {
+    return new Promise((resolve, reject) => {
+      const chunks: Buffer[] = [];
+      req.on("data", (chunk: Buffer) => chunks.push(chunk));
+      req.on("end", () => {
+        try {
+          resolve(JSON.parse(Buffer.concat(chunks).toString("utf-8")) as Record<string, unknown>);
+        } catch (e) {
+          reject(e);
+        }
+      });
+      req.on("error", reject);
+    });
+  }
+
+  /** Enqueue a command and return it (with generated ID). */
+  function enqueue(action: SceneCommand["action"], type: SceneCommand["type"], data: Record<string, unknown>): SceneCommand {
+    const cmd: SceneCommand = {
+      id: crypto.randomUUID(),
+      action,
+      type,
+      data,
+      queuedAt: Date.now(),
+    };
+    pending.push(cmd);
+    return cmd;
+  }
+
+  return {
+    name: "command-queue",
+    configureServer(server: { middlewares: { use: (fn: (req: IncomingMessage, res: ServerResponse, next: () => void) => void) => void } }) {
+      server.middlewares.use((req, res, next) => {
+        const url = req.url ?? "";
+        const method = req.method ?? "GET";
+
+        // OPTIONS preflight for /api/ write endpoints
+        if (method === "OPTIONS" && (url.startsWith("/api/scene/entities") || url.startsWith("/api/choreographies") || url.startsWith("/api/bindings") || url.startsWith("/api/wiring") || url.startsWith("/api/signals/sources") || url.startsWith("/api/commands/"))) {
+          res.writeHead(204, {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type",
+            "Access-Control-Max-Age": "86400",
+          });
+          res.end();
+          return;
+        }
+
+        // -----------------------------------------------------------------
+        // POST /api/scene/entities — place/remove/update an entity
+        // -----------------------------------------------------------------
+        if (method === "POST" && url.startsWith("/api/scene/entities")) {
+          readBody(req).then((body) => {
+            const action = (body["action"] as string) ?? "add";
+            if (action !== "add" && action !== "remove" && action !== "update") {
+              res.writeHead(400, corsHeaders);
+              res.end(JSON.stringify({ ok: false, error: "Invalid action. Expected 'add', 'remove', or 'update'." }));
+              return;
+            }
+            const cmd = enqueue(action as SceneCommand["action"], "entity", body);
+            res.writeHead(200, corsHeaders);
+            res.end(JSON.stringify({ ok: true, commandId: cmd.id }));
+          }).catch((e) => {
+            res.writeHead(400, corsHeaders);
+            res.end(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }));
+          });
+          return;
+        }
+
+        // -----------------------------------------------------------------
+        // POST /api/choreographies — create/remove/update a choreography
+        // -----------------------------------------------------------------
+        if (method === "POST" && url.startsWith("/api/choreographies")) {
+          readBody(req).then((body) => {
+            const action = (body["action"] as string) ?? "add";
+            if (action !== "add" && action !== "remove" && action !== "update") {
+              res.writeHead(400, corsHeaders);
+              res.end(JSON.stringify({ ok: false, error: "Invalid action. Expected 'add', 'remove', or 'update'." }));
+              return;
+            }
+            const cmd = enqueue(action as SceneCommand["action"], "choreography", body);
+            res.writeHead(200, corsHeaders);
+            res.end(JSON.stringify({ ok: true, commandId: cmd.id }));
+          }).catch((e) => {
+            res.writeHead(400, corsHeaders);
+            res.end(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }));
+          });
+          return;
+        }
+
+        // -----------------------------------------------------------------
+        // POST /api/bindings — create/remove a binding
+        // -----------------------------------------------------------------
+        if (method === "POST" && url.startsWith("/api/bindings")) {
+          readBody(req).then((body) => {
+            const action = (body["action"] as string) ?? "add";
+            if (action !== "add" && action !== "remove") {
+              res.writeHead(400, corsHeaders);
+              res.end(JSON.stringify({ ok: false, error: "Invalid action. Expected 'add' or 'remove'." }));
+              return;
+            }
+            const cmd = enqueue(action as SceneCommand["action"], "binding", body);
+            res.writeHead(200, corsHeaders);
+            res.end(JSON.stringify({ ok: true, commandId: cmd.id }));
+          }).catch((e) => {
+            res.writeHead(400, corsHeaders);
+            res.end(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }));
+          });
+          return;
+        }
+
+        // -----------------------------------------------------------------
+        // POST /api/wiring — create/remove a wire
+        // -----------------------------------------------------------------
+        if (method === "POST" && url.startsWith("/api/wiring")) {
+          readBody(req).then((body) => {
+            const action = (body["action"] as string) ?? "add";
+            if (action !== "add" && action !== "remove") {
+              res.writeHead(400, corsHeaders);
+              res.end(JSON.stringify({ ok: false, error: "Invalid action. Expected 'add' or 'remove'." }));
+              return;
+            }
+            const cmd = enqueue(action as SceneCommand["action"], "wire", body);
+            res.writeHead(200, corsHeaders);
+            res.end(JSON.stringify({ ok: true, commandId: cmd.id }));
+          }).catch((e) => {
+            res.writeHead(400, corsHeaders);
+            res.end(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }));
+          });
+          return;
+        }
+
+        // -----------------------------------------------------------------
+        // POST /api/signals/sources — add/remove a signal source
+        // -----------------------------------------------------------------
+        if (method === "POST" && url.startsWith("/api/signals/sources")) {
+          readBody(req).then((body) => {
+            const action = (body["action"] as string) ?? "add";
+            if (action !== "add" && action !== "remove") {
+              res.writeHead(400, corsHeaders);
+              res.end(JSON.stringify({ ok: false, error: "Invalid action. Expected 'add' or 'remove'." }));
+              return;
+            }
+            const cmd = enqueue(action as SceneCommand["action"], "source", body);
+            res.writeHead(200, corsHeaders);
+            res.end(JSON.stringify({ ok: true, commandId: cmd.id }));
+          }).catch((e) => {
+            res.writeHead(400, corsHeaders);
+            res.end(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }));
+          });
+          return;
+        }
+
+        // -----------------------------------------------------------------
+        // GET /api/commands/pending — client polls for queued commands
+        // -----------------------------------------------------------------
+        if (method === "GET" && url.startsWith("/api/commands/pending")) {
+          // Return commands not yet acknowledged
+          const cmds = pending.filter((c) => !acknowledged.has(c.id));
+          res.writeHead(200, corsHeaders);
+          res.end(JSON.stringify({ ok: true, commands: cmds }));
+          return;
+        }
+
+        // -----------------------------------------------------------------
+        // POST /api/commands/ack — client acknowledges processed commands
+        // -----------------------------------------------------------------
+        if (method === "POST" && url.startsWith("/api/commands/ack")) {
+          readBody(req).then((body) => {
+            const ids = body["ids"] as string[] | undefined;
+            if (!Array.isArray(ids)) {
+              res.writeHead(400, corsHeaders);
+              res.end(JSON.stringify({ ok: false, error: "Expected { ids: string[] }" }));
+              return;
+            }
+            for (const id of ids) {
+              acknowledged.add(id);
+            }
+            // Prune fully acknowledged commands from the pending list
+            const before = pending.length;
+            for (let i = pending.length - 1; i >= 0; i--) {
+              if (acknowledged.has(pending[i]!.id)) {
+                acknowledged.delete(pending[i]!.id);
+                pending.splice(i, 1);
+              }
+            }
+            res.writeHead(200, corsHeaders);
+            res.end(JSON.stringify({ ok: true, pruned: before - pending.length }));
+          }).catch((e) => {
+            res.writeHead(400, corsHeaders);
+            res.end(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }));
+          });
+          return;
+        }
+
+        next();
+      });
+    },
+  };
+}
+
 export default defineConfig({
   root: ".",
-  plugins: [corsProxyPlugin(), signalIngestionPlugin(), tapHookPlugin(), openclawTokenPlugin(), localDiscoveryPlugin(), stateSyncPlugin()],
+  plugins: [corsProxyPlugin(), signalIngestionPlugin(), tapHookPlugin(), openclawTokenPlugin(), localDiscoveryPlugin(), stateSyncPlugin(), commandQueuePlugin()],
   server: {
     host: "0.0.0.0",
     port: 5175,

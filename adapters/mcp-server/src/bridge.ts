@@ -283,3 +283,173 @@ export async function ping(): Promise<boolean> {
     return false;
   }
 }
+
+// ---------------------------------------------------------------------------
+// Write operations — queue commands for the client to execute
+// ---------------------------------------------------------------------------
+
+/** Response from a write command endpoint. */
+export interface WriteCommandResponse {
+  readonly ok: boolean;
+  readonly commandId?: string;
+  readonly error?: string;
+}
+
+/**
+ * Send a write command to the scene-builder via a POST endpoint.
+ * The command is queued on the Vite dev server; the client picks it up via polling.
+ */
+async function sendCommand(
+  path: string,
+  body: Record<string, unknown>,
+): Promise<WriteCommandResponse> {
+  const url = `${getBaseUrl()}${path}`;
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(5000),
+  });
+  return (await resp.json()) as WriteCommandResponse;
+}
+
+/**
+ * Place an entity on the scene.
+ *
+ * The entity will be added to the client's scene state via the command queue.
+ * Returns the generated instance ID.
+ */
+export async function placeEntity(data: {
+  readonly entityId: string;
+  readonly x: number;
+  readonly y: number;
+  readonly semanticId?: string;
+  readonly layerId?: string;
+  readonly scale?: number;
+  readonly rotation?: number;
+  readonly zIndex?: number;
+  readonly activeState?: string;
+}): Promise<WriteCommandResponse & { readonly instanceId: string }> {
+  const instanceId = crypto.randomUUID();
+  const result = await sendCommand("/api/scene/entities", {
+    action: "add",
+    id: instanceId,
+    ...data,
+  });
+  return { ...result, instanceId };
+}
+
+/**
+ * Remove an entity from the scene by its instance ID.
+ */
+export async function removeEntity(id: string): Promise<WriteCommandResponse> {
+  return sendCommand("/api/scene/entities", { action: "remove", id });
+}
+
+/**
+ * Create a choreography with steps.
+ *
+ * Returns the generated choreography ID.
+ */
+export async function createChoreography(data: {
+  readonly on: string;
+  readonly steps: ReadonlyArray<{
+    readonly action: string;
+    readonly entity?: string;
+    readonly target?: string;
+    readonly delay?: number;
+    readonly duration?: number;
+    readonly easing?: string;
+    readonly params?: Record<string, unknown>;
+  }>;
+  readonly defaultTargetEntityId?: string;
+  readonly when?: Record<string, unknown>;
+  readonly interrupts?: boolean;
+}): Promise<WriteCommandResponse & { readonly choreographyId: string }> {
+  const choreographyId = crypto.randomUUID();
+  const result = await sendCommand("/api/choreographies", {
+    action: "add",
+    id: choreographyId,
+    ...data,
+  });
+  return { ...result, choreographyId };
+}
+
+/**
+ * Remove a choreography by ID. Also cleans up connected wires.
+ */
+export async function removeChoreography(id: string): Promise<WriteCommandResponse> {
+  return sendCommand("/api/choreographies", { action: "remove", id });
+}
+
+/**
+ * Create an entity binding (choreography → entity property).
+ *
+ * Returns the command ID. The binding ID is generated client-side.
+ */
+export async function createBinding(data: {
+  readonly targetEntityId: string;
+  readonly property: string;
+  readonly sourceChoreographyId: string;
+  readonly sourceType?: string;
+  readonly mapping?: Record<string, unknown>;
+  readonly action?: Record<string, unknown>;
+  readonly sourceField?: string;
+  readonly transition?: Record<string, unknown>;
+}): Promise<WriteCommandResponse> {
+  return sendCommand("/api/bindings", {
+    action: "add",
+    ...data,
+  });
+}
+
+/**
+ * Remove a binding by ID.
+ */
+export async function removeBinding(id: string): Promise<WriteCommandResponse> {
+  return sendCommand("/api/bindings", { action: "remove", id });
+}
+
+/**
+ * Create a wire connection between two zones in the patch bay.
+ *
+ * Returns the command ID. The wire ID is generated client-side.
+ */
+export async function createWire(data: {
+  readonly fromZone: string;
+  readonly fromId: string;
+  readonly toZone: string;
+  readonly toId: string;
+}): Promise<WriteCommandResponse> {
+  return sendCommand("/api/wiring", {
+    action: "add",
+    ...data,
+  });
+}
+
+/**
+ * Remove a wire connection by ID.
+ */
+export async function removeWire(id: string): Promise<WriteCommandResponse> {
+  return sendCommand("/api/wiring", { action: "remove", id });
+}
+
+/**
+ * Add a signal source. Returns the command ID.
+ * The source ID is generated client-side.
+ */
+export async function addSignalSource(data: {
+  readonly name?: string;
+}): Promise<WriteCommandResponse> {
+  return sendCommand("/api/signals/sources", {
+    action: "add",
+    ...data,
+  });
+}
+
+/**
+ * Remove a signal source by ID.
+ */
+export async function removeSignalSource(id: string): Promise<WriteCommandResponse> {
+  return sendCommand("/api/signals/sources", { action: "remove", id });
+}

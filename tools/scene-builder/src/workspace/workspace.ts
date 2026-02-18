@@ -12,6 +12,7 @@ import { initToolbarPanel } from "./toolbar.js";
 import { initHeader } from "./header.js";
 import { restoreState, initAutoSave } from "../state/persistence.js";
 import { initStateSync } from "../state/state-sync.js";
+import { initCommandConsumer } from "../state/command-consumer.js";
 import { initHelpBar } from "./help-bar.js";
 import { initUndoManager } from "../state/undo.js";
 import {
@@ -228,4 +229,7 @@ export async function initWorkspace(): Promise<void> {
 
   // Start pushing state to the dev server for external tools (MCP server, CLI).
   initStateSync();
+
+  // Start polling for write commands from external tools (MCP server, CLI).
+  initCommandConsumer();
 }

@@ -15,6 +15,13 @@ import * as getCatalogTool from "./tools/get-catalog.js";
 import * as mapSignalsTool from "./tools/map-signals.js";
 import * as describeSceneTool from "./tools/describe-scene.js";
 
+// Write tools — scene composition
+import * as placeEntityTool from "./tools/place-entity.js";
+import * as createChoreographyTool from "./tools/create-choreography.js";
+import * as createBindingTool from "./tools/create-binding.js";
+import * as createWireTool from "./tools/create-wire.js";
+import * as removeItemTool from "./tools/remove-item.js";
+
 /**
  * Create and configure the sajou MCP server with all tools registered.
  */
@@ -86,6 +93,53 @@ export function createServer(): McpServer {
       inputSchema: describeSceneTool.inputSchema,
     },
     describeSceneTool.handler,
+  );
+
+  // --- Write tools ---
+
+  server.registerTool(
+    placeEntityTool.name,
+    {
+      description: placeEntityTool.description,
+      inputSchema: placeEntityTool.inputSchema,
+    },
+    placeEntityTool.handler,
+  );
+
+  server.registerTool(
+    createChoreographyTool.name,
+    {
+      description: createChoreographyTool.description,
+      inputSchema: createChoreographyTool.inputSchema,
+    },
+    createChoreographyTool.handler,
+  );
+
+  server.registerTool(
+    createBindingTool.name,
+    {
+      description: createBindingTool.description,
+      inputSchema: createBindingTool.inputSchema,
+    },
+    createBindingTool.handler,
+  );
+
+  server.registerTool(
+    createWireTool.name,
+    {
+      description: createWireTool.description,
+      inputSchema: createWireTool.inputSchema,
+    },
+    createWireTool.handler,
+  );
+
+  server.registerTool(
+    removeItemTool.name,
+    {
+      description: removeItemTool.description,
+      inputSchema: removeItemTool.inputSchema,
+    },
+    removeItemTool.handler,
   );
 
   return server;
