@@ -32,6 +32,7 @@ import {
   removeStepCmd,
 } from "./step-commands.js";
 import { attachPillDragBehavior, isStepDragSuppressed, DRAGGABLE_ACTIONS } from "../workspace/step-drag.js";
+import { renderFilterCShape } from "./filter-block.js";
 
 // ---------------------------------------------------------------------------
 // Action icons
@@ -99,31 +100,14 @@ export function renderStepChain(
   // Prevent rack drag when interacting with the chain
   chain.addEventListener("mousedown", (e) => e.stopPropagation());
 
-  const { selectedStepId } = getChoreographyState();
-  const hasSteps = choreo.steps.length > 0;
-  const hatIsTail = choreo.collapsed || !hasSteps;
+  const hatIsTail = choreo.collapsed;
 
   // ── Hat block: "when <signal_type>" — always first ──
   chain.appendChild(renderHatBlock(choreo, hatIsTail));
 
-  // ── Action blocks + drop zone (only when expanded) ──
+  // ── C-shape filter containing action blocks + drop zone (only when expanded) ──
   if (!choreo.collapsed) {
-    for (let i = 0; i < choreo.steps.length; i++) {
-      const step = choreo.steps[i]!;
-      const isTail = i === choreo.steps.length - 1;
-      const block = renderBlock(
-        step, step.id === selectedStepId, callbacks.onStepClick,
-        choreo.id, isTail,
-      );
-      chain.appendChild(block);
-    }
-
-    // Drop zone hint
-    const dropHint = document.createElement("div");
-    dropHint.className = "nc-chain-drop-hint";
-    dropHint.textContent = hasSteps ? "+" : "drop actions here";
-    dropHint.title = "Drag an action from the palette";
-    chain.appendChild(dropHint);
+    chain.appendChild(renderFilterCShape(choreo, callbacks, renderBlock));
   }
 
   return chain;
@@ -149,10 +133,10 @@ function renderHatBlock(choreo: ChoreographyDef, isTail: boolean): HTMLElement {
   icon.textContent = "\u25B8"; // ▸
   block.appendChild(icon);
 
-  // "when" keyword
+  // "on" keyword (trigger — distinct from "filter" which handles conditions)
   const kw = document.createElement("span");
   kw.className = "nc-block-action";
-  kw.textContent = "when";
+  kw.textContent = "on";
   block.appendChild(kw);
 
   // Signal type dropdown
@@ -173,16 +157,6 @@ function renderHatBlock(choreo: ChoreographyDef, isTail: boolean): HTMLElement {
   // Wire endpoint data attributes for wiring overlay (source→choreo lines)
   block.dataset.wireZone = "choreographer";
   block.dataset.wireId = choreo.id;
-
-  // Filter indicator (when conditions exist)
-  if (choreo.when) {
-    const tag = document.createElement("span");
-    tag.className = "nc-inline-label";
-    tag.textContent = "\u2630"; // ☰
-    tag.title = "Has filter conditions";
-    tag.style.color = color;
-    block.appendChild(tag);
-  }
 
   // Collapsed step count
   if (choreo.collapsed) {

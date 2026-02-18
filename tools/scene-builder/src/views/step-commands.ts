@@ -91,6 +91,9 @@ export const SIGNAL_TYPE_LABELS: Record<string, string> = {
   "midi.program_change": "prog",
 };
 
+/** Color for the filter C-shape block (desaturated steel). */
+export const FILTER_BLOCK_COLOR = "#7B8794";
+
 export const ACTION_COLORS: Record<string, string> = {
   move: "#5B8DEF", spawn: "#4EC9B0", destroy: "#F44747",
   fly: "#E8A851", flash: "#C586C0", wait: "#6A9955",

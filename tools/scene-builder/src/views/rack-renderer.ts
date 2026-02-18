@@ -2,7 +2,7 @@
  * Rack renderer — renders choreographies as interlocking block chains.
  *
  * Each ChoreographyDef becomes a chain of blocks:
- *   hat (when) → action blocks → drop zone
+ *   hat (when) → [detail panel] → C-shape filter (steps + drop zone)
  *
  * No separate head/dock split — the chain IS the choreography.
  * The hat block handles trigger config + collapse/delete controls.
@@ -56,12 +56,12 @@ function renderRack(choreo: ChoreographyDef, isSelected: boolean): HTMLElement {
       // No-op — palette replaces the picker
     },
   });
-  // Insert detail panel right after the hat block (not at the bottom)
+  // Insert detail panel between hat and C-shape filter
   if (isSelected && !choreo.collapsed) {
     const detail = document.createElement("div");
     detail.className = "rack-detail";
     detail.appendChild(renderNodeDetail(choreo));
-    // Hat is always the first child; insert detail right after it
+    // Hat is children[0], C-shape is children[1]; detail goes between them
     const hatBlock = chain.children[0];
     if (hatBlock && hatBlock.nextSibling) {
       chain.insertBefore(detail, hatBlock.nextSibling);
