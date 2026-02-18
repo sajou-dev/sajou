@@ -71,6 +71,12 @@ export default defineConfig({
             { text: "Local Discovery", link: "/guide/local-discovery" },
           ],
         },
+        {
+          text: "Integration",
+          items: [
+            { text: "MCP Server", link: "/guide/mcp-server" },
+          ],
+        },
       ],
       "/reference/": [
         {

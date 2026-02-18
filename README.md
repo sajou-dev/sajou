@@ -20,6 +20,65 @@ Same data, different scene, completely different experience.
 
 Read the full vision in [SAJOU-MANIFESTO.md](./SAJOU-MANIFESTO.md)
 
+## What's new in v0.3.0
+
+### MCP Server — AI agents can compose scenes
+
+sajou now ships an [MCP server](./adapters/mcp-server/) with **16 tools** that let any MCP-compatible AI agent read, compose, and animate scenes programmatically. An agent can describe the current scene, place entities, create choreographies, wire signals, write GLSL shaders, and control uniforms — all through the standard Model Context Protocol.
+
+```json
+{
+  "mcpServers": {
+    "sajou": {
+      "command": "npx",
+      "args": ["sajou-mcp"],
+      "env": { "SAJOU_DEV_SERVER": "http://localhost:5175" }
+    }
+  }
+}
+```
+
+**Tool categories:**
+
+| Category | Tools | What they do |
+|----------|-------|------------|
+| **Read** | `describe_scene`, `get_scene_state`, `get_choreographies`, `get_shaders`, `map_signals` | Inspect scene state, entities, choreographies, shaders, wiring |
+| **Write** | `place_entity`, `create_choreography`, `create_binding`, `create_wire`, `remove_item` | Compose scenes — place entities, author choreographies, wire signals |
+| **Shader** | `create_shader`, `update_shader`, `set_uniform`, `get_shaders` | Create GLSL shaders, set uniforms in real-time |
+| **Runtime** | `emit_signal` | Trigger choreographies by emitting signals |
+
+**Example workflow** — an AI agent building a scene:
+
+```
+describe_scene          → understand what's on stage
+place_entity            → add a peon at (200, 300)
+create_choreography     → "on task_dispatch, move peon to forge"
+create_wire             → connect signal source to choreography
+create_shader           → add a glow effect with @ui uniforms
+emit_signal             → fire task_dispatch and watch it animate
+set_uniform             → tweak shader intensity in real-time
+```
+
+### Multi-instance Actor IDs
+
+Multiple entities can now share the same Actor ID. A choreography step targeting `"peon"` fans out to **all** instances — one command, many entities. The inspector shows a **×N badge** when entities share an ID. See [Shared Actor IDs](./docs/features/shared-actor-id.md).
+
+### State sync & REST API
+
+Bidirectional state sync between the browser and dev server. External tools can read and write scene state through REST endpoints:
+
+- `GET /api/scene/state` — full scene state
+- `GET /api/choreographies` — all choreographies
+- `GET /api/bindings` — all bindings
+- `GET /api/wiring` — wiring graph
+- `GET /api/signals/sources` — connected signal sources
+- `GET /api/shaders` — all shaders
+- `POST /api/commands` — push commands to the scene
+
+### MIDI binding pipeline fix
+
+`pitch_bend` field support and continuous value dispatch for smooth hardware controller integration.
+
 ## Architecture
 
 ```
@@ -56,6 +115,7 @@ sajou/
 │   ├── theme-office/      # Corporate/office theme (early prototype)
 │   └── emitter/           # Test signal emitter (WebSocket)
 ├── adapters/
+│   ├── mcp-server/        # MCP server — 16 tools for AI agent integration
 │   └── tap/               # Signal tap — hooks into Claude Code, bridges to scene-builder
 ├── tools/
 │   ├── scene-builder/     # Visual scene editor — main authoring tool (Three.js)
@@ -80,6 +140,7 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed package descriptions and c
 - **Core**: Vanilla TS, zero framework dependency — the choreographer is framework-agnostic
 - **Stage**: Three.js (WebGLRenderer + Canvas2D overlay)
 - **Signal sources**: WebSocket, SSE, OpenAI-compatible, Anthropic API, OpenClaw gateway, MIDI
+- **MCP**: Model Context Protocol server (stdio transport) for AI agent integration
 - **Code editor**: CodeMirror 6 (GLSL)
 - **Monorepo**: pnpm workspaces
 - **Build**: Vite
@@ -98,6 +159,7 @@ The scene-builder connects to multiple signal sources simultaneously:
 | **OpenClaw** | Port 18789 or "openclaw" in URL | Multi-channel agent gateway (Telegram, WhatsApp, Slack, Discord...) |
 | **MIDI** | Web MIDI API | Hardware controllers — knobs, faders, pads mapped to uniforms and parameters |
 | **Local** | Automatic | Claude Code hooks via tap adapter (`/__signals__/stream`) |
+| **MCP** | stdio | AI agents interact via MCP tools — read state, compose scenes, emit signals |
 
 Local sources (Claude Code, OpenClaw, LM Studio, Ollama) are auto-discovered at startup.
 
@@ -114,31 +176,13 @@ The main authoring tool — a visual editor for building sajou scenes.
 - **Lighting**: ambient, directional, point lights with flicker modulation
 - **Particles**: CPU-simulated emitters with color-over-life, radial/directional modes, glow
 - **State persistence**: IndexedDB + localStorage, auto-save, scene ZIP import/export
+- **Shared Actor IDs**: multiple entities can share an Actor ID for group choreography (×N badge in inspector)
 
 ## Status
 
 This is a personal project. If it turns out well, it will become public.
 
-### Changelog
-
-**v0.2.0** — Shader editor, pipeline layout, MIDI input
-- Shader editor: GLSL canvas, CodeMirror, uniforms (`@ui`/`@bind`/`@object`), presets, multi-pass ping-pong, export/import
-- GLSL auto-detect: static analysis of extractable literals with confidence scoring and Expose/Unexpose toggle
-- Pipeline layout: node-based workspace replacing the old canvas
-- Interlocking blocks choreographer: dock/rack model, sentence-blocks, drag-reorder, action palette
-- Choreo→shader wiring: bind choreography actions to shader uniforms
-- MIDI input: parser, access manager, discovery, transport, UI
-- Step drag-reorder within choreography chains
-
-**v0.1.0** — Foundation
-- Core runtime: signal bus, choreographer with tween-based timing, matcher, resolver
-- Signal protocol: 14 well-known types (9 agent + 5 user interaction), JSON envelope format
-- Three.js stage: entity manager, lighting (ambient, directional, point + flicker), particles (radial, directional, color-over-life), spritesheet animation
-- Scene-builder: dual-canvas architecture (WebGL + Canvas2D overlay), entity tools, scene export/import ZIP
-- Signal sources: WebSocket, SSE, OpenAI-compatible, Anthropic API, OpenClaw gateway
-- Local discovery: auto-detect Claude Code, OpenClaw, LM Studio, Ollama
-- Tap adapter: Claude Code hooks bridge to scene-builder
-- State persistence: IndexedDB + localStorage, auto-save/restore
+See [CHANGELOG.md](./CHANGELOG.md) for the full release history.
 
 ## Development
 
