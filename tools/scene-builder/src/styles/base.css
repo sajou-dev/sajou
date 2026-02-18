@@ -1,0 +1,82 @@
+/* ============================================================================
+ * sajou Scene Builder — Styles
+ * Ember theme, aligned with docs/brand/SAJOU-BRAND.md
+ * ============================================================================ */
+
+/* ---------------------------------------------------------------------------
+ * CSS Variables — Ember palette (brand guide source of truth)
+ * --------------------------------------------------------------------------- */
+
+:root {
+  /* Backgrounds — dark layers (bg → surface → elevated) */
+  --color-bg:        #07070C;
+  --color-surface:   #0E0E16;
+  --color-elevated:  #14141F;
+
+  /* Accent — Ember signature */
+  --color-accent:       #E8A851;
+  --color-accent-light: #F0C06A;
+  --color-accent-dim:   #A07232;
+
+  /* Text */
+  --color-text:       #E8E8F0;
+  --color-text-muted: #6E6E8A;
+  --color-text-dim:   #3A3A52;
+
+  /* Structure */
+  --color-border:       #1E1E2E;
+  --color-border-hover: #2E2E44;
+
+  /* Semantic */
+  --color-success: #4A9E6E;
+  --color-error:   #C44040;
+  --color-warning: #E8A851;
+
+  /* Selection */
+  --color-selection: #58a6ff;
+
+  /* Border radius (brand scale) */
+  --radius-sm:  4px;
+  --radius-md:  6px;
+  --radius-lg:  8px;
+  --radius-xl: 10px;
+
+  /* Shadows */
+  --shadow:    0 2px 8px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.6);
+
+  /* Fonts (brand typography stack) */
+  --font-display: "Sora", sans-serif;
+  --font-mono:    "JetBrains Mono", monospace;
+  --font-body:    "DM Sans", sans-serif;
+}
+
+/* ---------------------------------------------------------------------------
+ * Reset
+ * --------------------------------------------------------------------------- */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--color-text);
+  background: var(--color-bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
