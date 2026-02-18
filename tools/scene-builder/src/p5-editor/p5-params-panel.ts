@@ -55,10 +55,11 @@ function syncPanel(): void {
   // Merge parsed params with stored values (preserve user-set values)
   const merged = mergeParams(sketch.params, parsed);
 
-  // Check if we need to rebuild controls (param names changed)
-  const newKeys = merged.map((p) => `${p.name}:${p.type}`).join(",");
+  // Check if we need to rebuild controls (sketch changed or param names changed)
+  const newKeys = `${sketch.id}:` + merged.map((p) => `${p.name}:${p.type}`).join(",");
   if (newKeys !== cachedParamKeys) {
     cachedParamKeys = newKeys;
+    cachedParamValues = ""; // Reset so values sync after rebuild
     buildControls(merged, sketch.id);
 
     // Update sketch state with merged params
