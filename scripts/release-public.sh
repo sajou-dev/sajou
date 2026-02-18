@@ -25,8 +25,8 @@ if ! git diff --quiet || ! git diff --cached --quiet; then
   exit 1
 fi
 
-# Create temp branch
-git checkout -b _public-release
+# Create orphan branch (no history)
+git checkout --orphan _public-release
 
 # Remove internal docs from index only
 for path in "${EXCLUDE[@]}"; do
@@ -35,7 +35,7 @@ for path in "${EXCLUDE[@]}"; do
   fi
 done
 
-git commit -m "release: filtered tree for public"
+git commit -m "sajou — visual choreographer for AI agents"
 
 # Push to public remote
 git push public _public-release:main --force
