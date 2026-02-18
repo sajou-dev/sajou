@@ -70,7 +70,8 @@ Visual scene editor — the main authoring tool for creating and testing choreog
 - 3-zone workflow: Signal → Choreographer → Theme
 - Wiring system (patch bay), node canvas, step chain with popover editing
 - Zone painting for semantic regions on background
-- Export/import ZIP, run mode with live preview, binding transitions
+- Export/import ZIP (selective import dialog: choose visual layout, entities, choreographies, shaders independently), run mode with live preview, binding transitions
+- Auto-wire: on import or source connection, `signal → signal-type` wires are created automatically for connected sources × active choreography signal types
 - Signal sources split into **LOCAL** (auto-discovered) and **REMOTE** (manually added) categories
 - Local discovery: Vite plugin probes localhost for Claude Code (SSE), OpenClaw (TCP 18789), LM Studio (HTTP 1234), Ollama (HTTP 11434)
 - OpenClaw token auto-fill from `~/.openclaw/openclaw.json` → `gateway.auth.token` (CORS-restricted endpoint)
@@ -88,6 +89,7 @@ Auto-saves all scene-builder state to IndexedDB and restores on startup:
 - **localStorage**: remote signal sources (`sajou:remote-sources`), editor preferences (`sajou:editor-prefs`)
 - `persistence-db.ts`: minimal IndexedDB wrapper (singleton connection, CRUD helpers)
 - `persistence.ts`: orchestrator — debounced auto-save (500ms IDB, 300ms localStorage), `restoreState()` blocking on startup, `forcePersistAll()` after ZIP import, `newScene()` to clear all stores
+- `auto-wire.ts`: auto-creates `signal → signal-type` wires for connected sources on import and connection transitions
 - `beforeunload` handler flushes pending debounced saves
 - **Not persisted**: undo stack, local sources (re-discovered), connection status, active selections
 - Local sources have fixed identity colors (`LOCAL_SOURCE_COLORS`) to prevent visual drift across sessions
