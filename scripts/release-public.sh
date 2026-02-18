@@ -41,8 +41,8 @@ git commit -m "release: filtered tree for public"
 git push public _public-release:main --force
 git push public --tags
 
-# Cleanup
-git checkout main
+# Cleanup — force checkout because git rm --cached left files on disk
+git checkout -f main
 git branch -D _public-release
 
 echo "Done — pushed filtered main to public"
