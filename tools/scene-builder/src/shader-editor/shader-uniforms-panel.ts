@@ -18,6 +18,8 @@ import type { ShaderUniformDef, ShaderObjectDef } from "./shader-types.js";
 let containerEl: HTMLElement | null = null;
 /** Cached uniform names to detect when controls need rebuilding. */
 let cachedUniformKeys = "";
+/** Cached uniform values to detect external changes (MCP commands). */
+let cachedUniformValues = "";
 
 // ---------------------------------------------------------------------------
 // Initialization
@@ -61,6 +63,18 @@ function syncPanel(): void {
 
     // Update shader state with merged uniforms and objects
     updateShader(shader.id, { uniforms: merged, objects });
+  }
+
+  // Sync uniform values to the Three.js material when changed externally
+  // (e.g. via MCP set-uniform command). Also update slider DOM values.
+  const newValues = shader.uniforms.map((u) => `${u.name}=${JSON.stringify(u.value)}`).join(",");
+  if (newValues !== cachedUniformValues) {
+    cachedUniformValues = newValues;
+    for (const u of shader.uniforms) {
+      setUniform(u.name, u.value as number | boolean | number[]);
+      // Update DOM control to match
+      syncControlValue(u);
+    }
   }
 }
 
@@ -411,6 +425,40 @@ function appendBindBadge(label: HTMLElement, semantic: string): void {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/** Update a DOM control to reflect a new uniform value (external sync). */
+function syncControlValue(u: ShaderUniformDef): void {
+  if (!containerEl) return;
+
+  if (u.control === "slider") {
+    const slider = containerEl.querySelector<HTMLInputElement>(`#uniform-${u.name}`);
+    if (slider) {
+      slider.value = String(typeof u.value === "number" ? u.value : 0);
+      const valueDisplay = slider.parentElement?.querySelector<HTMLSpanElement>(".shader-uniform-value");
+      if (valueDisplay) valueDisplay.textContent = formatValue(u.value);
+    }
+  } else if (u.control === "toggle") {
+    const checkbox = containerEl.querySelector<HTMLInputElement>(`#uniform-${u.name}`);
+    if (checkbox) checkbox.checked = u.value === true;
+  } else if (u.control === "color") {
+    const colorInput = containerEl.querySelector<HTMLInputElement>(`#uniform-${u.name}`);
+    if (colorInput && Array.isArray(u.value)) {
+      const rgb = u.value as number[];
+      colorInput.value = rgbToHex(rgb[0], rgb[1], rgb[2]);
+    }
+  } else if (u.control === "xy") {
+    const vals = Array.isArray(u.value) ? u.value as number[] : [0.5, 0.5];
+    for (let axis = 0; axis < 2; axis++) {
+      const axisLabel = axis === 0 ? "x" : "y";
+      const slider = containerEl.querySelector<HTMLInputElement>(`#uniform-${u.name}-${axisLabel}`);
+      if (slider) {
+        slider.value = String(vals[axis] ?? 0.5);
+        const valueDisplay = slider.parentElement?.querySelector<HTMLSpanElement>(".shader-uniform-value:last-child");
+        if (valueDisplay) valueDisplay.textContent = formatValue(vals[axis] ?? 0.5);
+      }
+    }
+  }
+}
 
 function formatValue(v: number | boolean | number[]): string {
   if (typeof v === "boolean") return v ? "true" : "false";
