@@ -137,6 +137,32 @@ Dynamic bindings connect choreographer triggers to entity properties:
 - **Store**: `binding-store.ts` — `addBinding()`, `updateBindingTransition()`, `updateBindingMapping()`, `updateBindingAction()`
 - **Persistence**: `BindingState` serialized to IndexedDB; optional `transition` field is backward-compatible
 
+#### Shader system
+
+Built-in GLSL shader editor with live preview, compiled on a dedicated Three.js canvas (`RawShaderMaterial` on a fullscreen quad, GLSL ES 3.0):
+- **Auto-injected uniforms**: `iTime`, `iTimeDelta`, `iResolution`, `iMouse`, `iFrame` (+ `iChannel0` for multi-pass)
+- **Uniform annotations**: `// @ui: slider`, `// @ui: color`, `// @ui: toggle`, `// @ui: xy` — parsed from GLSL source
+- **Object grouping**: `// @object: name, label: Display Name` — groups uniforms in collapsible panels
+- **Semantic binding**: `// @bind: intensity` — marks uniforms for choreographer wiring
+- **Shader analyzer**: static analysis detects extractable numeric literals (vec constructors, function args, time patterns)
+- **Shadertoy import**: auto-detects `mainImage()` signature and wraps it
+- **Multi-pass**: `passes: 2+` enables ping-pong feedback via `iChannel0`
+- **Wiring target format**: `{shaderId}:{uniformName}` in wire connections
+- **External control**: MCP `set-uniform` commands update both the state store and the Three.js material uniforms in real-time; DOM slider controls sync to reflect external changes
+
+Key files: `shader-canvas.ts` (compilation + rendering), `shader-uniforms-panel.ts` (UI controls + external value sync), `shader-code-panel.ts` (editor + compile trigger), `shader-uniform-parser.ts` (annotation parser), `shader-defaults.ts` (auto-injected block)
+
+#### MCP command pipeline
+
+External tools (MCP server, `curl`, any HTTP client) control the scene-builder through a command queue system:
+- **Write path**: `POST /api/scene/entities`, `/api/choreographies`, `/api/wiring`, `/api/shaders`, `/api/shaders/:id/uniforms` → server enqueues `SceneCommand` → broadcasts via SSE (`/__commands__/stream`) → client `command-consumer.ts` executes against stores → ACK via `POST /api/commands/ack`
+- **Read path**: `GET /api/scene/state`, `/api/choreographies`, `/api/wiring`, `/api/shaders`, `/api/bindings` — reads from latest state pushed by browser
+- **State push**: browser pushes full state snapshot via `POST /api/state/push` (debounced 300ms)
+- **SSE fallback**: if SSE disconnects, client polls `GET /api/commands/pending` every 500ms
+- **Signal ingestion**: `POST /api/signal` accepts JSON, normalizes it, broadcasts to all SSE clients on `/__signals__/stream`
+
+Key files: `command-consumer.ts` (client-side executor), `vite.config.ts` (server-side endpoints + command queue)
+
 #### Canvas2D dial widgets
 
 Reusable interactive pattern for angle/direction input:

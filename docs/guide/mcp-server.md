@@ -126,23 +126,63 @@ These tools let the agent create and control GLSL shaders.
 
 The scene-builder dev server maintains bidirectional state sync between the browser and external tools:
 
-- **Client push (state-sync)**: the browser pushes scene state to the dev server on every change. The server holds the latest state in memory, making it available to the MCP server via REST endpoints.
-- **Command consumer**: external tools (including the MCP server) push commands to the dev server via `POST /api/commands`. The browser polls for pending commands and executes them, updating the scene in real-time.
+- **Client push (state-sync)**: the browser pushes scene state to the dev server on every change (debounced 300ms). The server holds the latest state in memory, making it available to the MCP server via REST endpoints.
+- **Command consumer**: external tools (including the MCP server) push commands to the dev server via typed `POST` endpoints. Commands are queued and broadcast to the browser via SSE (`/__commands__/stream`). The browser executes each command against its stores, then ACKs so the server prunes the queue.
+- **SSE fallback**: if the SSE stream disconnects, the browser falls back to polling `GET /api/commands/pending` every 500ms and auto-reverts to SSE when it reconnects.
 
 This means an AI agent's changes appear immediately in the browser, and any manual changes in the browser are immediately visible to the agent.
 
+### Command delivery flow
+
+```
+POST /api/scene/entities ─┐
+POST /api/shaders         ├──> Server queues SceneCommand
+POST /api/wiring          ┘        │
+                                   ▼
+                          /__commands__/stream (SSE)
+                                   │
+                                   ▼
+                          Browser command-consumer.ts
+                           executes against stores
+                                   │
+                                   ▼
+                          POST /api/commands/ack
+                           (server prunes queue)
+```
+
 ### REST API endpoints
+
+#### Read (query state)
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/scene/state` | GET | Full scene state (entities, positions, layers, routes) |
-| `/api/choreographies` | GET | All choreographies |
-| `/api/bindings` | GET | All bindings |
-| `/api/wiring` | GET | Wiring graph |
-| `/api/signals/sources` | GET | Connected signal sources |
-| `/api/shaders` | GET | All shaders |
-| `/api/commands` | POST | Push commands for browser execution |
-| `/api/signal` | POST | Emit a signal (triggers choreographies) |
+| `/api/scene/state` | GET | Full scene state (entities, positions, layers, routes, lighting, particles) |
+| `/api/choreographies` | GET | All choreographies with wiring metadata |
+| `/api/bindings` | GET | All entity property bindings |
+| `/api/wiring` | GET | Full wiring graph (signal → signal-type → choreographer → shader) |
+| `/api/signals/sources` | GET | Connected signal sources (local + remote) |
+| `/api/shaders` | GET | All shaders with source code and uniforms |
+| `/api/discover/local` | GET | Probe local services (Claude Code, OpenClaw, LM Studio, Ollama) |
+
+#### Write (mutate scene)
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/scene/entities` | POST | Add, remove, or update entities |
+| `/api/choreographies` | POST | Add, remove, or update choreographies |
+| `/api/bindings` | POST | Add or remove bindings |
+| `/api/wiring` | POST | Add or remove wire connections |
+| `/api/signals/sources` | POST | Add or remove signal sources |
+| `/api/shaders` | POST | Create a shader |
+| `/api/shaders/:id` | PUT | Update an existing shader |
+| `/api/shaders/:id` | DELETE | Remove a shader |
+| `/api/shaders/:id/uniforms` | POST | Set a uniform value in real-time |
+| `/api/signal` | POST | Emit a signal (triggers wired choreographies) |
+
+### Timing notes
+
+- State sync debounce: ~300ms. After a write command, wait ~500ms before querying state to ensure the browser has pushed its updated snapshot.
+- Shader uniform changes (`set-uniform`) are reflected immediately on the Three.js material and update the DOM slider controls in the uniforms panel.
 
 ## Example workflow
 
