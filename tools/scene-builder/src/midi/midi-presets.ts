@@ -12,16 +12,32 @@ import type { BindingMapping } from "../types.js";
 // Input ranges
 // ---------------------------------------------------------------------------
 
-/** Input ranges for each MIDI payload field. */
-export const MIDI_RANGES: Record<string, [number, number]> = {
+/** Default input ranges for MIDI payload fields. */
+const DEFAULT_RANGES: Record<string, [number, number]> = {
   velocity: [0, 127],
   note: [0, 127],
   value: [0, 127],
   controller: [0, 127],
   program: [0, 127],
   channel: [1, 16],
-  pitch_bend_value: [-8192, 8191],
 };
+
+/** Per-signal-type range overrides (where a field has a different range). */
+const TYPE_RANGE_OVERRIDES: Record<string, Record<string, [number, number]>> = {
+  "midi.pitch_bend": {
+    value: [-8192, 8191],
+  },
+};
+
+/**
+ * Get the input range for a MIDI field, taking signal type into account.
+ *
+ * Pitch bend `value` is [-8192, 8191] while CC `value` is [0, 127].
+ * Returns `undefined` when no range is known for the field.
+ */
+export function getMidiRange(signalType: string, field: string): [number, number] | undefined {
+  return TYPE_RANGE_OVERRIDES[signalType]?.[field] ?? DEFAULT_RANGES[field];
+}
 
 // ---------------------------------------------------------------------------
 // Bindable fields per signal type
@@ -53,7 +69,7 @@ export const MIDI_SOURCE_FIELDS: Record<string, MidiFieldDescriptor[]> = {
     { field: "channel", label: "Channel" },
   ],
   "midi.pitch_bend": [
-    { field: "pitch_bend_value", label: "Value" },
+    { field: "value", label: "Pitch" },
     { field: "channel", label: "Channel" },
   ],
   "midi.program_change": [
@@ -85,11 +101,11 @@ const TARGET_RANGES: Record<string, [number, number]> = {
  * has no obvious default range).
  */
 export function suggestMapping(
-  _signalType: string,
+  signalType: string,
   sourceField: string,
   targetProperty: string,
 ): BindingMapping | undefined {
-  const inputRange = MIDI_RANGES[sourceField];
+  const inputRange = getMidiRange(signalType, sourceField);
   if (!inputRange) return undefined;
 
   const outputRange = TARGET_RANGES[targetProperty];

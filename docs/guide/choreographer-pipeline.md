@@ -138,6 +138,22 @@ interface BindingMapping {
 }
 ```
 
+### Continuous vs Event-Driven Bindings
+
+Float properties support two mutually exclusive modes, determined at binding creation time:
+
+**Continuous (MIDI / live input):** When a binding has a `sourceField`, the executor reads the numeric value from every matching signal payload and applies it (with optional mapping) directly to the entity property. Each signal updates the property instantly — no animation, no fixed target. This is the path for MIDI CC faders, pitch bend wheels, and any other continuous-value source.
+
+**Event-driven (AI signals):** When a binding has a `transition` (and no `sourceField`), the executor animates from the current property value to a fixed `targetValue` over `durationMs` with easing. This is the path for AI event signals where the signal means "something happened" rather than "here is a value".
+
+The two modes are mutually exclusive by design: the UI creates `sourceField` bindings for MIDI float properties and `transition` bindings for non-MIDI float properties.
+
+Dispatch priority in `executeBinding()`:
+
+1. `sourceField` present + float property → `executeValueBinding()` (continuous)
+2. `transition` present + float property → `startTransition()` (event-driven)
+3. All other properties → instant assignment (switch/case fallback)
+
 ### Temporal Transitions
 
 Float properties (`scale`, `opacity`, `rotation`, `position.x`, `position.y`) support animated transitions:
@@ -184,7 +200,11 @@ Bindings are created by **dragging from a choreography node to an entity** on th
 3. **Spatial properties**: `position.x`, `position.y`, `rotation`, `scale`
 4. **Visual properties**: `opacity`, `visible`
 
-Float properties open a transition config popup (target value, duration, easing, revert toggle). Non-float properties create the binding immediately.
+For float properties, the UI path depends on the signal source:
+- **MIDI (sourceField selected):** creates an instant continuous binding with `sourceField` + auto-suggested mapping. No transition popup.
+- **AI / generic (no sourceField):** opens a transition config popup (target value, duration, easing, revert toggle).
+
+Non-float properties always create the binding immediately.
 
 ---
 

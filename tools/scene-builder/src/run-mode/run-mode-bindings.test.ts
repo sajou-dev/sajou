@@ -9,7 +9,7 @@ import { describe, it, expect, vi } from "vitest";
 import type { DisplayObjectHandle } from "../canvas/render-adapter.js";
 import { __test__ } from "./run-mode-bindings.js";
 
-const { EASING_FNS, resolveEasing, readHandleProp, writeHandleProp, tickAnims } = __test__;
+const { EASING_FNS, resolveEasing, readHandleProp, writeHandleProp, tickAnims, extractNumericValue, applyMapping } = __test__;
 
 // ---------------------------------------------------------------------------
 // Mock handle factory
@@ -349,5 +349,67 @@ describe("tickAnims", () => {
     tickAnims(16, anims, timeouts, {} as never, noop);
     expect(handle.alpha).toBe(0.0);
     expect(anims.size).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// extractNumericValue
+// ---------------------------------------------------------------------------
+
+describe("extractNumericValue", () => {
+  it("strategy 0: explicit sourceField", () => {
+    expect(extractNumericValue({ velocity: 100, note: 60 }, "opacity", "velocity")).toBe(100);
+  });
+
+  it("strategy 1: binding property last segment", () => {
+    expect(extractNumericValue({ x: 42 }, "position.x")).toBe(42);
+  });
+
+  it("strategy 2: conventional 'value' field", () => {
+    expect(extractNumericValue({ value: 64, channel: 1 }, "opacity")).toBe(64);
+  });
+
+  it("strategy 3: first numeric field in payload", () => {
+    expect(extractNumericValue({ label: "hello", amount: 77 }, "opacity")).toBe(77);
+  });
+
+  it("returns null when payload has no numeric values", () => {
+    expect(extractNumericValue({ label: "hello" }, "opacity")).toBeNull();
+  });
+
+  it("sourceField miss falls through to subsequent strategies", () => {
+    // sourceField "missing" is not in payload, but "value" is → strategy 2
+    expect(extractNumericValue({ value: 50 }, "opacity", "missing")).toBe(50);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// applyMapping
+// ---------------------------------------------------------------------------
+
+describe("applyMapping", () => {
+  it("lerp maps input range to output range", () => {
+    const result = applyMapping(64, { fn: "lerp", inputRange: [0, 127], outputRange: [0, 1] });
+    expect(result).toBeCloseTo(64 / 127, 4);
+  });
+
+  it("clamp keeps value within output range", () => {
+    expect(applyMapping(200, { fn: "clamp", inputRange: [0, 127], outputRange: [0, 1] })).toBe(1);
+    expect(applyMapping(-10, { fn: "clamp", inputRange: [0, 127], outputRange: [0, 1] })).toBe(0);
+  });
+
+  it("step snaps to min or max at midpoint", () => {
+    expect(applyMapping(63, { fn: "step", inputRange: [0, 127], outputRange: [0, 1] })).toBe(0);
+    expect(applyMapping(64, { fn: "step", inputRange: [0, 127], outputRange: [0, 1] })).toBe(1);
+  });
+
+  it("smoothstep produces S-curve interpolation", () => {
+    const mid = applyMapping(63.5, { fn: "smoothstep", inputRange: [0, 127], outputRange: [0, 1] });
+    expect(mid).toBeCloseTo(0.5, 1);
+    // smoothstep should be near 0.5 at midpoint
+  });
+
+  it("zero input range returns outMin", () => {
+    expect(applyMapping(5, { fn: "lerp", inputRange: [5, 5], outputRange: [0, 1] })).toBe(0);
   });
 });

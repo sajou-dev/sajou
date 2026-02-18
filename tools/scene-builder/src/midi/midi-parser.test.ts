@@ -202,4 +202,17 @@ describe("parseMIDIMessage", () => {
     // Channel 4 (0-indexed 3)
     expect(result!.payload["channel"]).toBe(4);
   });
+
+  // -------------------------------------------------------------------
+  // Contract: pitch bend uses "value", not "pitch_bend_value"
+  // -------------------------------------------------------------------
+
+  it("pitch bend payload field is 'value', not 'pitch_bend_value'", () => {
+    const data = new Uint8Array([0xE0, 0x00, 0x40]);
+    const result = parseMIDIMessage(data, "Keys");
+
+    expect(result).not.toBeNull();
+    expect(result!.payload).toHaveProperty("value");
+    expect(result!.payload).not.toHaveProperty("pitch_bend_value");
+  });
 });

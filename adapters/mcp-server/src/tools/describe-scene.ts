@@ -66,7 +66,9 @@ function describeChoreography(c: ChoreographySummary): string {
 function describeBinding(b: BindingData): string {
   const mapping = b.mapping ? `, mapping: ${JSON.stringify(b.mapping)}` : "";
   const action = b.action ? `, action: ${JSON.stringify(b.action)}` : "";
-  return `  - "${b.targetEntityId}".${b.property} ← choreo "${b.sourceChoreographyId}" (${b.sourceType})${mapping}${action}`;
+  const field = b.sourceField ? `, field: "${b.sourceField}"` : "";
+  const transition = b.transition ? `, transition: ${JSON.stringify(b.transition)}` : "";
+  return `  - "${b.targetEntityId}".${b.property} ← choreo "${b.sourceChoreographyId}" (${b.sourceType})${field}${mapping}${transition}${action}`;
 }
 
 /** Format a signal source for the description. */
