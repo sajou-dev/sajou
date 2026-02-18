@@ -116,12 +116,25 @@ Signal ──▶ Choreo ──▶ Visual
                       Shader
 ```
 
+### Implémentation actuelle
+
+Le pipeline implémenté a évolué par rapport aux maquettes ci-dessus :
+
+```
+Signal ─rail─ Choreo ─rail─ Visual ─rail─ [ Shader │ p5.js ]
+  1              2             3             4         5
+```
+
+- 3 rails (pas 4) — Shader et p5.js partagent un slot unique (`.pl-node-group`)
+- Le groupe code fait un split vertical (haut/bas) quand les deux sont mini
+- Quand un est étendu, l'autre se réduit à un bandeau 28px horizontal
+- Mini nodes : 48px de large, header roté -90° avec animation de bascule
+- 2 tailles (mini/extended) au lieu de 3 — pas de "medium"
+
 ### Interactions
 - **Clic sur un nœud mini** → il passe en extended, les autres se compressent
-- **Double-clic** → le nœud prend tout l'espace (mode focus), les autres passent en mini sur un rail compact en haut
-- **Drag un wire** depuis un port sur un nœud → le nœud cible s'étend automatiquement pour recevoir le drop
-- **Scroll/zoom** dans un nœud medium → il passe en extended automatiquement
-- **Raccourcis** : 1=Signal, 2=Choreo, 3=Visual, 4=Shader (comme Blender)
+- **Double-clic header** → le nœud prend tout l'espace (mode focus), les autres passent en mini
+- **Raccourcis** : 1=Signal, 2=Choreo, 3=Visual, 4=Shader, 5=p5.js
 
 ### Les wires — bidirectionnels
 Les wires du pipeline sont les mêmes que les connector bars actuelles, mais dessinés entre les nœuds :

@@ -4,6 +4,8 @@
 
 The scene-builder includes a built-in GLSL shader editor with live preview. Shaders are compiled and rendered on a dedicated Three.js canvas using `RawShaderMaterial` applied to a fullscreen quad geometry (`PlaneGeometry` 2x2) viewed through an orthographic camera. All shaders use GLSL ES 3.0 (WebGL2).
 
+The Shader node shares a pipeline slot with the p5.js node — they are grouped in a single vertical-split container. When both are collapsed, they split the slot height equally with rotated headers. When one is extended, it fills the slot while the other collapses to a thin 28px bar. Keyboard shortcut: `4` for Shader, `5` for p5.js.
+
 The shader editor supports interactive uniform controls via annotation comments, Shadertoy import with automatic code wrapping, multi-pass ping-pong rendering, and static analysis of fragment source to detect extractable numeric literals.
 
 ---

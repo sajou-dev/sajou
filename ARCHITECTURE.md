@@ -67,7 +67,8 @@ Visual scene editor — the main authoring tool for creating and testing choreog
 
 - Vite + Three.js + Canvas2D overlay + vanilla TypeScript
 - Dual-canvas architecture: WebGLRenderer (3D scene) + Canvas2D (editor overlays, markers, labels)
-- 3-zone workflow: Signal → Choreographer → Theme
+- Pipeline layout: Signal ─rail─ Choreo ─rail─ Visual ─rail─ [ Shader │ p5.js ]
+- Shader and p5.js share a single pipeline slot (`.pl-node-group`) with vertical split; mini nodes show rotated headers
 - Wiring system (patch bay), node canvas, step chain with popover editing
 - Zone painting for semantic regions on background
 - Export/import ZIP (selective import dialog: choose visual layout, entities, choreographies, shaders independently), run mode with live preview, binding transitions
@@ -182,6 +183,20 @@ Reusable interactive pattern for angle/direction input:
 | Zone | Z | Paint semantic zones |
 | Light | L | Place/configure lights |
 | Particle | K | Place/configure particle emitters |
+
+#### Pipeline layout
+
+```
+Signal ─rail─ Choreo ─rail─ Visual ─rail─ [ Shader │ p5.js ]
+  1              2             3             4         5
+```
+
+- 3 rails with chevron arrows and badge stacks (source badges, signal-type badges)
+- Shader + p5.js grouped in a single slot (`.pl-node-group`, vertical split)
+- Mini nodes: 48px wide, rotated header (-90°, animated transition)
+- Extended: fills available space, other nodes collapse
+- Inside the code group: extended node takes all space, sibling collapses to 28px horizontal bar
+- Keyboard: 1–5 toggle nodes, double-click header to solo-focus
 
 ### player (active)
 
