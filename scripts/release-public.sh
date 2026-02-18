@@ -12,6 +12,9 @@ EXCLUDE=(
   docs/archive
   docs/sajou-mcp-server-design.md
   .claude
+  packages/theme-api
+  packages/theme-citadel
+  packages/theme-office
 )
 
 # Checks
