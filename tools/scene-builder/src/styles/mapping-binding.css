@@ -1,0 +1,96 @@
+/* ============================================================================
+ * Mapping Binding
+ * ============================================================================ */
+
+.mapping-binding {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.mapping-bind-btn {
+  background: none;
+  border: 1px solid var(--color-border);
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  align-self: flex-start;
+  transition: border-color 0.15s;
+}
+
+.mapping-bind-btn:hover {
+  border-color: var(--color-accent-dim);
+}
+
+.mapping-bind-btn--bound {
+  border-color: var(--color-accent);
+  background: var(--color-accent-dim);
+  color: var(--color-bg);
+}
+
+.mapping-config {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 4px 6px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-accent-dim);
+  border-radius: var(--radius-sm);
+}
+
+.mapping-config[hidden] {
+  display: none;
+}
+
+.mapping-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mapping-label {
+  font: 9px var(--font-mono);
+  color: var(--color-text-dim);
+  min-width: 50px;
+  flex-shrink: 0;
+}
+
+.mapping-select {
+  background: var(--color-elevated);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  font: 10px var(--font-mono);
+  padding: 2px 4px;
+  border-radius: var(--radius-sm);
+  flex: 1;
+  min-width: 0;
+}
+
+.mapping-select:focus {
+  outline: none;
+  border-color: var(--color-accent-dim);
+}
+
+.mapping-args {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mapping-arg-input {
+  background: var(--color-elevated);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  font: 10px var(--font-mono);
+  padding: 2px 4px;
+  border-radius: var(--radius-sm);
+  width: 60px;
+}
+
+.mapping-arg-input:focus {
+  outline: none;
+  border-color: var(--color-accent-dim);
+}
+

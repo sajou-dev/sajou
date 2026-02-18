@@ -1,0 +1,168 @@
+/* ============================================================================
+ * Spritesheet Explorer (.sse-*)
+ * Visual frame grid for selecting animation frames from spritesheets.
+ * ============================================================================ */
+
+.sse-container {
+  border-top: 1px solid var(--color-border);
+  margin-top: 8px;
+  padding-top: 8px;
+}
+
+.sse-header {
+  margin-bottom: 6px;
+}
+
+.sse-header h4 {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0 0 2px;
+}
+
+.sse-info {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--color-text-muted);
+  display: block;
+  margin-bottom: 2px;
+}
+
+.sse-help {
+  font-size: 9px;
+  color: var(--color-text-dim);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.sse-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sse-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 4px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.sse-row--has-selection {
+  border-color: var(--color-accent-dim);
+}
+
+.sse-row-label {
+  width: 64px;
+  font-size: 9px;
+  font-family: var(--font-mono);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sse-row-label:hover {
+  color: var(--color-accent);
+}
+
+.sse-label-input {
+  width: 100%;
+  background: var(--color-elevated);
+  border: 1px solid var(--color-accent-dim);
+  border-radius: 2px;
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  padding: 1px 3px;
+  outline: none;
+}
+
+.sse-preview {
+  flex-shrink: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 2px;
+  background: var(--color-bg);
+  image-rendering: pixelated;
+}
+
+.sse-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.sse-frame-wrapper {
+  position: relative;
+  cursor: pointer;
+}
+
+.sse-frame-wrapper:hover .sse-frame {
+  border-color: var(--color-accent);
+}
+
+.sse-frame {
+  display: block;
+  border: 1px solid var(--color-border);
+  border-radius: 2px;
+  background: var(--color-bg);
+  image-rendering: pixelated;
+}
+
+.sse-frame--selected {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 3px var(--color-accent-dim);
+}
+
+.sse-frame--other {
+  border-color: var(--color-text-dim);
+  opacity: 0.7;
+}
+
+.sse-frame-index {
+  position: absolute;
+  bottom: 1px;
+  right: 2px;
+  font-family: var(--font-mono);
+  font-size: 7px;
+  color: var(--color-text-dim);
+  pointer-events: none;
+}
+
+.sse-frame--selected + .sse-frame-index {
+  color: var(--color-accent);
+}
+
+.sse-count {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--color-text-dim);
+  flex-shrink: 0;
+  width: 24px;
+  text-align: right;
+}
+
+.sse-footer {
+  margin-top: 6px;
+}
+
+.sse-footer-info {
+  font-size: 9px;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.sse-no-anim {
+  font-size: 9px;
+  color: var(--color-text-dim);
+  margin: 0;
+  font-style: italic;
+}
+
