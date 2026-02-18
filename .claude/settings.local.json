@@ -116,7 +116,12 @@
       "Bash(grep:*)",
       "Bash(git tag:*)",
       "Bash(wc:*)",
-      "Bash(git mv:*)"
+      "Bash(git mv:*)",
+      "Bash(git ls-tree:*)",
+      "Bash(npx vitepress build:*)",
+      "Bash(command -v:*)",
+      "Bash(command:*)",
+      "Bash(brew list:*)"
     ]
   },
   "hooks": {
