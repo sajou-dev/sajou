@@ -210,8 +210,15 @@ function executeBinding(
   }
 
   for (const placedId of placedIds) {
-    // Temporal transition path — if binding has a transition config
     const handleProp = PROP_TO_HANDLE[binding.property];
+
+    // Continuous value path — sourceField present → live value from payload
+    if (handleProp && binding.sourceField) {
+      executeValueBinding(placedId, binding, signal, handleProp, adapter);
+      continue;
+    }
+
+    // Temporal transition path — event-driven with fixed target value
     if (binding.transition && handleProp) {
       startTransition(
         placedId, handleProp, binding.transition,
@@ -681,4 +688,6 @@ export const __test__ = {
   readHandleProp,
   writeHandleProp,
   tickAnims,
+  extractNumericValue,
+  applyMapping,
 } as const;

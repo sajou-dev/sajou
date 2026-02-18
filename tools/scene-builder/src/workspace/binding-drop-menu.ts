@@ -278,7 +278,25 @@ function showRadialMenu(
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
 
-      // Float properties → show transition config popup
+      // MIDI float → instant continuous binding (value-driven, no transition)
+      if (FLOAT_PROPERTIES.has(item.key) && selectedSourceField) {
+        const mapping = triggerSignalType
+          ? suggestMapping(triggerSignalType, selectedSourceField, item.key)
+          : undefined;
+
+        addBinding({
+          targetEntityId: targetSemanticId,
+          property: item.key,
+          sourceChoreographyId: choreographyId,
+          sourceType: "float",
+          sourceField: selectedSourceField,
+          ...(mapping ? { mapping } : {}),
+        });
+        hideBindingDropMenu();
+        return;
+      }
+
+      // Float properties without sourceField → show transition config popup (AI event-driven)
       if (FLOAT_PROPERTIES.has(item.key)) {
         hideBindingDropMenu();
         showTransitionConfigPopup({
