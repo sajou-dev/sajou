@@ -11,6 +11,7 @@ EXCLUDE=(
   docs/brand
   docs/archive
   docs/sajou-mcp-server-design.md
+  .claude
 )
 
 # Checks
