@@ -1,11 +1,12 @@
 /**
  * Node detail — dock-level parameter editor.
  *
- * Shows dock params only: inputs/on, when filter, target entity, interrupts.
+ * Shows dock params only: inputs/on, target entity, interrupts.
+ * When conditions are now rendered as a C-shape filter block (filter-block.ts).
  * Step params are rendered inline inside each block (step-chain.ts).
  */
 
-import type { ChoreographyDef, WhenConditionDef, WhenOperatorDef } from "../types.js";
+import type { ChoreographyDef } from "../types.js";
 import {
   getWiringState,
   removeWire,
@@ -17,7 +18,6 @@ import {
 } from "../state/wiring-queries.js";
 import { getSignalSourcesState } from "../state/signal-source-state.js";
 import {
-  SIGNAL_TYPES,
   SIGNAL_TYPE_COLORS,
   updateChoreographyCmd,
 } from "./step-commands.js";
@@ -138,38 +138,9 @@ export function renderNodeHeader(choreo: ChoreographyDef): HTMLElement {
     hint.className = "nc-detail-hint";
     hint.textContent = "Drag signal-type → node to add inputs";
     section.appendChild(hint);
-  } else {
-    // Fallback mode: show select dropdown for on field
-    const onRow = document.createElement("div");
-    onRow.className = "nc-detail-row";
-    const onLabel = document.createElement("span");
-    onLabel.className = "nc-detail-label";
-    onLabel.textContent = "on";
-    onRow.appendChild(onLabel);
-
-    const onSelect = document.createElement("select");
-    onSelect.className = "nc-detail-select";
-    for (const st of SIGNAL_TYPES) {
-      const opt = document.createElement("option");
-      opt.value = st;
-      opt.textContent = st;
-      if (st === choreo.on) opt.selected = true;
-      onSelect.appendChild(opt);
-    }
-    onSelect.addEventListener("change", () => {
-      updateChoreographyCmd(choreo.id, { on: onSelect.value });
-    });
-    onRow.appendChild(onSelect);
-    section.appendChild(onRow);
-
-    const hint = document.createElement("div");
-    hint.className = "nc-detail-hint";
-    hint.textContent = "Wire a signal-type to override";
-    section.appendChild(hint);
   }
-
-  // ── When conditions ──
-  section.appendChild(renderWhenEditor(choreo));
+  // Fallback mode (no wires): hat block already has the signal type selector,
+  // so no need for a redundant "on" row here.
 
   // ── Target entity row ──
   const targetRow = document.createElement("div");
@@ -235,203 +206,3 @@ export function renderNodeHeader(choreo: ChoreographyDef): HTMLElement {
   return header;
 }
 
-// ---------------------------------------------------------------------------
-// When condition editor
-// ---------------------------------------------------------------------------
-
-/** Supported when operators. */
-const WHEN_OPERATORS = ["contains", "equals", "matches", "gt", "lt", "exists"] as const;
-type WhenOp = typeof WHEN_OPERATORS[number];
-
-/** A single editable condition row in the when editor. */
-interface WhenRow {
-  path: string;
-  op: WhenOp;
-  value: string;
-}
-
-/** Parse existing `when` clause into flat rows for editing. Only handles the AND (object) form. */
-function parseWhenRows(choreo: ChoreographyDef): WhenRow[] {
-  const when = choreo.when;
-  if (!when) return [];
-
-  // Normalize: if array (OR), take the first condition for simplicity
-  const condition: WhenConditionDef = Array.isArray(when) ? (when[0] ?? {}) : when;
-
-  const rows: WhenRow[] = [];
-  for (const [path, ops] of Object.entries(condition)) {
-    const opObj = ops as WhenOperatorDef;
-    for (const op of WHEN_OPERATORS) {
-      if (op === "exists" && opObj.exists !== undefined) {
-        rows.push({ path, op: "exists", value: String(opObj.exists) });
-      } else if (op !== "exists" && opObj[op] !== undefined) {
-        rows.push({ path, op, value: String(opObj[op]) });
-      }
-    }
-    // If no known operator found, still show the path
-    if (rows.length === 0 || rows[rows.length - 1]!.path !== path) {
-      rows.push({ path, op: "contains", value: "" });
-    }
-  }
-  return rows;
-}
-
-/** Build a WhenClauseDef from rows, or undefined if empty/incomplete. */
-function buildWhenClause(rows: WhenRow[]): WhenConditionDef | undefined {
-  const validRows = rows.filter((r) => r.path.trim() !== "");
-  if (validRows.length === 0) return undefined;
-
-  const clause: WhenConditionDef = {};
-  for (const row of validRows) {
-    const ops: WhenOperatorDef = clause[row.path] ?? {};
-    if (row.op === "exists") {
-      ops.exists = row.value !== "false";
-    } else if (row.op === "gt" || row.op === "lt") {
-      const num = Number(row.value);
-      if (!isNaN(num)) ops[row.op] = num;
-    } else {
-      ops[row.op] = row.value;
-    }
-    clause[row.path] = ops;
-  }
-  return clause;
-}
-
-/** Render the when condition editor block. */
-function renderWhenEditor(choreo: ChoreographyDef): HTMLElement {
-  const container = document.createElement("div");
-  container.className = "nc-when-section";
-
-  // Label row
-  const labelRow = document.createElement("div");
-  labelRow.className = "nc-detail-row";
-  const label = document.createElement("span");
-  label.className = "nc-detail-label";
-  label.textContent = "when";
-  labelRow.appendChild(label);
-
-  // Toggle: show/hide condition rows
-  const rows = parseWhenRows(choreo);
-  const hasConditions = rows.length > 0;
-
-  const toggleBtn = document.createElement("button");
-  toggleBtn.className = "nc-when-toggle";
-  toggleBtn.textContent = hasConditions ? `${rows.length} condition${rows.length > 1 ? "s" : ""}` : "always";
-  toggleBtn.title = hasConditions ? "Edit conditions" : "Add a condition filter";
-  labelRow.appendChild(toggleBtn);
-  container.appendChild(labelRow);
-
-  // Condition rows container (initially collapsed unless there are conditions)
-  const body = document.createElement("div");
-  body.className = "nc-when-body";
-  let expanded = hasConditions;
-  body.style.display = expanded ? "" : "none";
-
-  toggleBtn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    expanded = !expanded;
-    body.style.display = expanded ? "" : "none";
-    // If expanding with no rows, add an empty one
-    if (expanded && body.querySelectorAll(".nc-when-row").length === 0) {
-      body.insertBefore(createConditionRow(choreo, body, { path: "", op: "contains", value: "" }), addBtn);
-    }
-  });
-
-  // Render existing condition rows
-  for (const row of rows) {
-    body.appendChild(createConditionRow(choreo, body, row));
-  }
-
-  // Add condition button
-  const addBtn = document.createElement("button");
-  addBtn.className = "nc-when-add";
-  addBtn.textContent = "+ condition";
-  addBtn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    body.insertBefore(createConditionRow(choreo, body, { path: "", op: "contains", value: "" }), addBtn);
-  });
-  body.appendChild(addBtn);
-
-  container.appendChild(body);
-  return container;
-}
-
-/** Save the current condition rows from the DOM back to the choreography state. */
-function saveWhenFromDom(choreo: ChoreographyDef, body: HTMLElement): void {
-  const rowEls = body.querySelectorAll(".nc-when-row");
-  const rows: WhenRow[] = [];
-  for (const el of rowEls) {
-    const pathInput = el.querySelector<HTMLInputElement>(".nc-when-path");
-    const opSelect = el.querySelector<HTMLSelectElement>(".nc-when-op");
-    const valueInput = el.querySelector<HTMLInputElement>(".nc-when-value");
-    if (pathInput && opSelect) {
-      rows.push({
-        path: pathInput.value.trim(),
-        op: opSelect.value as WhenOp,
-        value: valueInput?.value ?? "",
-      });
-    }
-  }
-  const clause = buildWhenClause(rows);
-  updateChoreographyCmd(choreo.id, { when: clause });
-}
-
-/** Create a single condition row element. */
-function createConditionRow(
-  choreo: ChoreographyDef,
-  body: HTMLElement,
-  initial: WhenRow,
-): HTMLElement {
-  const row = document.createElement("div");
-  row.className = "nc-when-row";
-
-  // Path input
-  const pathInput = document.createElement("input");
-  pathInput.type = "text";
-  pathInput.className = "nc-when-path";
-  pathInput.value = initial.path;
-  pathInput.placeholder = "content";
-  pathInput.addEventListener("change", () => saveWhenFromDom(choreo, body));
-
-  // Operator select
-  const opSelect = document.createElement("select");
-  opSelect.className = "nc-when-op";
-  for (const op of WHEN_OPERATORS) {
-    const opt = document.createElement("option");
-    opt.value = op;
-    opt.textContent = op;
-    if (op === initial.op) opt.selected = true;
-    opSelect.appendChild(opt);
-  }
-  opSelect.addEventListener("change", () => {
-    // Show/hide value input for "exists"
-    valueInput.style.display = opSelect.value === "exists" ? "none" : "";
-    saveWhenFromDom(choreo, body);
-  });
-
-  // Value input
-  const valueInput = document.createElement("input");
-  valueInput.type = "text";
-  valueInput.className = "nc-when-value";
-  valueInput.value = initial.value;
-  valueInput.placeholder = "value";
-  valueInput.style.display = initial.op === "exists" ? "none" : "";
-  valueInput.addEventListener("change", () => saveWhenFromDom(choreo, body));
-
-  // Remove button
-  const removeBtn = document.createElement("span");
-  removeBtn.className = "nc-when-remove";
-  removeBtn.textContent = "\u00D7";
-  removeBtn.title = "Remove condition";
-  removeBtn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    row.remove();
-    saveWhenFromDom(choreo, body);
-  });
-
-  row.appendChild(pathInput);
-  row.appendChild(opSelect);
-  row.appendChild(valueInput);
-  row.appendChild(removeBtn);
-  return row;
-}
