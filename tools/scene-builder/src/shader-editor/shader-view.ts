@@ -53,6 +53,9 @@ export function initShaderView(): void {
 
   // Subscribe to pipeline layout changes for lazy init
   subscribeEditor(onLayoutChange);
+
+  // Check immediately in case the panel was already visible from persisted state
+  onLayoutChange();
 }
 
 // ---------------------------------------------------------------------------
@@ -76,6 +79,9 @@ export function initShaderEditorPanel(contentEl: HTMLElement): void {
   contentEl.appendChild(codePanel);
   contentEl.appendChild(uniformsPanel);
   contentEl.appendChild(detectedPanel);
+
+  // DOM is now ready — trigger lazy init if panel was already visible from persisted state
+  onLayoutChange();
 }
 
 // ---------------------------------------------------------------------------
@@ -85,9 +91,11 @@ export function initShaderEditorPanel(contentEl: HTMLElement): void {
 /** Initialize CodeMirror and uniforms on first panel open. */
 async function lazyInitPanel(): Promise<void> {
   if (panelInitialized) return;
-  panelInitialized = true;
 
   const codeEl = document.getElementById("shader-code-panel");
+  if (!codeEl) return; // DOM not ready yet — will retry on next state change
+
+  panelInitialized = true;
   if (codeEl) {
     const { initShaderCodePanel } = await import("./shader-code-panel.js");
     initShaderCodePanel(codeEl);
