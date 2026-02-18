@@ -37,9 +37,14 @@ done
 
 git commit -m "sajou — visual choreographer for AI agents"
 
+# Resolve latest semver tag on main
+LATEST_TAG=$(git tag --list 'v*' --sort=-version:refname | head -1)
+
 # Push to public remote
 git push public _public-release:main --force
-git push public --tags
+if [ -n "$LATEST_TAG" ]; then
+  git push public "refs/tags/$LATEST_TAG"
+fi
 
 # Cleanup — force checkout because git rm --cached left files on disk
 git checkout -f main
