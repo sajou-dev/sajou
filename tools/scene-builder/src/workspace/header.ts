@@ -1,13 +1,15 @@
 /**
  * Header module.
  *
- * Top bar with title, preview, run mode, import and export buttons.
+ * Top bar with title, undo/redo, file actions, run mode, and help button.
  */
 
 import { exportScene } from "../io/export-scene.js";
 import { importScene } from "../io/import-scene.js";
 import { subscribeRunMode, isRunModeActive } from "../run-mode/run-mode-state.js";
 import { newScene } from "../state/persistence.js";
+import { undo, redo, canUndo, canRedo, subscribeUndo } from "../state/undo.js";
+import { togglePanel } from "../state/editor-state.js";
 import { shouldSuppressShortcut } from "../shortcuts/shortcut-registry.js";
 
 // Run mode is imported lazily to avoid loading @sajou/* packages at startup.
@@ -59,25 +61,28 @@ async function triggerNewScene(): Promise<void> {
   }
 }
 
+/** Sync Undo/Redo button disabled state with stack status. */
+function syncUndoButtons(): void {
+  const btnUndo = document.getElementById("btn-undo");
+  const btnRedo = document.getElementById("btn-redo");
+  btnUndo?.classList.toggle("header-btn--disabled", !canUndo());
+  btnRedo?.classList.toggle("header-btn--disabled", !canRedo());
+}
+
 /** Initialize header button handlers. */
 export function initHeader(): void {
+  const btnNew = document.getElementById("btn-new");
   const btnImport = document.getElementById("btn-import");
   const btnExport = document.getElementById("btn-export");
   const btnRun = document.getElementById("btn-run");
+  const btnUndo = document.getElementById("btn-undo");
+  const btnRedo = document.getElementById("btn-redo");
+  const btnHelp = document.getElementById("btn-help");
 
-  // Insert "New" button before Import
-  if (btnImport) {
-    const btnNew = document.createElement("button");
-    btnNew.id = "btn-new";
-    btnNew.className = "header-btn";
-    btnNew.title = "New scene (Ctrl+N)";
-    btnNew.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg> New`;
-    btnImport.parentNode?.insertBefore(btnNew, btnImport);
-
-    btnNew.addEventListener("click", () => {
-      void triggerNewScene();
-    });
-  }
+  // File actions
+  btnNew?.addEventListener("click", () => {
+    void triggerNewScene();
+  });
 
   btnExport?.addEventListener("click", () => {
     exportScene().catch((err: unknown) => {
@@ -91,8 +96,22 @@ export function initHeader(): void {
     });
   });
 
+  // Runtime
   btnRun?.addEventListener("click", () => {
     void triggerRunMode();
+  });
+
+  // Editing — Undo / Redo
+  btnUndo?.addEventListener("click", () => { undo(); });
+  btnRedo?.addEventListener("click", () => { redo(); });
+
+  // Subscribe to undo stack changes and set initial state
+  subscribeUndo(syncUndoButtons);
+  syncUndoButtons();
+
+  // Utility — Help (toggle shortcuts panel)
+  btnHelp?.addEventListener("click", () => {
+    togglePanel("shortcuts");
   });
 
   // Subscribe to run mode state changes to update button appearance

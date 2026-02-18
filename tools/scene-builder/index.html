@@ -20,14 +20,48 @@
     </div>
     <nav id="view-tabs"></nav>
     <div class="header-right">
-      <button id="btn-run" class="header-btn header-btn--run" title="Run / Stop choreographies (Ctrl+R)">
-        <svg id="btn-run-icon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none">
-          <polygon points="5 3 19 12 5 21 5 3"/>
-        </svg>
-        <span id="btn-run-label">Run</span>
-      </button>
-      <button id="btn-import" class="header-btn">Import</button>
-      <button id="btn-export" class="header-btn header-btn--primary">Export</button>
+      <!-- Editing group -->
+      <div class="header-group">
+        <button id="btn-undo" class="header-btn header-btn--icon" title="Undo (Ctrl+Z)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
+        </button>
+        <button id="btn-redo" class="header-btn header-btn--icon" title="Redo (Ctrl+Shift+Z)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13"/></svg>
+        </button>
+      </div>
+      <div class="header-sep"></div>
+      <!-- File group -->
+      <div class="header-group">
+        <button id="btn-new" class="header-btn" title="New scene (Ctrl+N)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+          New
+        </button>
+        <button id="btn-import" class="header-btn" title="Import scene">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Import
+        </button>
+        <button id="btn-export" class="header-btn header-btn--primary" title="Export scene (Ctrl+S)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Export
+        </button>
+      </div>
+      <div class="header-sep"></div>
+      <!-- Runtime group -->
+      <div class="header-group">
+        <button id="btn-run" class="header-btn header-btn--run" title="Run / Stop choreographies (Ctrl+R)">
+          <svg id="btn-run-icon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+            <polygon points="5 3 19 12 5 21 5 3"/>
+          </svg>
+          <span id="btn-run-label">Run</span>
+        </button>
+      </div>
+      <div class="header-sep"></div>
+      <!-- Utility group -->
+      <div class="header-group">
+        <button id="btn-help" class="header-btn header-btn--icon" title="Keyboard shortcuts (?)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
+        </button>
+      </div>
     </div>
   </header>
   <div id="workspace">
