@@ -4,8 +4,13 @@
  * Receives action commands (start/update/complete/execute/interrupt) from the
  * Choreographer runtime and applies them to display objects via a RenderAdapter.
  *
+ * **Multi-instance support:** when multiple placed entities share the same
+ * `semanticId`, every command is fanned out to all matching instances. Each
+ * instance gets its own independent animation state keyed by `performanceId:placedId`.
+ *
  * Entity resolution:
- *   entityRef (semantic ID from choreography) → PlacedEntity → DisplayObjectHandle
+ *   entityRef (semantic ID from choreography)
+ *     → resolveAllEntityIds() → [placedId, …] → DisplayObjectHandle per instance
  *
  * Position resolution:
  *   params.to / params.at (position name) → ScenePosition → { x, y }
@@ -21,7 +26,7 @@ import type {
 } from "@sajou/core";
 
 import type { RenderAdapter, DisplayObjectHandle } from "../canvas/render-adapter.js";
-import { resolveEntityId, resolvePosition, resolveRoute } from "./run-mode-resolve.js";
+import { resolveEntityId, resolveAllEntityIds, resolvePosition, resolveRoute } from "./run-mode-resolve.js";
 import { switchAnimation } from "./run-mode-animator.js";
 import { buildPathPoints } from "../tools/route-tool.js";
 import { flattenRoutePathWithMapping, computeSegmentLengths, interpolateAlongPath } from "../tools/route-math.js";
@@ -58,9 +63,14 @@ interface ActiveAnimation {
   placedId?: string;
 }
 
-/** Composite key for tracking animations: performanceId:entityRef. */
-function animKey(performanceId: string, entityRef: string): string {
-  return `${performanceId}:${entityRef}`;
+/**
+ * Composite key for tracking animations: `performanceId:placedId`.
+ *
+ * Uses the concrete placed entity ID (not the semantic ID) so that
+ * multi-instance entities each get their own independent animation state.
+ */
+function animKey(performanceId: string, placedId: string): string {
+  return `${performanceId}:${placedId}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -72,9 +82,16 @@ export function createRunModeSink(adapter: RenderAdapter): CommandSink {
   const animations = new Map<string, ActiveAnimation>();
 
   return {
+    /**
+     * Handle action start for all entities matching the semantic ID.
+     *
+     * When multiple placed entities share the same `semanticId`, the action
+     * is applied to every instance. Each gets its own animation entry keyed
+     * by `performanceId:placedId`.
+     */
     onActionStart(cmd: ActionStartCommand): void {
-      const placedId = resolveEntityId(cmd.entityRef);
-      if (!placedId) {
+      const placedIds = resolveAllEntityIds(cmd.entityRef);
+      if (placedIds.length === 0) {
         if (cmd.entityRef) {
           console.warn(`[run-mode] ${cmd.action} start: entity "${cmd.entityRef}" not found`);
         } else {
@@ -83,196 +100,223 @@ export function createRunModeSink(adapter: RenderAdapter): CommandSink {
         return;
       }
 
-      const handle = adapter.getHandle(placedId);
-      if (!handle) return;
+      for (const placedId of placedIds) {
+        const handle = adapter.getHandle(placedId);
+        if (!handle) continue;
 
-      const key = animKey(cmd.performanceId, cmd.entityRef);
+        const key = animKey(cmd.performanceId, placedId);
 
-      if (cmd.action === "move" || cmd.action === "fly") {
-        const toName = cmd.params["to"] as string | undefined;
-        const target = toName ? resolvePosition(toName) : null;
+        if (cmd.action === "move" || cmd.action === "fly") {
+          const toName = cmd.params["to"] as string | undefined;
+          const target = toName ? resolvePosition(toName) : null;
 
-        // Start "during" animation if specified
-        const animDuring = cmd.params["animationDuring"] as string | undefined;
-        if (animDuring && placedId) switchAnimation(placedId, animDuring);
+          // Start "during" animation if specified
+          const animDuring = cmd.params["animationDuring"] as string | undefined;
+          if (animDuring) switchAnimation(placedId, animDuring);
 
-        animations.set(key, {
-          handle,
-          startX: handle.x,
-          startY: handle.y,
-          targetX: target?.x ?? handle.x,
-          targetY: target?.y ?? handle.y,
-          savedTint: 0xffffff,
-          action: cmd.action,
-          animationOnArrival: cmd.params["animationOnArrival"] as string | undefined,
-          placedId: placedId ?? undefined,
-        });
-      } else if (cmd.action === "flash") {
-        animations.set(key, {
-          handle,
-          startX: handle.x,
-          startY: handle.y,
-          targetX: handle.x,
-          targetY: handle.y,
-          savedTint: handle.tint,
-          action: cmd.action,
-        });
-      } else if (cmd.action === "followRoute") {
-        const routeName = cmd.params["route"] as string | undefined;
-        const route = routeName ? resolveRoute(routeName) : null;
-        if (!route) {
-          console.warn(`[run-mode] followRoute: route "${routeName}" not found`);
-          return;
-        }
-
-        // Build display points (snapped to linked positions)
-        const displayPoints = buildPathPoints(route);
-        if (displayPoints.length < 2) return;
-
-        // Flatten to dense polyline with original-point index mapping
-        const { polyline: fullPolyline, pointIndices } = flattenRoutePathWithMapping(displayPoints, route.points);
-
-        // Slice polyline to from/to waypoint range if specified
-        const fromName = cmd.params["from"] as string | undefined;
-        const toName = cmd.params["to"] as string | undefined;
-
-        let sliceStart = 0;
-        let sliceEnd = fullPolyline.length;
-
-        if (fromName) {
-          const rpIdx = route.points.findIndex((rp) => rp.name === fromName);
-          if (rpIdx >= 0 && rpIdx < pointIndices.length) {
-            sliceStart = pointIndices[rpIdx]!;
-          } else {
-            console.warn(`[run-mode] followRoute: waypoint "${fromName}" not found on route "${routeName}"`);
+          animations.set(key, {
+            handle,
+            startX: handle.x,
+            startY: handle.y,
+            targetX: target?.x ?? handle.x,
+            targetY: target?.y ?? handle.y,
+            savedTint: 0xffffff,
+            action: cmd.action,
+            animationOnArrival: cmd.params["animationOnArrival"] as string | undefined,
+            placedId,
+          });
+        } else if (cmd.action === "flash") {
+          animations.set(key, {
+            handle,
+            startX: handle.x,
+            startY: handle.y,
+            targetX: handle.x,
+            targetY: handle.y,
+            savedTint: handle.tint,
+            action: cmd.action,
+          });
+        } else if (cmd.action === "followRoute") {
+          const routeName = cmd.params["route"] as string | undefined;
+          const route = routeName ? resolveRoute(routeName) : null;
+          if (!route) {
+            console.warn(`[run-mode] followRoute: route "${routeName}" not found`);
+            return;
           }
-        }
-        if (toName) {
-          const rpIdx = route.points.findIndex((rp) => rp.name === toName);
-          if (rpIdx >= 0 && rpIdx < pointIndices.length) {
-            sliceEnd = pointIndices[rpIdx]! + 1; // inclusive
-          } else {
-            console.warn(`[run-mode] followRoute: waypoint "${toName}" not found on route "${routeName}"`);
+
+          // Build display points (snapped to linked positions)
+          const displayPoints = buildPathPoints(route);
+          if (displayPoints.length < 2) continue;
+
+          // Flatten to dense polyline with original-point index mapping
+          const { polyline: fullPolyline, pointIndices } = flattenRoutePathWithMapping(displayPoints, route.points);
+
+          // Slice polyline to from/to waypoint range if specified
+          const fromName = cmd.params["from"] as string | undefined;
+          const toName = cmd.params["to"] as string | undefined;
+
+          let sliceStart = 0;
+          let sliceEnd = fullPolyline.length;
+
+          if (fromName) {
+            const rpIdx = route.points.findIndex((rp) => rp.name === fromName);
+            if (rpIdx >= 0 && rpIdx < pointIndices.length) {
+              sliceStart = pointIndices[rpIdx]!;
+            } else {
+              console.warn(`[run-mode] followRoute: waypoint "${fromName}" not found on route "${routeName}"`);
+            }
           }
+          if (toName) {
+            const rpIdx = route.points.findIndex((rp) => rp.name === toName);
+            if (rpIdx >= 0 && rpIdx < pointIndices.length) {
+              sliceEnd = pointIndices[rpIdx]! + 1; // inclusive
+            } else {
+              console.warn(`[run-mode] followRoute: waypoint "${toName}" not found on route "${routeName}"`);
+            }
+          }
+
+          let polyline = fullPolyline.slice(sliceStart, sliceEnd);
+          if (polyline.length < 2) {
+            console.warn(`[run-mode] followRoute: sliced path too short (from="${fromName}", to="${toName}")`);
+            continue;
+          }
+
+          // Reverse if requested
+          const reverse = cmd.params["reverse"] as boolean | undefined;
+          if (reverse) polyline = [...polyline].reverse();
+
+          // Compute arc-length parameterization
+          const cumulativeLengths = computeSegmentLengths(polyline);
+
+          // Teleport entity to start of path
+          handle.x = polyline[0]!.x;
+          handle.y = polyline[0]!.y;
+
+          // Start "during" animation
+          const animDuring = cmd.params["animationDuring"] as string | undefined;
+          if (animDuring) switchAnimation(placedId, animDuring);
+
+          animations.set(key, {
+            handle,
+            startX: handle.x,
+            startY: handle.y,
+            targetX: polyline[polyline.length - 1]!.x,
+            targetY: polyline[polyline.length - 1]!.y,
+            savedTint: 0xffffff,
+            action: cmd.action,
+            polyline,
+            cumulativeLengths,
+            originalScaleXSign: handle.scale.x >= 0 ? 1 : -1,
+            animationOnArrival: cmd.params["animationOnArrival"] as string | undefined,
+            placedId,
+          });
+        } else if (cmd.action === "wait") {
+          // No visual setup needed — timing is handled by the scheduler.
         }
-
-        let polyline = fullPolyline.slice(sliceStart, sliceEnd);
-        if (polyline.length < 2) {
-          console.warn(`[run-mode] followRoute: sliced path too short (from="${fromName}", to="${toName}")`);
-          return;
-        }
-
-        // Reverse if requested
-        const reverse = cmd.params["reverse"] as boolean | undefined;
-        if (reverse) polyline = [...polyline].reverse();
-
-        // Compute arc-length parameterization
-        const cumulativeLengths = computeSegmentLengths(polyline);
-
-        // Teleport entity to start of path
-        handle.x = polyline[0]!.x;
-        handle.y = polyline[0]!.y;
-
-        // Start "during" animation
-        const animDuring = cmd.params["animationDuring"] as string | undefined;
-        if (animDuring && placedId) switchAnimation(placedId, animDuring);
-
-        animations.set(key, {
-          handle,
-          startX: handle.x,
-          startY: handle.y,
-          targetX: polyline[polyline.length - 1]!.x,
-          targetY: polyline[polyline.length - 1]!.y,
-          savedTint: 0xffffff,
-          action: cmd.action,
-          polyline,
-          cumulativeLengths,
-          originalScaleXSign: handle.scale.x >= 0 ? 1 : -1,
-          animationOnArrival: cmd.params["animationOnArrival"] as string | undefined,
-          placedId: placedId ?? undefined,
-        });
-      } else if (cmd.action === "wait") {
-        // No visual setup needed — timing is handled by the scheduler.
       }
     },
 
+    /**
+     * Update animations for all instances matching the semantic ID.
+     *
+     * Looks up animation entries for every placed entity that shares the
+     * `cmd.entityRef` semantic ID and advances them with the same progress.
+     */
     onActionUpdate(cmd: ActionUpdateCommand): void {
-      const key = animKey(cmd.performanceId, cmd.entityRef);
-      const anim = animations.get(key);
-      if (!anim) return;
-
-      const { handle, startX, startY, targetX, targetY } = anim;
+      const placedIds = resolveAllEntityIds(cmd.entityRef);
       const t = cmd.progress;
 
-      if (anim.action === "move") {
-        handle.x = startX + (targetX - startX) * t;
-        handle.y = startY + (targetY - startY) * t;
-      } else if (anim.action === "fly") {
-        // Move with arc: vertical offset via sin(progress * PI)
-        handle.x = startX + (targetX - startX) * t;
-        const linearY = startY + (targetY - startY) * t;
-        const arcHeight = Math.abs(targetX - startX) * 0.3;
-        handle.y = linearY - Math.sin(t * Math.PI) * arcHeight;
-      } else if (anim.action === "followRoute") {
-        if (anim.polyline && anim.cumulativeLengths) {
-          const sample = interpolateAlongPath(anim.polyline, anim.cumulativeLengths, t);
-          handle.x = sample.x;
-          handle.y = sample.y;
-          // Flip entity based on movement direction
-          const origSign = anim.originalScaleXSign ?? 1;
-          handle.scale.x = Math.abs(handle.scale.x) * sample.directionX * origSign;
-        }
-      } else if (anim.action === "flash") {
-        const colorStr = cmd.params["color"] as string | undefined;
-        if (colorStr) {
-          const flashColor = parseHexColor(colorStr);
-          // Blend: at progress 0.5 = full flash color, then fade back
-          const intensity = t <= 0.5 ? t * 2 : (1 - t) * 2;
-          handle.tint = lerpColor(anim.savedTint, flashColor, intensity);
+      for (const placedId of placedIds) {
+        const key = animKey(cmd.performanceId, placedId);
+        const anim = animations.get(key);
+        if (!anim) continue;
+
+        const { handle, startX, startY, targetX, targetY } = anim;
+
+        if (anim.action === "move") {
+          handle.x = startX + (targetX - startX) * t;
+          handle.y = startY + (targetY - startY) * t;
+        } else if (anim.action === "fly") {
+          // Move with arc: vertical offset via sin(progress * PI)
+          handle.x = startX + (targetX - startX) * t;
+          const linearY = startY + (targetY - startY) * t;
+          const arcHeight = Math.abs(targetX - startX) * 0.3;
+          handle.y = linearY - Math.sin(t * Math.PI) * arcHeight;
+        } else if (anim.action === "followRoute") {
+          if (anim.polyline && anim.cumulativeLengths) {
+            const sample = interpolateAlongPath(anim.polyline, anim.cumulativeLengths, t);
+            handle.x = sample.x;
+            handle.y = sample.y;
+            // Flip entity based on movement direction
+            const origSign = anim.originalScaleXSign ?? 1;
+            handle.scale.x = Math.abs(handle.scale.x) * sample.directionX * origSign;
+          }
+        } else if (anim.action === "flash") {
+          const colorStr = cmd.params["color"] as string | undefined;
+          if (colorStr) {
+            const flashColor = parseHexColor(colorStr);
+            // Blend: at progress 0.5 = full flash color, then fade back
+            const intensity = t <= 0.5 ? t * 2 : (1 - t) * 2;
+            handle.tint = lerpColor(anim.savedTint, flashColor, intensity);
+          }
         }
       }
     },
 
+    /**
+     * Complete animations for all instances matching the semantic ID.
+     *
+     * Snaps each instance to its final state and cleans up animation entries.
+     */
     onActionComplete(cmd: ActionCompleteCommand): void {
-      const key = animKey(cmd.performanceId, cmd.entityRef);
-      const anim = animations.get(key);
-      if (!anim) {
+      const placedIds = resolveAllEntityIds(cmd.entityRef);
+
+      for (const placedId of placedIds) {
+        const key = animKey(cmd.performanceId, placedId);
+        const anim = animations.get(key);
+        if (!anim) {
+          animations.delete(key);
+          continue;
+        }
+
+        const { handle } = anim;
+
+        if (anim.action === "move" || anim.action === "fly") {
+          // Snap to final position
+          handle.x = anim.targetX;
+          handle.y = anim.targetY;
+          // Switch to arrival animation if specified
+          if (anim.animationOnArrival && anim.placedId) {
+            switchAnimation(anim.placedId, anim.animationOnArrival);
+          }
+        } else if (anim.action === "followRoute") {
+          // Snap to final path point
+          handle.x = anim.targetX;
+          handle.y = anim.targetY;
+          // Restore original flip direction
+          const origSign = anim.originalScaleXSign ?? 1;
+          handle.scale.x = Math.abs(handle.scale.x) * origSign;
+          // Switch to arrival animation
+          if (anim.animationOnArrival && anim.placedId) {
+            switchAnimation(anim.placedId, anim.animationOnArrival);
+          }
+        } else if (anim.action === "flash") {
+          // Restore original tint
+          handle.tint = anim.savedTint;
+        }
+
         animations.delete(key);
-        return;
       }
-
-      const { handle } = anim;
-
-      if (anim.action === "move" || anim.action === "fly") {
-        // Snap to final position
-        handle.x = anim.targetX;
-        handle.y = anim.targetY;
-        // Switch to arrival animation if specified
-        if (anim.animationOnArrival && anim.placedId) {
-          switchAnimation(anim.placedId, anim.animationOnArrival);
-        }
-      } else if (anim.action === "followRoute") {
-        // Snap to final path point
-        handle.x = anim.targetX;
-        handle.y = anim.targetY;
-        // Restore original flip direction
-        const origSign = anim.originalScaleXSign ?? 1;
-        handle.scale.x = Math.abs(handle.scale.x) * origSign;
-        // Switch to arrival animation
-        if (anim.animationOnArrival && anim.placedId) {
-          switchAnimation(anim.placedId, anim.animationOnArrival);
-        }
-      } else if (anim.action === "flash") {
-        // Restore original tint
-        handle.tint = anim.savedTint;
-      }
-
-      animations.delete(key);
     },
 
+    /**
+     * Execute instant actions on all instances matching the semantic ID.
+     *
+     * Actions like spawn, destroy, and setAnimation are applied to every
+     * placed entity that shares the `cmd.entityRef` semantic ID.
+     */
     onActionExecute(cmd: ActionExecuteCommand): void {
-      const placedId = resolveEntityId(cmd.entityRef);
-      if (!placedId) {
+      const placedIds = resolveAllEntityIds(cmd.entityRef);
+      if (placedIds.length === 0) {
         if (cmd.entityRef) {
           console.warn(`[run-mode] ${cmd.action}: entity "${cmd.entityRef}" not found in scene`);
         } else {
@@ -281,29 +325,31 @@ export function createRunModeSink(adapter: RenderAdapter): CommandSink {
         return;
       }
 
-      const handle = adapter.getHandle(placedId);
-      if (!handle) return;
+      for (const placedId of placedIds) {
+        const handle = adapter.getHandle(placedId);
+        if (!handle) continue;
 
-      if (cmd.action === "spawn") {
-        // Show the entity and teleport to position
-        handle.visible = true;
-        const atName = cmd.params["at"] as string | undefined;
-        if (atName) {
-          const pos = resolvePosition(atName);
-          if (pos) {
-            handle.x = pos.x;
-            handle.y = pos.y;
+        if (cmd.action === "spawn") {
+          // Show the entity and teleport to position
+          handle.visible = true;
+          const atName = cmd.params["at"] as string | undefined;
+          if (atName) {
+            const pos = resolvePosition(atName);
+            if (pos) {
+              handle.x = pos.x;
+              handle.y = pos.y;
+            }
           }
+        } else if (cmd.action === "destroy") {
+          // Hide the entity
+          handle.visible = false;
+        } else if (cmd.action === "playSound") {
+          // Skip V1 — just log
+          console.log("[run-mode] playSound:", cmd.params["sound"]);
+        } else if (cmd.action === "setAnimation") {
+          const newState = cmd.params["state"] as string | undefined;
+          if (newState) switchAnimation(placedId, newState);
         }
-      } else if (cmd.action === "destroy") {
-        // Hide the entity
-        handle.visible = false;
-      } else if (cmd.action === "playSound") {
-        // Skip V1 — just log
-        console.log("[run-mode] playSound:", cmd.params["sound"]);
-      } else if (cmd.action === "setAnimation") {
-        const newState = cmd.params["state"] as string | undefined;
-        if (newState) switchAnimation(placedId, newState);
       }
     },
 

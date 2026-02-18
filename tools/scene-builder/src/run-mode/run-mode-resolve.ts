@@ -4,8 +4,15 @@
  * Centralizes semantic ID → PlacedEntity resolution used by both
  * the CommandSink and the BindingExecutor.
  *
+ * **Multi-instance support:** multiple placed entities may share the same
+ * `semanticId` (e.g. three "peon" agents on scene). The `resolveAll*`
+ * variants return every matching instance so that choreography steps and
+ * bindings fan out to all of them. The single-match `resolveEntityId` /
+ * `resolveEntity` are kept for backward compatibility in contexts that
+ * expect at most one result.
+ *
  * Entity resolution chain:
- *   semanticId → PlacedEntity (scene-state) → placedId
+ *   semanticId → PlacedEntity[] (scene-state) → placedId[]
  *
  * Position resolution:
  *   position name → ScenePosition (scene-state) → { x, y }
@@ -35,6 +42,35 @@ export function resolveEntityId(semanticId: string): string | null {
 export function resolveEntity(semanticId: string): PlacedEntity | null {
   const { entities } = getSceneState();
   return entities.find((e) => e.semanticId === semanticId) ?? null;
+}
+
+/**
+ * Resolve a semantic entity ID to **all** matching placed entity IDs.
+ *
+ * Unlike {@link resolveEntityId} which returns only the first match, this
+ * function returns every placed entity whose `semanticId` equals the given
+ * value. Use this when a choreography step or binding must fan-out to all
+ * instances sharing the same semantic role (e.g. three "peon" agents on scene).
+ *
+ * Returns an empty array when no entity matches.
+ */
+export function resolveAllEntityIds(semanticId: string): string[] {
+  const { entities } = getSceneState();
+  return entities
+    .filter((e) => e.semanticId === semanticId)
+    .map((e) => e.id);
+}
+
+/**
+ * Resolve a semantic entity ID to **all** matching PlacedEntity objects.
+ *
+ * Multi-instance counterpart of {@link resolveEntity}. Returns every placed
+ * entity whose `semanticId` matches, preserving scene order. Returns an empty
+ * array when no entity matches.
+ */
+export function resolveAllEntities(semanticId: string): PlacedEntity[] {
+  const { entities } = getSceneState();
+  return entities.filter((e) => e.semanticId === semanticId);
 }
 
 // ---------------------------------------------------------------------------

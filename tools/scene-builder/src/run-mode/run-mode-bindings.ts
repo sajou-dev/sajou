@@ -8,12 +8,14 @@
  *      - Check if the signal type matches the choreo's effective types
  *      - Check if the signal payload matches the choreo's `when` clause
  *   2. For each matched binding:
- *      - Execute the appropriate property change on the target entity
+ *      - Execute the appropriate property change on **all** entities matching
+ *        the target semantic ID (multi-instance fan-out)
  *
  * ```
  * Signal arrives
  *   ├──→ choreographer.handleSignal()     [steps: move, fly, flash…]
  *   └──→ bindingExecutor.handleSignal()   [bindings: animation.state, opacity…]
+ *        └──→ resolveAllEntityIds(semanticId) → apply to every instance
  * ```
  *
  * Bindings support two modes:
@@ -34,7 +36,7 @@ import type { RenderAdapter, DisplayObjectHandle } from "../canvas/render-adapte
 import { getChoreographyState } from "../state/choreography-state.js";
 import { getChoreoInputInfo } from "../state/wiring-queries.js";
 import { getBindingsFromChoreography } from "../state/binding-store.js";
-import { resolveEntityId, resolvePosition } from "./run-mode-resolve.js";
+import { resolveEntityId, resolveAllEntityIds, resolvePosition } from "./run-mode-resolve.js";
 import { switchAnimation } from "./run-mode-animator.js";
 import { getSnapshot } from "./run-mode-state.js";
 
@@ -186,7 +188,13 @@ const PROP_TO_HANDLE: Record<string, "alpha" | "rotation" | "scale" | "x" | "y">
   "position.y": "y",
 };
 
-/** Execute a single binding against a matched signal. */
+/**
+ * Execute a single binding against a matched signal.
+ *
+ * **Multi-instance:** when multiple placed entities share the same
+ * `targetEntityId` (semantic ID), the binding is applied to every
+ * matching instance.
+ */
 function executeBinding(
   binding: EntityBinding,
   signal: { type: string; payload: Record<string, unknown> },
@@ -195,58 +203,60 @@ function executeBinding(
   pendingTimeouts: Set<ReturnType<typeof setTimeout>>,
   ensureTicking: () => void,
 ): void {
-  const placedId = resolveEntityId(binding.targetEntityId);
-  if (!placedId) {
+  const placedIds = resolveAllEntityIds(binding.targetEntityId);
+  if (placedIds.length === 0) {
     console.warn(`[bindings] Target entity not found: ${binding.targetEntityId}`);
     return;
   }
 
-  // Temporal transition path — if binding has a transition config
-  const handleProp = PROP_TO_HANDLE[binding.property];
-  if (binding.transition && handleProp) {
-    startTransition(
-      placedId, handleProp, binding.transition,
-      adapter, activeAnims, pendingTimeouts, ensureTicking,
-    );
-    return;
-  }
+  for (const placedId of placedIds) {
+    // Temporal transition path — if binding has a transition config
+    const handleProp = PROP_TO_HANDLE[binding.property];
+    if (binding.transition && handleProp) {
+      startTransition(
+        placedId, handleProp, binding.transition,
+        adapter, activeAnims, pendingTimeouts, ensureTicking,
+      );
+      continue;
+    }
 
-  // Instant path (backward compatible)
-  switch (binding.property) {
-    case "animation.state":
-      executeAnimationState(placedId, binding);
-      break;
+    // Instant path (backward compatible)
+    switch (binding.property) {
+      case "animation.state":
+        executeAnimationState(placedId, binding);
+        break;
 
-    case "visible":
-      executeVisible(placedId, adapter);
-      break;
+      case "visible":
+        executeVisible(placedId, adapter);
+        break;
 
-    case "opacity":
-      executeValueBinding(placedId, binding, signal, "alpha", adapter);
-      break;
+      case "opacity":
+        executeValueBinding(placedId, binding, signal, "alpha", adapter);
+        break;
 
-    case "rotation":
-      executeValueBinding(placedId, binding, signal, "rotation", adapter);
-      break;
+      case "rotation":
+        executeValueBinding(placedId, binding, signal, "rotation", adapter);
+        break;
 
-    case "scale":
-      executeValueBinding(placedId, binding, signal, "scale", adapter);
-      break;
+      case "scale":
+        executeValueBinding(placedId, binding, signal, "scale", adapter);
+        break;
 
-    case "position.x":
-      executeValueBinding(placedId, binding, signal, "x", adapter);
-      break;
+      case "position.x":
+        executeValueBinding(placedId, binding, signal, "x", adapter);
+        break;
 
-    case "position.y":
-      executeValueBinding(placedId, binding, signal, "y", adapter);
-      break;
+      case "position.y":
+        executeValueBinding(placedId, binding, signal, "y", adapter);
+        break;
 
-    case "teleportTo":
-      executeTeleportTo(placedId, binding, adapter);
-      break;
+      case "teleportTo":
+        executeTeleportTo(placedId, binding, adapter);
+        break;
 
-    default:
-      console.warn(`[bindings] Unknown property: ${binding.property}`);
+      default:
+        console.warn(`[bindings] Unknown property: ${binding.property}`);
+    }
   }
 }
 
