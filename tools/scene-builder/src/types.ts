@@ -423,7 +423,7 @@ export type ViewId = "signal" | "orchestrator" | "visual";
 // ---------------------------------------------------------------------------
 
 /** Pipeline node identifiers (left-to-right). */
-export type PipelineNodeId = "signal" | "choreographer" | "visual" | "shader";
+export type PipelineNodeId = "signal" | "choreographer" | "visual" | "shader" | "p5";
 
 /** Pipeline layout configuration — which nodes are extended. */
 export interface PipelineLayout {
