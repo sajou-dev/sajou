@@ -927,12 +927,22 @@ function commandQueuePlugin() {
   const pending: SceneCommand[] = [];
   /** Set of command IDs that have been acknowledged. */
   const acknowledged = new Set<string>();
+  /** Active SSE client connections for command streaming. */
+  const commandClients = new Set<ServerResponse>();
 
   /** CORS headers for all endpoints. */
   const corsHeaders: Record<string, string> = {
     "Content-Type": "application/json",
     "Access-Control-Allow-Origin": "*",
   };
+
+  /** Broadcast a command to all connected SSE clients. */
+  function broadcastCommand(cmd: SceneCommand): void {
+    const frame = `event: command\ndata: ${JSON.stringify(cmd)}\n\n`;
+    for (const client of commandClients) {
+      client.write(frame);
+    }
+  }
 
   /** Read and parse a JSON body from a request. */
   function readBody(req: IncomingMessage): Promise<Record<string, unknown>> {
@@ -960,6 +970,7 @@ function commandQueuePlugin() {
       queuedAt: Date.now(),
     };
     pending.push(cmd);
+    broadcastCommand(cmd);
     return cmd;
   }
 
@@ -1146,7 +1157,26 @@ function commandQueuePlugin() {
         }
 
         // -----------------------------------------------------------------
-        // GET /api/commands/pending — client polls for queued commands
+        // GET /__commands__/stream — SSE endpoint for real-time commands
+        // -----------------------------------------------------------------
+        if (method === "GET" && url.startsWith("/__commands__/stream")) {
+          res.writeHead(200, {
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "Access-Control-Allow-Origin": "*",
+          });
+          res.write(": connected\n\n");
+
+          commandClients.add(res);
+          req.on("close", () => {
+            commandClients.delete(res);
+          });
+          return;
+        }
+
+        // -----------------------------------------------------------------
+        // GET /api/commands/pending — client polls for queued commands (fallback)
         // -----------------------------------------------------------------
         if (method === "GET" && url.startsWith("/api/commands/pending")) {
           // Return commands not yet acknowledged

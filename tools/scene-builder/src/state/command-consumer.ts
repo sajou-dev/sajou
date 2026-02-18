@@ -1,10 +1,13 @@
 /**
- * Command consumer — polls the Vite dev server for pending write commands.
+ * Command consumer — receives write commands from the Vite dev server via SSE.
  *
  * The MCP server (or any external tool) sends write commands via POST endpoints
- * (e.g. POST /api/scene/entities). The Vite dev server queues them. This module
- * polls GET /api/commands/pending and executes each command against the
- * appropriate client-side store, then ACKs so they are pruned from the queue.
+ * (e.g. POST /api/scene/entities). The Vite dev server queues them and broadcasts
+ * each command over SSE at /__commands__/stream. This module listens on that
+ * stream and executes each command against the appropriate client-side store,
+ * then ACKs so they are pruned from the queue.
+ *
+ * Falls back to polling GET /api/commands/pending if SSE fails to connect.
  *
  * This is the reverse channel of state-sync.ts: state-sync pushes state OUT,
  * command-consumer pulls commands IN.
@@ -19,13 +22,19 @@ import { getShaderState, addShader, updateShader, removeShader } from "../shader
 import type { ShaderDef, ShaderUniformDef, ShaderObjectDef } from "../shader-editor/shader-types.js";
 import type { PlacedEntity, ChoreographyDef, ChoreographyStepDef, BindingValueType } from "../types.js";
 
-/** Poll interval in milliseconds. */
+/** Poll interval in milliseconds (fallback only). */
 const POLL_MS = 500;
 
-/** Timer handle for the poll loop. */
+/** Timer handle for the fallback poll loop. */
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 
-/** Shape of a command as returned by GET /api/commands/pending. */
+/** Active EventSource connection. */
+let eventSource: EventSource | null = null;
+
+/** Whether the SSE stream is currently connected. */
+let sseConnected = false;
+
+/** Shape of a command as returned by the server. */
 interface PendingCommand {
   id: string;
   action: "add" | "remove" | "update" | "set-uniform";
@@ -277,7 +286,61 @@ function executeCommand(cmd: PendingCommand): void {
 }
 
 // ---------------------------------------------------------------------------
-// Poll loop
+// ACK helper
+// ---------------------------------------------------------------------------
+
+/** Acknowledge processed command IDs so the server prunes them. */
+function ackCommands(ids: string[]): void {
+  if (ids.length === 0) return;
+  fetch("/api/commands/ack", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids }),
+  }).catch(() => {
+    // Silently ignore ACK failures — command was already executed client-side
+  });
+}
+
+// ---------------------------------------------------------------------------
+// SSE stream
+// ---------------------------------------------------------------------------
+
+/** Connect to the command SSE stream and process commands in real-time. */
+function connectSSE(): void {
+  const es = new EventSource("/__commands__/stream");
+  eventSource = es;
+
+  es.addEventListener("command", (event: MessageEvent) => {
+    try {
+      const cmd = JSON.parse(event.data as string) as PendingCommand;
+      executeCommand(cmd);
+      ackCommands([cmd.id]);
+    } catch (e) {
+      console.error("[command-consumer] Failed to process SSE command:", e);
+    }
+  });
+
+  es.addEventListener("open", () => {
+    if (!sseConnected) {
+      console.log("[command-consumer] SSE connected — real-time command streaming active");
+      sseConnected = true;
+    }
+    // Stop fallback polling when SSE is connected
+    stopPolling();
+  });
+
+  es.addEventListener("error", () => {
+    if (sseConnected) {
+      console.warn("[command-consumer] SSE disconnected — falling back to polling");
+      sseConnected = false;
+    }
+    // EventSource will auto-reconnect, but start polling as fallback in the meantime
+    startPolling();
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Fallback poll loop
 // ---------------------------------------------------------------------------
 
 /** Fetch pending commands and execute them. */
@@ -304,18 +367,24 @@ async function pollCommands(): Promise<void> {
       }
     }
 
-    // Acknowledge all processed commands
-    if (ackIds.length > 0) {
-      await fetch("/api/commands/ack", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: ackIds }),
-      }).catch(() => {
-        // Silently ignore ACK failures — commands will be re-processed on next poll
-      });
-    }
+    ackCommands(ackIds);
   } catch {
     // Silently ignore poll failures (server might be restarting)
+  }
+}
+
+/** Start the fallback polling loop (if not already running). */
+function startPolling(): void {
+  if (pollTimer !== null) return;
+  pollTimer = setInterval(() => { pollCommands(); }, POLL_MS);
+  pollCommands();
+}
+
+/** Stop the fallback polling loop. */
+function stopPolling(): void {
+  if (pollTimer !== null) {
+    clearInterval(pollTimer);
+    pollTimer = null;
   }
 }
 
@@ -324,23 +393,23 @@ async function pollCommands(): Promise<void> {
 // ---------------------------------------------------------------------------
 
 /**
- * Initialize the command consumer — starts polling for pending commands.
+ * Initialize the command consumer — connects via SSE with polling fallback.
  *
  * Call this AFTER all stores are initialized (alongside initStateSync).
  */
 export function initCommandConsumer(): void {
-  if (pollTimer !== null) return; // Already running
-  pollTimer = setInterval(() => { pollCommands(); }, POLL_MS);
-  // Also do an immediate check
-  pollCommands();
+  if (eventSource !== null || pollTimer !== null) return; // Already running
+  connectSSE();
 }
 
 /**
- * Stop the command consumer polling.
+ * Stop the command consumer (SSE + polling).
  */
 export function stopCommandConsumer(): void {
-  if (pollTimer !== null) {
-    clearInterval(pollTimer);
-    pollTimer = null;
+  if (eventSource !== null) {
+    eventSource.close();
+    eventSource = null;
+    sseConnected = false;
   }
+  stopPolling();
 }
