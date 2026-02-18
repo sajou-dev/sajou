@@ -1,6 +1,6 @@
 {
   "name": "@sajou/mcp-server",
-  "version": "0.0.0",
+  "version": "0.3.0",
   "private": true,
   "description": "MCP server for sajou — lets AI agents interact with the visual choreographer via Model Context Protocol",
   "type": "module",
@@ -15,7 +15,9 @@
   "bin": {
     "sajou-mcp": "./dist/index.js"
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc --build",
     "typecheck": "tsc --noEmit",
