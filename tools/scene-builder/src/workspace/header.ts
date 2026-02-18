@@ -1,7 +1,7 @@
 /**
  * Header module.
  *
- * Top bar with title, undo/redo, file actions, run mode, and help button.
+ * Top bar with title, undo/redo, file actions, and run mode.
  */
 
 import { exportScene } from "../io/export-scene.js";
@@ -9,7 +9,6 @@ import { importScene } from "../io/import-scene.js";
 import { subscribeRunMode, isRunModeActive } from "../run-mode/run-mode-state.js";
 import { newScene } from "../state/persistence.js";
 import { undo, redo, canUndo, canRedo, subscribeUndo } from "../state/undo.js";
-import { togglePanel } from "../state/editor-state.js";
 import { shouldSuppressShortcut } from "../shortcuts/shortcut-registry.js";
 
 // Run mode is imported lazily to avoid loading @sajou/* packages at startup.
@@ -77,8 +76,6 @@ export function initHeader(): void {
   const btnRun = document.getElementById("btn-run");
   const btnUndo = document.getElementById("btn-undo");
   const btnRedo = document.getElementById("btn-redo");
-  const btnHelp = document.getElementById("btn-help");
-
   // File actions
   btnNew?.addEventListener("click", () => {
     void triggerNewScene();
@@ -108,11 +105,6 @@ export function initHeader(): void {
   // Subscribe to undo stack changes and set initial state
   subscribeUndo(syncUndoButtons);
   syncUndoButtons();
-
-  // Utility — Help (toggle shortcuts panel)
-  btnHelp?.addEventListener("click", () => {
-    togglePanel("shortcuts");
-  });
 
   // Subscribe to run mode state changes to update button appearance
   subscribeRunMode(updateRunButton);
