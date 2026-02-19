@@ -199,7 +199,7 @@ Dual-mode sketch editor with live preview, supporting both p5.js and Three.js ru
 - **External control**: MCP `set-param` commands update both the state store and the live params object
 - **Backward-compatible**: `mode ?? "p5"` — existing sketches without the field default to p5.js
 
-Key files: `p5-canvas.ts` (runtime routing), `threejs-canvas.ts` (Three.js runtime), `p5-params-panel.ts` (UI controls), `p5-code-panel.ts` (editor + mode selector), `p5-param-parser.ts` (annotation parser), `p5-presets.ts` (p5 + Three.js presets), `p5-state.ts` (store), `p5-view.ts` (pipeline node integration)
+Key files: `sketch-canvas.ts` (runtime routing), `threejs-canvas.ts` (Three.js runtime), `sketch-params-panel.ts` (UI controls), `sketch-code-panel.ts` (editor + mode selector), `sketch-param-parser.ts` (annotation parser), `sketch-presets.ts` (p5 + Three.js presets), `sketch-state.ts` (store), `sketch-view.ts` (pipeline node integration)
 
 #### Server-authoritative state
 

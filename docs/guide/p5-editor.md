@@ -10,16 +10,16 @@ The Sketches node shares a pipeline slot with the Shader node — they are group
 
 ## Sketch Format
 
-Sketches are stored as `P5SketchDef` objects:
+Sketches are stored as `SketchDef` objects:
 
 ```typescript
 type SketchMode = "p5" | "threejs";
 
-interface P5SketchDef {
+interface SketchDef {
   id: string;
   name: string;
   source: string;          // JavaScript source code
-  params: P5ParamDef[];    // Parsed from @param annotations
+  params: SketchParamDef[];    // Parsed from @param annotations
   width: number;           // Canvas size (0 = fit container)
   height: number;
   mode?: SketchMode;       // Runtime mode (default: "p5")
@@ -259,12 +259,12 @@ Use the book icon in the code panel header to load a preset. The dropdown groups
 
 | File | Purpose |
 |------|---------|
-| `p5-editor/p5-canvas.ts` | Runtime routing — delegates to p5 or Three.js based on sketch mode |
-| `p5-editor/threejs-canvas.ts` | Three.js runtime — WebGLRenderer, Scene, Camera, rAF loop, sajou bridge |
-| `p5-editor/p5-code-panel.ts` | CodeMirror 6 JS editor, mode selector, sketch selector, run/stop |
-| `p5-editor/p5-types.ts` | `P5SketchDef`, `P5ParamDef`, `SketchMode` type definitions |
-| `p5-editor/p5-param-parser.ts` | `@param:` / `@bind:` annotation parser |
-| `p5-editor/p5-params-panel.ts` | Interactive param controls (slider, color, toggle, xy) |
-| `p5-editor/p5-presets.ts` | Built-in p5.js + Three.js presets |
-| `p5-editor/p5-state.ts` | Module-state store with subscribe/notify |
-| `workspace/connector-bar-p5.ts` | Wiring badges for sketch params |
+| `sketch-editor/sketch-canvas.ts` | Runtime routing — delegates to p5 or Three.js based on sketch mode |
+| `sketch-editor/threejs-canvas.ts` | Three.js runtime — WebGLRenderer, Scene, Camera, rAF loop, sajou bridge |
+| `sketch-editor/sketch-code-panel.ts` | CodeMirror 6 JS editor, mode selector, sketch selector, run/stop |
+| `sketch-editor/sketch-types.ts` | `SketchDef`, `SketchParamDef`, `SketchMode` type definitions |
+| `sketch-editor/sketch-param-parser.ts` | `@param:` / `@bind:` annotation parser |
+| `sketch-editor/sketch-params-panel.ts` | Interactive param controls (slider, color, toggle, xy) |
+| `sketch-editor/sketch-presets.ts` | Built-in p5.js + Three.js presets |
+| `sketch-editor/sketch-state.ts` | Module-state store with subscribe/notify |
+| `workspace/connector-bar-sketch.ts` | Wiring badges for sketch params |
