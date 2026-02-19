@@ -65,7 +65,7 @@ WebSocket signal emitter for testing.
 
 Visual scene editor — the main authoring tool for creating and testing choreographies.
 
-- Vite + Three.js + Canvas2D overlay + vanilla TypeScript
+- Vite + Three.js + Canvas2D overlay + vanilla TypeScript + Tauri v2 desktop shell
 - Dual-canvas architecture: WebGLRenderer (3D scene) + Canvas2D (editor overlays, markers, labels)
 - Pipeline layout: Signal ─rail─ Choreo ─rail─ Visual ─rail─ [ Shader │ p5.js ]
 - Shader and p5.js share a single pipeline slot (`.pl-node-group`) with vertical split; mini nodes show rotated headers
@@ -74,14 +74,26 @@ Visual scene editor — the main authoring tool for creating and testing choreog
 - Export/import ZIP (selective import dialog: choose visual layout, entities, choreographies, shaders, p5 sketches independently), run mode with live preview, binding transitions
 - Auto-wire: on import or source connection, `signal → signal-type` wires are created automatically for connected sources × active choreography signal types
 - Signal sources split into **LOCAL** (auto-discovered) and **REMOTE** (manually added) categories
-- Local discovery: Vite plugin probes localhost for Claude Code (SSE), OpenClaw (TCP 18789), LM Studio (HTTP 1234), Ollama (HTTP 11434)
+- Local discovery: client-side browser probes for Claude Code (relative SSE, dev only), OpenClaw (WebSocket 18789), LM Studio (HTTP 1234), Ollama (HTTP 11434)
 - OpenClaw token auto-fill from `~/.openclaw/openclaw.json` → `gateway.auth.token` (CORS-restricted endpoint)
 - Remote transports: WebSocket, SSE, OpenAI-compatible, Anthropic API, OpenClaw
 - OpenClaw integration: challenge/response handshake (protocol v3), channel metadata extraction, delta-first text streaming, exponential backoff reconnect
 - HTTP POST ingestion (`POST /api/signal`) + SSE broadcast (`GET /__signals__/stream`)
 - Signal log: 10k entries in memory, 500 rendered, "Load older" button for virtual scrolling
+- `platformFetch()`: Tauri-aware fetch wrapper — uses `tauri-plugin-http` (Rust-side) in desktop, Vite CORS proxy in dev, native fetch in browser prod
 - Vite dev plugins: `corsProxyPlugin`, `signalIngestionPlugin`, `tapHookPlugin`, `openclawTokenPlugin`, `localDiscoveryPlugin`
-- Dependencies: `@sajou/core`, `three`, `fflate`, `gifuct-js`
+- Dependencies: `@sajou/core`, `three`, `fflate`, `gifuct-js`, `@tauri-apps/api`, `@tauri-apps/plugin-http`
+
+#### Tauri desktop app
+
+Native desktop shell via Tauri v2 (WKWebView on macOS, WebView2 on Windows):
+- **Dev mode** (`pnpm tauri:dev`): Vite dev server + native webview — full Claude Code integration, HMR, MCP server
+- **Production** (`pnpm tauri:build`): self-contained `.app`/`.dmg` (~3.4 MB) — LM Studio, Ollama, OpenClaw work via `tauri-plugin-http`; no Claude Code (requires Vite dev server)
+- `tauri-plugin-http` bypasses webview mixed-content restrictions for HTTP requests to localhost
+- HTTP scope: `http://*:*` and `https://*:*` (any host, any port)
+- `window.confirm()` replaced by HTML dialog (WKWebView doesn't support native JS dialogs)
+- Webview data: `~/Library/WebKit/dev.sajou.scene-builder/` (may need clearing between builds)
+- Key files: `src-tauri/tauri.conf.json`, `src-tauri/src/lib.rs`, `src-tauri/capabilities/default.json`
 
 #### State persistence
 
@@ -94,7 +106,7 @@ Auto-saves all scene-builder state to IndexedDB and restores on startup:
 - `beforeunload` handler flushes pending debounced saves
 - **Not persisted**: undo stack, local sources (re-discovered), connection status, active selections
 - Local sources have fixed identity colors (`LOCAL_SOURCE_COLORS`) to prevent visual drift across sessions
-- "New" button (Ctrl+N) in header: confirmation → `dbClearAll()` → reset all stores → re-discover local sources
+- "New" button (Ctrl+N) in header: HTML confirm dialog → `dbClearAll()` → reset all stores → re-discover local sources
 
 #### Camera
 

@@ -26,6 +26,7 @@ import {
 import { parseMIDIMessage } from "../midi/midi-parser.js";
 import { extractPortId } from "../midi/midi-discovery.js";
 import { getMIDIInputs } from "../midi/midi-access.js";
+import { platformFetch } from "../utils/platform-fetch.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -356,7 +357,7 @@ async function sendOpenAIPrompt(
       headers["Authorization"] = `Bearer ${apiKey}`;
     }
 
-    const resp = await fetch(proxyUrl(endpoint), {
+    const resp = await platformFetch(endpoint, {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -452,19 +453,6 @@ function detectProtocol(url: string): TransportProtocol {
 }
 
 // ---------------------------------------------------------------------------
-// CORS proxy
-// ---------------------------------------------------------------------------
-
-/**
- * Rewrite an external HTTP URL to go through the Vite dev server proxy
- * at `/__proxy/?target=<encoded-url>` to bypass CORS restrictions.
- */
-function proxyUrl(url: string): string {
-  if (!import.meta.env?.DEV) return url;
-  return `/__proxy/?target=${encodeURIComponent(url)}`;
-}
-
-// ---------------------------------------------------------------------------
 // OpenAI probe
 // ---------------------------------------------------------------------------
 
@@ -481,7 +469,7 @@ async function probeOpenAI(
       headers["Authorization"] = `Bearer ${apiKey}`;
     }
 
-    const resp = await fetch(proxyUrl(modelsUrl), {
+    const resp = await platformFetch(modelsUrl, {
       headers,
       signal: AbortSignal.timeout(3000),
     });
@@ -816,7 +804,7 @@ function connectSSE(conn: SourceConnection, url: string, apiKey: string): void {
     debug(`[${conn.sourceId}] Using API key for authentication.`, "info", conn.sourceId);
   }
 
-  fetch(proxyUrl(url), {
+  platformFetch(url, {
     method: "GET",
     headers,
     signal: conn.sseAbort.signal,
@@ -993,7 +981,7 @@ async function probeAnthropic(
   try {
     // Try listing models via the Anthropic models endpoint
     const modelsUrl = baseUrl.replace(/\/+$/, "") + "/v1/models";
-    const resp = await fetch(proxyUrl(modelsUrl), {
+    const resp = await platformFetch(modelsUrl, {
       headers: {
         "x-api-key": apiKey,
         "anthropic-version": "2023-06-01",
@@ -1072,7 +1060,7 @@ async function sendAnthropicPrompt(
   }, sourceId);
 
   try {
-    const resp = await fetch(proxyUrl(endpoint), {
+    const resp = await platformFetch(endpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
