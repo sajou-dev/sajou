@@ -3,7 +3,6 @@
     "sajou": {
       "command": "pnpm",
       "args": ["--filter", "@sajou/mcp-server", "start"],
-      "cwd": "/Users/yan/synoul415/devel/sajou_AA",
       "env": {
         "SAJOU_DEV_SERVER": "http://localhost:5175"
       }
