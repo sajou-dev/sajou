@@ -35,47 +35,65 @@ jobs:
     runs-on: ${{ matrix.platform }}
     name: Build (${{ matrix.label }})
 
-    if: >-
-      github.event_name == 'push' ||
-      github.event.inputs.full_matrix == 'true' ||
-      matrix.label == 'macOS ARM'
-
     steps:
+      - name: Skip non-ARM on manual dispatch without full_matrix
+        id: guard
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ github.event.inputs.full_matrix }}" == "true" ]]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ matrix.label }}" == "macOS ARM" ]]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Skipping ${{ matrix.label }} (manual dispatch, ARM-only)"
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/checkout@v4
+        if: steps.guard.outputs.run == 'true'
 
       - name: Install system dependencies (Ubuntu)
-        if: matrix.platform == 'ubuntu-22.04'
+        if: steps.guard.outputs.run == 'true' && matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
       - name: Setup Node.js
+        if: steps.guard.outputs.run == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: "22"
 
       - name: Setup pnpm
+        if: steps.guard.outputs.run == 'true'
         uses: pnpm/action-setup@v4
         with:
           version: 10
 
       - name: Install Rust stable
+        if: steps.guard.outputs.run == 'true'
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
       - name: Rust cache
+        if: steps.guard.outputs.run == 'true'
         uses: swatinem/rust-cache@v2
         with:
           workspaces: "tools/scene-builder/src-tauri -> target"
 
       - name: Install frontend dependencies
+        if: steps.guard.outputs.run == 'true'
         run: pnpm install
 
       - name: Build workspace dependencies
+        if: steps.guard.outputs.run == 'true'
         run: pnpm --filter "@sajou/stage..." build
 
       - name: Build Tauri app
+        if: steps.guard.outputs.run == 'true'
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -96,7 +114,7 @@ jobs:
           args: ${{ matrix.args }}
 
       - name: Remove .app.tar.gz duplicates (macOS only)
-        if: matrix.platform == 'macos-latest'
+        if: steps.guard.outputs.run == 'true' && matrix.platform == 'macos-latest'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
