@@ -1,6 +1,6 @@
 {
   "name": "@sajou/mcp-server",
-  "version": "0.5.6",
+  "version": "0.6.0",
   "private": true,
   "description": "MCP server for sajou — lets AI agents interact with the visual choreographer via Model Context Protocol",
   "type": "module",

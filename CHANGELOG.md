@@ -1,9 +1,13 @@
 # Changelog
 
-## v0.5.6 (2026-02-19)
+## v0.6.0 (2026-02-19)
 
 - feat(scene-builder): full-window preview mode (F key, auto-activates run mode + hand tool)
 - fix(scene-builder): particle render order fix
+- docs: new guide pages (lighting, particles, speech bubbles)
+- docs: updated run-mode (binding transitions, full-window), persistence (9 stores)
+- site: sajou.dev updated (20 MCP tools, download CTA)
+- site: sajou.app — news/download page with dynamic GitHub release fetch
 
 ## v0.5.5 (2026-02-19)
 
