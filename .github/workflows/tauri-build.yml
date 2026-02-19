@@ -68,6 +68,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: "tools/scene-builder"
+          tauriScript: "pnpm tauri"
           tagName: "v__VERSION__"
           releaseName: "sajou v__VERSION__"
           releaseBody: |
