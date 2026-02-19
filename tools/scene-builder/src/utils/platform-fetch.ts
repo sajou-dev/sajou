@@ -20,10 +20,38 @@ async function init(): Promise<void> {
     if ("__TAURI_INTERNALS__" in window) {
       const mod = await import("@tauri-apps/plugin-http");
       _tauriFetch = mod.fetch as unknown as typeof globalThis.fetch;
+      console.info("[platformFetch] Tauri HTTP plugin loaded");
     }
-  } catch {
-    /* plugin not available — fall through to browser fetch */
+  } catch (err) {
+    console.warn("[platformFetch] Tauri HTTP plugin not available, falling back to browser fetch:", err);
   }
+}
+
+/**
+ * Merge an extra header into fetch options, using a plain Record to avoid
+ * the browser's forbidden-header restrictions on the Headers API.
+ */
+function withHeader(
+  options: RequestInit | undefined,
+  key: string,
+  value: string,
+): RequestInit {
+  const existing = options?.headers;
+  let plain: Record<string, string> = {};
+
+  if (existing instanceof Headers) {
+    existing.forEach((v, k) => { plain[k] = v; });
+  } else if (Array.isArray(existing)) {
+    for (const [k, v] of existing) { plain[k] = v; }
+  } else if (existing) {
+    plain = { ...existing };
+  }
+
+  if (!(key in plain)) {
+    plain[key] = value;
+  }
+
+  return { ...options, headers: plain };
 }
 
 /**
@@ -41,15 +69,12 @@ export async function platformFetch(
 
   // Tauri — Rust-side fetch, no restrictions
   if (_tauriFetch) {
-    // Force a localhost Origin header for local services (Ollama, etc.)
-    // so they don't reject the request due to Tauri's webview origin
-    // (https://tauri.localhost) not being in their allowed origins list.
+    // For local services (Ollama, etc.), inject Origin: http://localhost via
+    // a plain header record. The browser Headers API silently drops "Origin"
+    // (forbidden header), so we bypass it with a plain object that the Tauri
+    // plugin passes straight through to the Rust HTTP client.
     if (_isLocalUrl(url)) {
-      const headers = new Headers(options?.headers);
-      if (!headers.has("Origin")) {
-        headers.set("Origin", "http://localhost");
-      }
-      return _tauriFetch(url, { ...options, headers });
+      return _tauriFetch(url, withHeader(options, "Origin", "http://localhost"));
     }
     return _tauriFetch(url, options);
   }
