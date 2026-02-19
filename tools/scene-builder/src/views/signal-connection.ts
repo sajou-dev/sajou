@@ -1279,6 +1279,13 @@ let localSSESourceId: string | null = null;
 export async function connectLocalSSE(sourceId = "local:claude-code"): Promise<void> {
   if (localSSE) return;
 
+  // Local SSE requires the Vite dev server endpoints — skip in Tauri production.
+  if ("__TAURI_INTERNALS__" in window && !import.meta.env?.DEV) {
+    debug(`[${sourceId}] Local SSE not available in Tauri production.`, "warn", sourceId);
+    updateSource(sourceId, { status: "error", error: "Requires dev mode (tauri dev)" });
+    return;
+  }
+
   localSSESourceId = sourceId;
   updateSource(sourceId, { status: "connecting", error: null });
 

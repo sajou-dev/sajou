@@ -13,6 +13,7 @@ import { initHeader } from "./header.js";
 import { restoreState, initAutoSave } from "../state/persistence.js";
 import { initStateSync } from "../state/state-sync.js";
 import { initCommandConsumer } from "../state/command-consumer.js";
+import { isTauri } from "../utils/platform-fetch.js";
 import { initAutoWire } from "../state/auto-wire.js";
 import { initHelpBar } from "./help-bar.js";
 import { initUndoManager } from "../state/undo.js";
@@ -240,9 +241,11 @@ export async function initWorkspace(): Promise<void> {
   // Auto-wire: create signal→signal-type wires when sources connect.
   initAutoWire();
 
-  // Start pushing state to the dev server for external tools (MCP server, CLI).
-  initStateSync();
-
-  // Start polling for write commands from external tools (MCP server, CLI).
-  initCommandConsumer();
+  // MCP command pipeline: state sync + command consumer require the Vite dev
+  // server endpoints. In Tauri production builds these don't exist — skip to
+  // avoid perpetual EventSource reconnects and wasted fetch polls.
+  if (!isTauri()) {
+    initStateSync();
+    initCommandConsumer();
+  }
 }
