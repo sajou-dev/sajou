@@ -6,7 +6,7 @@
  */
 
 import { z } from "zod";
-import { createWire } from "../bridge.js";
+import { addWire } from "../state/mutations.js";
 
 /** Tool name. */
 export const name = "map_signals";
@@ -31,7 +31,7 @@ export const inputSchema = z.object({
 export async function handler(
   params: z.infer<typeof inputSchema>,
 ): Promise<{ content: Array<{ type: "text"; text: string }> }> {
-  const result = await createWire({
+  addWire({
     fromZone: "signal-type",
     fromId: params.signal_type,
     toZone: "choreographer",
@@ -43,11 +43,8 @@ export async function handler(
       {
         type: "text" as const,
         text: JSON.stringify({
-          ok: result.ok,
-          wire_id: result.commandId ?? null,
-          message: result.ok
-            ? `Mapped signal "${params.signal_type}" → choreography "${params.choreography_id}"`
-            : result.error ?? "Failed to create wire",
+          ok: true,
+          message: `Mapped signal "${params.signal_type}" → choreography "${params.choreography_id}"`,
         }),
       },
     ],

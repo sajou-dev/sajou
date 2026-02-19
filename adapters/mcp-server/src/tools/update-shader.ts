@@ -5,7 +5,7 @@
  */
 
 import { z } from "zod";
-import { updateShader } from "../bridge.js";
+import { updateShader } from "../state/mutations.js";
 
 export const name = "update_shader";
 
@@ -72,16 +72,15 @@ export async function handler(
   }
   if (fields.objects !== undefined) data["objects"] = fields.objects;
 
-  const result = await updateShader(shaderId, data);
+  updateShader(shaderId, data);
 
   return {
     content: [
       {
         type: "text" as const,
         text: JSON.stringify({
-          ok: result.ok,
+          ok: true,
           shaderId,
-          error: result.error ?? null,
         }),
       },
     ],

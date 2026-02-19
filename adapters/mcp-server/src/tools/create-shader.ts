@@ -6,7 +6,7 @@
  */
 
 import { z } from "zod";
-import { createShader } from "../bridge.js";
+import { addShader } from "../state/mutations.js";
 
 export const name = "create_shader";
 
@@ -143,7 +143,7 @@ export async function handler(
     bind: u.bind,
   }));
 
-  const result = await createShader({
+  addShader({
     id: shaderId,
     name: params.name,
     fragmentSource: params.fragmentSource,
@@ -158,13 +158,10 @@ export async function handler(
       {
         type: "text" as const,
         text: JSON.stringify({
-          ok: result.ok,
+          ok: true,
           shaderId,
-          error: result.error ?? null,
-          hint: result.ok
-            ? `Shader '${params.name}' created with ID ${shaderId}. ` +
-              `Use set_uniform to tweak parameters, or create_wire to connect it to the choreographer.`
-            : undefined,
+          hint: `Shader '${params.name}' created with ID ${shaderId}. ` +
+            `Use set_uniform to tweak parameters, or create_wire to connect it to the choreographer.`,
         }),
       },
     ],

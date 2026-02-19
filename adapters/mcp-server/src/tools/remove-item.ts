@@ -11,7 +11,7 @@ import {
   removeBinding,
   removeWire,
   removeSignalSource,
-} from "../bridge.js";
+} from "../state/mutations.js";
 
 export const name = "remove_item";
 
@@ -40,23 +40,21 @@ export const inputSchema = z.object({
 export async function handler(
   params: z.infer<typeof inputSchema>,
 ): Promise<{ content: Array<{ type: "text"; text: string }> }> {
-  let result;
-
   switch (params.type) {
     case "entity":
-      result = await removeEntity(params.id);
+      removeEntity(params.id);
       break;
     case "choreography":
-      result = await removeChoreography(params.id);
+      removeChoreography(params.id);
       break;
     case "binding":
-      result = await removeBinding(params.id);
+      removeBinding(params.id);
       break;
     case "wire":
-      result = await removeWire(params.id);
+      removeWire(params.id);
       break;
     case "source":
-      result = await removeSignalSource(params.id);
+      removeSignalSource(params.id);
       break;
   }
 
@@ -65,8 +63,7 @@ export async function handler(
       {
         type: "text" as const,
         text: JSON.stringify({
-          ok: result.ok,
-          error: result.error ?? null,
+          ok: true,
         }),
       },
     ],

@@ -6,7 +6,7 @@
  */
 
 import { z } from "zod";
-import { emitSignal } from "../bridge.js";
+import { broadcastSignal, getSignalClientCount } from "../routes/signals.js";
 
 /** Tool name. */
 export const name = "emit_signal";
@@ -45,19 +45,24 @@ export async function handler(
   if (params.from) payload["from"] = params.from;
   if (params.to) payload["to"] = params.to;
 
-  const result = await emitSignal({
+  const envelope = {
+    id: crypto.randomUUID(),
     type: params.type,
     source: "mcp",
+    timestamp: Date.now(),
     payload,
-  });
+  };
+
+  broadcastSignal(JSON.stringify(envelope));
 
   return {
     content: [
       {
         type: "text" as const,
         text: JSON.stringify({
-          signal_id: result.id ?? null,
-          ok: result.ok,
+          signal_id: envelope.id,
+          ok: true,
+          clients: getSignalClientCount(),
         }),
       },
     ],
