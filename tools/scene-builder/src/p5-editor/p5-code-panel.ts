@@ -24,7 +24,7 @@ import {
   selectSketch,
   subscribeP5,
 } from "./p5-state.js";
-import type { P5SketchDef } from "./p5-types.js";
+import type { P5SketchDef, SketchMode } from "./p5-types.js";
 import { P5_PRESETS } from "./p5-presets.js";
 
 // ---------------------------------------------------------------------------
@@ -38,14 +38,15 @@ let statusEl: HTMLElement | null = null;
 let canvasInitialized = false;
 let sketchSelectorEl: HTMLSelectElement | null = null;
 let nameInputEl: HTMLInputElement | null = null;
+let modeSelectorEl: HTMLSelectElement | null = null;
 
 const RUN_DEBOUNCE_MS = 500;
 
 // ---------------------------------------------------------------------------
-// Default sketch source
+// Default sketch sources
 // ---------------------------------------------------------------------------
 
-const DEFAULT_SOURCE = `// @param: speed, slider, min: 0.1, max: 5.0
+const DEFAULT_P5_SOURCE = `// @param: speed, slider, min: 0.1, max: 5.0
 
 p.setup = function() {
   p.createCanvas(p.sajou._width, p.sajou._height);
@@ -61,6 +62,34 @@ p.draw = function() {
   p.circle(x, p.height / 2, 40);
 };
 `;
+
+const DEFAULT_THREEJS_SOURCE = `// @param: speed, slider, min: 0.1, max: 5.0
+
+function setup(ctx) {
+  const geo = new ctx.THREE.BoxGeometry(1, 1, 1);
+  const mat = new ctx.THREE.MeshStandardMaterial({ color: 0xe8a851 });
+  const cube = new ctx.THREE.Mesh(geo, mat);
+  ctx.scene.add(cube);
+
+  const light = new ctx.THREE.DirectionalLight(0xffffff, 1);
+  light.position.set(2, 3, 4);
+  ctx.scene.add(light);
+  ctx.scene.add(new ctx.THREE.AmbientLight(0x404040));
+
+  return { cube };
+}
+
+function draw(ctx, state) {
+  state.cube.rotation.y += (ctx.sajou.speed ?? 1.0) * ctx.sajou._deltaTime;
+}
+`;
+
+/** Get default source for a given mode. */
+function defaultSourceForMode(mode: SketchMode): string {
+  return mode === "threejs" ? DEFAULT_THREEJS_SOURCE : DEFAULT_P5_SOURCE;
+}
+
+const DEFAULT_SOURCE = DEFAULT_P5_SOURCE;
 
 // ---------------------------------------------------------------------------
 // Initialization
@@ -87,6 +116,28 @@ export function initP5CodePanel(codeEl: HTMLElement): void {
     if (selected && nameInputEl) {
       updateSketch(selected.id, { name: nameInputEl.value });
     }
+  });
+
+  // Mode selector (p5 / Three.js)
+  modeSelectorEl = document.createElement("select");
+  modeSelectorEl.id = "p5-mode-selector";
+  modeSelectorEl.name = "p5-mode";
+  modeSelectorEl.setAttribute("aria-label", "Sketch mode");
+  modeSelectorEl.title = "Sketch mode";
+  modeSelectorEl.innerHTML = `<option value="p5">p5.js</option><option value="threejs">Three.js</option>`;
+  modeSelectorEl.addEventListener("change", () => {
+    const selected = getSelectedSketch();
+    if (!selected || !modeSelectorEl) return;
+    const newMode = modeSelectorEl.value as SketchMode;
+    const oldMode: SketchMode = selected.mode ?? "p5";
+    if (newMode === oldMode) return;
+    // Swap source if it's still the default for the old mode
+    const isDefault = selected.source.trim() === defaultSourceForMode(oldMode).trim();
+    const patch: Partial<P5SketchDef> = { mode: newMode };
+    if (isDefault) {
+      patch.source = defaultSourceForMode(newMode);
+    }
+    updateSketch(selected.id, patch);
   });
 
   // Sketch selector dropdown
@@ -147,17 +198,31 @@ export function initP5CodePanel(codeEl: HTMLElement): void {
   presetMenu.className = "p5-preset-menu";
   presetMenu.style.display = "none";
 
-  for (const preset of P5_PRESETS) {
-    const item = document.createElement("button");
-    item.className = "p5-preset-item";
-    item.innerHTML = `${preset.name}<span class="p5-preset-item-desc">${preset.description}</span>`;
-    item.addEventListener("click", () => {
-      const newSketch = preset.create();
-      addSketch(newSketch);
-      presetMenu.style.display = "none";
-    });
-    presetMenu.appendChild(item);
-  }
+  // Build categorized preset menu
+  const p5Presets = P5_PRESETS.filter((p) => (p.mode ?? "p5") === "p5");
+  const threejsPresets = P5_PRESETS.filter((p) => p.mode === "threejs");
+
+  const addPresetGroup = (label: string, presets: typeof P5_PRESETS[number][]): void => {
+    if (presets.length === 0) return;
+    const header = document.createElement("div");
+    header.className = "p5-preset-group-header";
+    header.textContent = label;
+    presetMenu.appendChild(header);
+    for (const preset of presets) {
+      const item = document.createElement("button");
+      item.className = "p5-preset-item";
+      item.innerHTML = `${preset.name}<span class="p5-preset-item-desc">${preset.description}</span>`;
+      item.addEventListener("click", () => {
+        const newSketch = preset.create();
+        addSketch(newSketch);
+        presetMenu.style.display = "none";
+      });
+      presetMenu.appendChild(item);
+    }
+  };
+
+  addPresetGroup("p5.js", p5Presets);
+  addPresetGroup("Three.js", threejsPresets);
 
   presetBtn.addEventListener("click", (e) => {
     e.stopPropagation();
@@ -179,7 +244,7 @@ export function initP5CodePanel(codeEl: HTMLElement): void {
   presetContainer.appendChild(presetBtn);
   document.body.appendChild(presetMenu);
 
-  header.append(nameInputEl, sketchSelectorEl, runBtn, spacer, presetContainer, btnNew, btnDelete);
+  header.append(nameInputEl, modeSelectorEl, sketchSelectorEl, runBtn, spacer, presetContainer, btnNew, btnDelete);
   codeEl.appendChild(header);
 
   // CodeMirror editor
@@ -256,13 +321,15 @@ export function initP5CodePanel(codeEl: HTMLElement): void {
 function createNewSketch(): void {
   const id = crypto.randomUUID();
   const count = getP5State().sketches.length + 1;
+  const currentMode: SketchMode = getSelectedSketch()?.mode ?? "p5";
   const sketch: P5SketchDef = {
     id,
     name: `Sketch ${count}`,
-    source: DEFAULT_SOURCE,
+    source: defaultSourceForMode(currentMode),
     params: [],
     width: 0,
     height: 0,
+    mode: currentMode,
   };
   addSketch(sketch);
 }
@@ -305,12 +372,15 @@ function syncFromState(): void {
     sketchSelectorEl.innerHTML = opts.join("");
   }
 
-  // Update name input
+  // Update name input and mode selector
   const selected = sketches.find((s) => s.id === selectedSketchId);
   if (nameInputEl && selected) {
     if (document.activeElement !== nameInputEl) {
       nameInputEl.value = selected.name;
     }
+  }
+  if (modeSelectorEl && selected) {
+    modeSelectorEl.value = selected.mode ?? "p5";
   }
 
   // Load selected sketch content into editor
@@ -353,7 +423,7 @@ function doRun(): void {
     params[param.name] = param.value;
   }
 
-  runSketch(code, params);
+  runSketch(code, params, sketch.mode ?? "p5");
 }
 
 function onRun(result: RunResult): void {

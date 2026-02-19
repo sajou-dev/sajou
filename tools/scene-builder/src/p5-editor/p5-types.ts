@@ -47,13 +47,16 @@ export interface P5ParamDef {
 // Sketch definition
 // ---------------------------------------------------------------------------
 
-/** A complete p5.js sketch definition as stored in the editor. */
+/** Sketch runtime mode. */
+export type SketchMode = "p5" | "threejs";
+
+/** A complete sketch definition as stored in the editor. */
 export interface P5SketchDef {
   /** Unique sketch ID. */
   id: string;
   /** Display name. */
   name: string;
-  /** JavaScript source code (p5 instance mode). */
+  /** JavaScript source code. */
   source: string;
   /** User-defined params parsed from annotations. */
   params: P5ParamDef[];
@@ -61,6 +64,8 @@ export interface P5SketchDef {
   width: number;
   /** Canvas height (0 = fit container). */
   height: number;
+  /** Runtime mode: p5.js or Three.js. Default: "p5". */
+  mode?: SketchMode;
 }
 
 // ---------------------------------------------------------------------------

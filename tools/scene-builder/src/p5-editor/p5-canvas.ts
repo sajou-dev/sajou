@@ -1,8 +1,7 @@
 /**
- * p5.js preview canvas.
+ * Sketch preview canvas.
  *
- * Manages a p5 instance (instance mode) for sketch preview.
- * Injects sajou params bridge and auto-injects _width, _height, _time, _mouse.
+ * Routes between p5.js and Three.js runtimes based on the sketch mode.
  * Lifecycle: runSketch(), stopSketch(), setParam().
  */
 
@@ -10,6 +9,14 @@ import p5 from "p5";
 import { getEditorState, subscribeEditor } from "../state/editor-state.js";
 import { getP5State, subscribeP5 } from "./p5-state.js";
 import { isFullWindow, getFullWindowElement, onFullWindowChange } from "../utils/fullscreen.js";
+import {
+  initThreejsCanvas,
+  runThreejsScript,
+  stopThreejsScript,
+  setThreejsParam,
+  isThreejsRunning,
+} from "./threejs-canvas.js";
+import type { SketchMode } from "./p5-types.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -36,7 +43,9 @@ let sajouBridge: Record<string, unknown> = {};
 let startTime = 0;
 let runListeners: RunListener[] = [];
 let lastRunSketchId: string | null = null;
+let lastRunMode: SketchMode = "p5";
 let resizeObserver: ResizeObserver | null = null;
+let threejsInitialized = false;
 
 // ---------------------------------------------------------------------------
 // Initialization
@@ -66,19 +75,32 @@ export function initP5Canvas(el: HTMLElement): void {
 
 /**
  * Run a sketch from source code.
- * Destroys any previous instance and creates a new one.
+ * Routes to p5 or Three.js runtime based on mode.
  */
-export function runSketch(source: string, params: Record<string, unknown>): RunResult {
+export function runSketch(source: string, params: Record<string, unknown>, mode: SketchMode = "p5"): RunResult {
   stopSketch();
 
   if (!container) {
     return { success: false, error: "Container not initialized" };
   }
 
+  lastRunMode = mode;
+
+  if (mode === "threejs") {
+    if (!threejsInitialized) {
+      initThreejsCanvas(container);
+      threejsInitialized = true;
+    }
+    const r = runThreejsScript(source, params);
+    const result: RunResult = { success: r.success, error: r.error };
+    notifyRunListeners(result);
+    return result;
+  }
+
+  // p5 mode
   const w = container.clientWidth || 400;
   const h = container.clientHeight || 300;
 
-  // Build sajou bridge with auto-injected values
   sajouBridge = {
     ...params,
     _width: w,
@@ -103,22 +125,29 @@ export function runSketch(source: string, params: Record<string, unknown>): RunR
   }
 }
 
-/** Stop the currently running sketch. */
+/** Stop the currently running sketch (whichever runtime is active). */
 export function stopSketch(): void {
   if (p5Instance) {
     p5Instance.remove();
     p5Instance = null;
   }
+  if (isThreejsRunning()) {
+    stopThreejsScript();
+  }
 }
 
 /** Set a single param value on the running instance (no re-run needed). */
 export function setParam(name: string, value: unknown): void {
-  sajouBridge[name] = value;
+  if (lastRunMode === "threejs") {
+    setThreejsParam(name, value);
+  } else {
+    sajouBridge[name] = value;
+  }
 }
 
-/** Check if a sketch is currently running. */
+/** Check if a sketch is currently running (either runtime). */
 export function isRunning(): boolean {
-  return p5Instance !== null;
+  return p5Instance !== null || isThreejsRunning();
 }
 
 // ---------------------------------------------------------------------------
@@ -166,29 +195,31 @@ function createSketchFn(source: string, bridge: Record<string, unknown>): (p: p5
 // Loop sync
 // ---------------------------------------------------------------------------
 
-/** Start/stop the p5 instance based on pipeline visibility and playing state. */
+/** Start/stop sketch based on pipeline visibility and playing state. */
 function syncLoop(): void {
   const { pipelineLayout } = getEditorState();
   const { playing, sketches, selectedSketchId } = getP5State();
   const p5El = document.getElementById("p5-node-content");
   const isFS = isFullWindow() && getFullWindowElement() === p5El;
   const shouldRun = (pipelineLayout.extended.includes("p5") || isFS) && playing;
+  const anyRunning = p5Instance !== null || isThreejsRunning();
 
   // Re-run if sketch selection changed while running
   const sketchChanged = selectedSketchId !== lastRunSketchId;
+  const sketch = sketches.find((s) => s.id === selectedSketchId);
+  const mode: SketchMode = sketch?.mode ?? "p5";
+  const modeChanged = mode !== lastRunMode;
 
-  if (shouldRun && (!p5Instance || sketchChanged)) {
-    const sketch = sketches.find((s) => s.id === selectedSketchId);
+  if (shouldRun && (!anyRunning || sketchChanged || modeChanged)) {
     if (sketch) {
       lastRunSketchId = selectedSketchId;
-      // Build params from sketch state
       const params: Record<string, unknown> = {};
       for (const param of sketch.params) {
         params[param.name] = param.value;
       }
-      runSketch(sketch.source, params);
+      runSketch(sketch.source, params, mode);
     }
-  } else if (!shouldRun && p5Instance) {
+  } else if (!shouldRun && anyRunning) {
     stopSketch();
     lastRunSketchId = null;
   }
@@ -205,4 +236,5 @@ export function disposeP5Canvas(): void {
   resizeObserver = null;
   runListeners = [];
   container = null;
+  threejsInitialized = false;
 }
