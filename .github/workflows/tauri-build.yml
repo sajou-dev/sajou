@@ -37,7 +37,7 @@ jobs:
 
     if: >-
       github.event_name == 'push' ||
-      inputs.full_matrix ||
+      github.event.inputs.full_matrix == 'true' ||
       matrix.label == 'macOS ARM'
 
     steps:
