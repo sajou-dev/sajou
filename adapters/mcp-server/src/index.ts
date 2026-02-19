@@ -4,7 +4,7 @@
  *
  * Usage:
  *   node dist/index.js              → stdio transport (default, for Claude Code)
- *   node dist/index.js --http       → HTTP server on port 3001
+ *   node dist/index.js --http       → HTTP server on port 3000
  *   node dist/index.js --http 8080  → HTTP server on custom port
  *
  * In HTTP mode, the server provides:
@@ -27,12 +27,12 @@ function parseArgs(): { mode: "stdio" | "http"; port: number } {
   const httpIndex = args.indexOf("--http");
 
   if (httpIndex === -1) {
-    return { mode: "stdio", port: 3001 };
+    return { mode: "stdio", port: 3000 };
   }
 
   const portArg = args[httpIndex + 1];
-  const port = portArg && !portArg.startsWith("-") ? parseInt(portArg, 10) : 3001;
-  return { mode: "http", port: isNaN(port) ? 3001 : port };
+  const port = portArg && !portArg.startsWith("-") ? parseInt(portArg, 10) : 3000;
+  return { mode: "http", port: isNaN(port) ? 3000 : port };
 }
 
 async function main(): Promise<void> {

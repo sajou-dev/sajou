@@ -128,7 +128,7 @@ const appVersion = await readFile(join(import.meta.dirname!, "src-tauri/tauri.co
   .catch(() => "dev");
 
 /** The sajou state server URL. Override with SAJOU_SERVER env var. */
-const serverUrl = process.env["SAJOU_SERVER"] ?? "http://localhost:3001";
+const serverUrl = process.env["SAJOU_SERVER"] ?? "http://localhost:3000";
 
 export default defineConfig({
   root: ".",
