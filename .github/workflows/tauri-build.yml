@@ -62,6 +62,9 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install
 
+      - name: Build workspace dependencies
+        run: pnpm --filter "@sajou/stage..." build
+
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
