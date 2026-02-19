@@ -48,9 +48,55 @@ function updateRunButton(): void {
   }
 }
 
+/**
+ * Promise-based confirm dialog that works in both browser and Tauri webview.
+ * (WKWebView doesn't support native window.confirm.)
+ */
+function htmlConfirm(message: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "confirm-overlay";
+
+    const box = document.createElement("div");
+    box.className = "confirm-box";
+
+    const msg = document.createElement("p");
+    msg.className = "confirm-message";
+    msg.textContent = message;
+
+    const actions = document.createElement("div");
+    actions.className = "confirm-actions";
+
+    const btnCancel = document.createElement("button");
+    btnCancel.className = "confirm-btn confirm-btn--cancel";
+    btnCancel.textContent = "Cancel";
+
+    const btnOk = document.createElement("button");
+    btnOk.className = "confirm-btn confirm-btn--ok";
+    btnOk.textContent = "OK";
+
+    const close = (result: boolean): void => {
+      overlay.remove();
+      resolve(result);
+    };
+
+    btnCancel.addEventListener("click", () => close(false));
+    btnOk.addEventListener("click", () => close(true));
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) close(false);
+    });
+
+    actions.append(btnCancel, btnOk);
+    box.append(msg, actions);
+    overlay.append(box);
+    document.body.append(overlay);
+    btnOk.focus();
+  });
+}
+
 /** Trigger "New Scene" with confirmation dialog. */
 async function triggerNewScene(): Promise<void> {
-  const confirmed = window.confirm("Unsaved changes will be lost. Create a new scene?");
+  const confirmed = await htmlConfirm("Unsaved changes will be lost. Create a new scene?");
   if (!confirmed) return;
 
   try {
