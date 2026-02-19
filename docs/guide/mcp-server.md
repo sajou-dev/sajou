@@ -12,6 +12,7 @@ AI Agent ──MCP/stdio──> sajou-mcp ──HTTP──> scene-builder dev se
                                              ├── GET  /api/bindings
                                              ├── GET  /api/wiring
                                              ├── GET  /api/shaders
+                                             ├── GET  /api/p5
                                              ├── POST /api/commands
                                              └── POST /api/signal
 ```
@@ -79,7 +80,7 @@ Add to your MCP config (`~/.claude/claude_desktop_config.json` or project `.mcp.
 
 ## Tools
 
-The MCP server exposes 16 tools organized into four categories.
+The MCP server exposes 20 tools organized into five categories.
 
 ### Read tools — scene inspection
 
@@ -115,6 +116,17 @@ These tools let the agent create and control GLSL shaders.
 | `update_shader` | Update an existing shader's code, uniforms, name, or pass count. Partial updates — only provided fields change. |
 | `set_uniform` | Set a uniform value in real-time. Supports float, int, bool, vec2, vec3, vec4. The primary mechanism for live shader control. |
 | `get_shaders` | Read all shader definitions (also listed under read tools). |
+
+### p5.js tools — sketch effects
+
+These tools let the agent create and control p5.js sketches.
+
+| Tool | Description |
+|------|-------------|
+| `create_p5_sketch` | Create a p5.js sketch with source code and param annotations (`@param:` for controls, `@bind:` for wiring). |
+| `update_p5_sketch` | Update a sketch's source, name, or params. |
+| `delete_p5_sketch` | Remove a sketch from the scene. |
+| `set_p5_param` | Set a sketch param value in real-time (e.g. `speed: 2.5`). Updates the live `p.sajou` bridge without restarting. |
 
 ### Runtime tools — signals
 
@@ -162,6 +174,7 @@ POST /api/wiring          ┘        │
 | `/api/wiring` | GET | Full wiring graph (signal → signal-type → choreographer → shader) |
 | `/api/signals/sources` | GET | Connected signal sources (local + remote) |
 | `/api/shaders` | GET | All shaders with source code and uniforms |
+| `/api/p5` | GET | All p5.js sketches with source and params |
 | `/api/discover/local` | GET | Probe local services (Claude Code, OpenClaw, LM Studio, Ollama) |
 
 #### Write (mutate scene)
@@ -177,6 +190,10 @@ POST /api/wiring          ┘        │
 | `/api/shaders/:id` | PUT | Update an existing shader |
 | `/api/shaders/:id` | DELETE | Remove a shader |
 | `/api/shaders/:id/uniforms` | POST | Set a uniform value in real-time |
+| `/api/p5` | POST | Create a p5.js sketch |
+| `/api/p5/:id` | PUT | Update an existing sketch |
+| `/api/p5/:id` | DELETE | Remove a sketch |
+| `/api/p5/:id/params` | POST | Set a sketch param value in real-time |
 | `/api/signal` | POST | Emit a signal (triggers wired choreographies) |
 
 ### Timing notes

@@ -94,4 +94,5 @@ export const SHORTCUTS: readonly ShortcutEntry[] = [
   { label: "Toggle Choreographer", keys: ["2"], category: "pipeline" },
   { label: "Toggle Visual",        keys: ["3"], category: "pipeline" },
   { label: "Toggle Shader",        keys: ["4"], category: "pipeline" },
+  { label: "Toggle p5.js",         keys: ["5"], category: "pipeline" },
 ] as const;

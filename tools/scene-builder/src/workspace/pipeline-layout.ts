@@ -1,9 +1,10 @@
 /**
- * Pipeline layout — horizontal rail with 4 nodes.
+ * Pipeline layout — horizontal rail with 3 rails + code group.
  *
- * Signal → Choreo → Visual → Shader
+ * Signal ─rail─ Choreo ─rail─ Visual ─rail─ [ Shader │ p5.js ]
  *
- * Each node can be mini (140px) or extended (flex: 1).
+ * Each node can be mini or extended (flex: 1).
+ * Shader and p5 share a .pl-node-group wrapper with an internal separator.
  * Creates the DOM structure, syncs classes from pipelineLayout state,
  * and handles ResizeObserver for recalculation.
  */
@@ -39,14 +40,26 @@ const ICON_CHOREOGRAPHER = `<svg width="14" height="14" viewBox="0 0 48 48" fill
 </svg>`;
 
 const ICON_VISUAL = `<svg width="14" height="14" viewBox="0 0 48 48" fill="none">
-  <rect x="6" y="12" width="28" height="24" rx="4" stroke="currentColor" stroke-width="1.5" fill="none" opacity="0.25"/>
-  <rect x="10" y="10" width="28" height="24" rx="4" stroke="currentColor" stroke-width="1.8" fill="none" opacity="0.5"/>
-  <rect x="14" y="8" width="28" height="24" rx="4" stroke="currentColor" stroke-width="2.2" fill="none" opacity="0.85"/>
+  <rect x="6" y="12" width="28" height="24" rx="4" stroke="currentColor" stroke-width="2" fill="none" opacity="0.3"/>
+  <rect x="10" y="10" width="28" height="24" rx="4" stroke="currentColor" stroke-width="2.5" fill="none" opacity="0.6"/>
+  <rect x="14" y="8" width="28" height="24" rx="4" stroke="currentColor" stroke-width="3" fill="none" opacity="0.9"/>
   <circle cx="24" cy="20" r="3" fill="currentColor"/>
 </svg>`;
 
-const ICON_SHADER = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-  <path d="m18 16 4-4-4-4"/><path d="m6 8-4 4 4 4"/><path d="m14.5 4-5 16"/>
+const ICON_SHADER = `<svg width="14" height="14" viewBox="0 0 48 48" fill="none">
+  <rect x="6" y="8" width="36" height="28" rx="4" stroke="currentColor" stroke-width="2.5" fill="none" opacity="0.8"/>
+  <line x1="12" y1="32" x2="20" y2="12" stroke="currentColor" stroke-width="1.5" opacity="0.25"/>
+  <line x1="20" y1="32" x2="28" y2="12" stroke="currentColor" stroke-width="1.5" opacity="0.4"/>
+  <line x1="28" y1="32" x2="36" y2="12" stroke="currentColor" stroke-width="1.5" opacity="0.55"/>
+  <path d="M 14 40 L 10 42 L 14 44" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.45"/>
+  <path d="M 34 40 L 38 42 L 34 44" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.45"/>
+</svg>`;
+
+const ICON_P5 = `<svg width="14" height="14" viewBox="0 0 48 48" fill="none">
+  <rect x="8" y="6" width="32" height="32" rx="4" stroke="currentColor" stroke-width="2.5" fill="none" opacity="0.8"/>
+  <path d="M 14 30 C 18 18, 26 14, 30 22 C 34 30, 36 16, 38 14" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" fill="none" opacity="0.5"/>
+  <circle cx="16" cy="14" r="2.5" fill="currentColor" opacity="0.35"/>
+  <circle cx="28" cy="28" r="3" fill="currentColor" opacity="0.5"/>
 </svg>`;
 
 // ---------------------------------------------------------------------------
@@ -61,14 +74,20 @@ interface PipelineNodeDef {
   contentId: string;
 }
 
-const NODES: readonly PipelineNodeDef[] = [
+/** Nodes rendered in the main pipeline flow with rails between them. */
+const REGULAR_NODES: readonly PipelineNodeDef[] = [
   { id: "signal",        label: "Signal",  icon: ICON_SIGNAL,        contentId: "zone-signal" },
   { id: "choreographer", label: "Choreo",  icon: ICON_CHOREOGRAPHER, contentId: "zone-choreographer" },
   { id: "visual",        label: "Visual",  icon: ICON_VISUAL,        contentId: "zone-theme" },
-  { id: "shader",        label: "Shader",  icon: ICON_SHADER,        contentId: "shader-node-content" },
 ];
 
-/** Rail label between two adjacent nodes. */
+/** Nodes grouped in a shared code container (no rails between them). */
+const CODE_GROUP_NODES: readonly PipelineNodeDef[] = [
+  { id: "shader",        label: "Shader",  icon: ICON_SHADER,        contentId: "shader-node-content" },
+  { id: "p5",            label: "p5.js",   icon: ICON_P5,            contentId: "p5-node-content" },
+];
+
+/** Rail separators between adjacent regular nodes + one before the code group. */
 const RAILS: readonly [string, string][] = [
   ["signal", "choreographer"],
   ["choreographer", "visual"],
@@ -81,6 +100,72 @@ const RAILS: readonly [string, string][] = [
 
 let pipelineEl: HTMLElement | null = null;
 let nodeEls: Map<PipelineNodeId, HTMLElement> = new Map();
+
+// ---------------------------------------------------------------------------
+// DOM helpers
+// ---------------------------------------------------------------------------
+
+/** Create a rail separator element for the given pair. */
+function createRail([from, to]: readonly [string, string]): HTMLElement {
+  const railKey = `${from}-${to}`;
+  const rail = document.createElement("div");
+  rail.className = "pl-rail";
+  rail.id = `rail-${railKey}`;
+  rail.dataset.rail = railKey;
+
+  const arrow = document.createElement("div");
+  arrow.className = "pl-rail-arrow";
+  arrow.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>`;
+  rail.appendChild(arrow);
+
+  const badges = document.createElement("div");
+  badges.className = "pl-rail-badges";
+  rail.appendChild(badges);
+
+  return rail;
+}
+
+/** Create a pipeline node element from its definition. */
+function createNode(def: PipelineNodeDef): HTMLElement {
+  const node = document.createElement("div");
+  node.className = "pl-node";
+  node.dataset.plNode = def.id;
+
+  const header = document.createElement("div");
+  header.className = "pl-node-header";
+  header.innerHTML = `<span class="pl-node-header-inner">${def.icon}<span>${def.label}</span></span>`;
+  node.appendChild(header);
+
+  const mini = document.createElement("div");
+  mini.className = "pl-node-mini";
+  node.appendChild(mini);
+
+  const content = document.createElement("div");
+  content.className = "pl-node-content";
+  content.id = def.contentId;
+
+  if (def.id === "visual") {
+    content.classList.add("zone", "zone-theme");
+
+    const toolbarDock = document.createElement("div");
+    toolbarDock.id = "toolbar-dock";
+    content.appendChild(toolbarDock);
+
+    const canvasContainer = document.createElement("div");
+    canvasContainer.id = "canvas-container";
+    content.appendChild(canvasContainer);
+
+    const zoomBar = createZoomBar();
+    content.appendChild(zoomBar);
+  } else if (def.id === "signal") {
+    content.classList.add("zone", "zone-signal");
+  } else if (def.id === "choreographer") {
+    content.classList.add("zone", "zone-choreographer");
+  }
+
+  node.appendChild(content);
+  return node;
+}
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -104,77 +189,46 @@ export function initPipelineLayout(): void {
   pipelineEl.id = "pipeline";
   pipelineEl.className = "pipeline";
 
-  let nodeIdx = 0;
-  for (const def of NODES) {
+  // --- Regular nodes with rail separators ---
+  for (let i = 0; i < REGULAR_NODES.length; i++) {
+    const def = REGULAR_NODES[i]!;
+
     // Rail separator before each node (except first)
-    if (nodeIdx > 0) {
-      const railKey = `${RAILS[nodeIdx - 1]![0]}-${RAILS[nodeIdx - 1]![1]}`;
-      const rail = document.createElement("div");
-      rail.className = "pl-rail";
-      rail.id = `rail-${railKey}`;
-      rail.dataset.rail = railKey;
-
-      // Chevron arrow
-      const arrow = document.createElement("div");
-      arrow.className = "pl-rail-arrow";
-      arrow.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>`;
-      rail.appendChild(arrow);
-
-      // Badge container (populated by connector bars)
-      const badges = document.createElement("div");
-      badges.className = "pl-rail-badges";
-      rail.appendChild(badges);
-
-      pipelineEl.appendChild(rail);
+    if (i > 0) {
+      pipelineEl.appendChild(createRail(RAILS[i - 1]!));
     }
 
-    // Node
-    const node = document.createElement("div");
-    node.className = "pl-node";
-    node.dataset.plNode = def.id;
-
-    // Header
-    const header = document.createElement("div");
-    header.className = "pl-node-header";
-    header.innerHTML = `${def.icon}<span>${def.label}</span>`;
-    node.appendChild(header);
-
-    // Mini preview placeholder
-    const mini = document.createElement("div");
-    mini.className = "pl-node-mini";
-    node.appendChild(mini);
-
-    // Content area (receives the legacy zone ID)
-    const content = document.createElement("div");
-    content.className = "pl-node-content";
-    content.id = def.contentId;
-
-    // For the visual node, create canvas + toolbar dock (left edge) + zoom-bar
-    if (def.id === "visual") {
-      content.classList.add("zone", "zone-theme");
-
-      const toolbarDock = document.createElement("div");
-      toolbarDock.id = "toolbar-dock";
-      content.appendChild(toolbarDock);
-
-      const canvasContainer = document.createElement("div");
-      canvasContainer.id = "canvas-container";
-      content.appendChild(canvasContainer);
-
-      const zoomBar = createZoomBar();
-      content.appendChild(zoomBar);
-    } else if (def.id === "signal") {
-      content.classList.add("zone", "zone-signal");
-    } else if (def.id === "choreographer") {
-      content.classList.add("zone", "zone-choreographer");
-    }
-
-    node.appendChild(content);
+    const node = createNode(def);
     pipelineEl.appendChild(node);
     nodeEls.set(def.id, node);
-
-    nodeIdx++;
   }
+
+  // Rail between last regular node and the code group
+  const lastRail = RAILS[REGULAR_NODES.length - 1];
+  if (lastRail) {
+    pipelineEl.appendChild(createRail(lastRail));
+  }
+
+  // --- Code group: Shader + p5 in a shared container ---
+  const codeGroup = document.createElement("div");
+  codeGroup.className = "pl-node-group";
+
+  for (let i = 0; i < CODE_GROUP_NODES.length; i++) {
+    const def = CODE_GROUP_NODES[i]!;
+
+    // Thin separator between group members (not before first)
+    if (i > 0) {
+      const sep = document.createElement("div");
+      sep.className = "pl-group-sep";
+      codeGroup.appendChild(sep);
+    }
+
+    const node = createNode(def);
+    codeGroup.appendChild(node);
+    nodeEls.set(def.id, node);
+  }
+
+  pipelineEl.appendChild(codeGroup);
 
   // Insert pipeline before the wiring overlay
   const wiringOverlay = document.getElementById("wiring-overlay");
@@ -234,6 +288,7 @@ const KEY_TO_NODE: Record<string, PipelineNodeId> = {
   "2": "choreographer",
   "3": "visual",
   "4": "shader",
+  "5": "p5",
 };
 
 /** Initialize click, double-click, and keyboard interactions. */

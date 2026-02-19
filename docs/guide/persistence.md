@@ -93,6 +93,21 @@ On restore, `ArrayBuffer` is reconstructed into a `File` object and a fresh `obj
 
 `forcePersistAll()` bypasses debouncing and writes all stores immediately. It's called after ZIP import to ensure the imported scene is fully saved.
 
+## Selective Import
+
+When importing a ZIP, a dialog lets you choose which sections to load:
+
+| Section | Stores affected |
+|---|---|
+| **Visual layout** | Scene state (placements, positions, routes, lighting, particles) |
+| **Entities & Assets** | Entity definitions, asset files |
+| **Choreographies & Wiring** | Choreography definitions, wire connections, bindings |
+| **Shaders** | Shader definitions |
+
+Unchecked sections keep their current state. The dialog shows summary counts for each section and contextual warnings (e.g. "Visual layout without Entities may produce invisible meshes").
+
+After import, `autoWireConnectedSources()` creates `signal -> signal-type` wires for any connected sources, so imported choreographies work immediately.
+
 ## New Scene
 
 The "New" button (<kbd>Ctrl+N</kbd>) triggers `newScene()`:
@@ -109,3 +124,6 @@ The "New" button (<kbd>Ctrl+N</kbd>) triggers `newScene()`:
 |---|---|
 | `state/persistence-db.ts` | IndexedDB wrapper (singleton connection, CRUD helpers) |
 | `state/persistence.ts` | Auto-save/restore orchestrator |
+| `io/import-scene.ts` | ZIP import (4-phase: pick, parse, dialog, apply) |
+| `io/import-dialog.ts` | Selective import dialog UI |
+| `state/auto-wire.ts` | Auto-wire connected sources on import/connect |

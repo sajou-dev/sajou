@@ -49,6 +49,18 @@ All shortcuts are ignored when focus is in INPUT or TEXTAREA elements.
 
 ---
 
+## Pipeline
+
+| Key | Node |
+|---|---|
+| `1` | Signal |
+| `2` | Choreographer |
+| `3` | Visual (Stage) |
+| `4` | Shader |
+| `5` | p5.js |
+
+---
+
 ## View
 
 | Key | Action |

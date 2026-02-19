@@ -34,6 +34,7 @@ function createDefault(): EditorState {
       lighting: defaultPanelLayout(40, 100, 300, 400),
       particles: defaultPanelLayout(40, 100, 300, 450),
       "shader-editor": defaultPanelLayout(80, 60, 520, 500),
+      "p5-editor": defaultPanelLayout(80, 60, 520, 500),
       shortcuts: defaultPanelLayout(60, 80, 340, 480),
     },
     gridEnabled: true,

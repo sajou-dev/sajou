@@ -36,12 +36,29 @@
 .header-right {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 0;
   flex-shrink: 0;
   margin-left: auto;
 }
 
+.header-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.header-sep {
+  width: 1px;
+  height: 16px;
+  background: var(--color-border);
+  margin: 0 6px;
+  flex-shrink: 0;
+}
+
 .header-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   padding: 4px 12px;
   border-radius: var(--radius-md);
   background: transparent;
@@ -57,6 +74,23 @@
   background: var(--color-elevated);
   border-color: var(--color-border-hover);
   color: var(--color-text);
+}
+
+/* Icon-only header button (Undo, Redo, Help) */
+.header-btn--icon {
+  padding: 4px 6px;
+  border: none;
+  background: transparent;
+}
+
+.header-btn--icon:hover {
+  background: var(--color-elevated);
+}
+
+/* Disabled state (empty undo/redo stack) */
+.header-btn--disabled {
+  opacity: 0.3;
+  pointer-events: none;
 }
 
 .header-btn--primary {
@@ -204,7 +238,7 @@
 }
 
 /* ---------------------------------------------------------------------------
- * Pipeline — horizontal rail with 4 nodes
+ * Pipeline — horizontal rail with 3 rails + code group
  * --------------------------------------------------------------------------- */
 
 .pipeline {
@@ -228,7 +262,7 @@
 }
 
 .pl-node--mini {
-  flex: 0 0 140px;
+  flex: 0 0 48px;
   cursor: pointer;
 }
 
@@ -237,20 +271,76 @@
   min-width: 200px;
 }
 
+/* Code node group — single pipeline slot split top/bottom (Shader | p5.js) */
+.pl-node-group {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  flex: 0 0 48px;
+  transition: flex 0.25s ease;
+}
+
+/* Group expands when any child is extended */
+.pl-node-group:has(.pl-node--extended) {
+  flex: 1 1 0%;
+  min-width: 200px;
+}
+
+/* Inside the group, nodes stack vertically and share the height */
+.pl-node-group > .pl-node {
+  flex: 1 1 0%;
+  min-height: 0;
+  border-radius: 0;
+}
+
+/* First child keeps top corners, last keeps bottom corners */
+.pl-node-group > .pl-node:first-of-type {
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  border-bottom: none;
+}
+
+.pl-node-group > .pl-node:last-of-type {
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+}
+
+/* Both mini — share height equally, rotated headers */
+.pl-node-group > .pl-node--mini {
+  flex: 1 1 0%;
+}
+
+/* Extended node takes all remaining space */
+.pl-node-group > .pl-node--extended {
+  flex: 1 1 0%;
+}
+
+/* When a sibling is extended, mini collapses to a thin horizontal bar */
+.pl-node-group:has(.pl-node--extended) > .pl-node--mini {
+  flex: 0 0 28px;
+}
+
+.pl-node-group:has(.pl-node--extended) > .pl-node--mini > .pl-node-header {
+  flex: 0 0 28px;
+  border-bottom: none;
+}
+
+.pl-node-group:has(.pl-node--extended) > .pl-node--mini > .pl-node-header .pl-node-header-inner {
+  transform: rotate(0deg);
+}
+
+/* Thin horizontal separator between stacked nodes */
+.pl-group-sep {
+  height: 1px;
+  background: var(--color-border);
+  flex-shrink: 0;
+}
+
 /* Mini: show mini preview, hide content */
 .pl-node--mini > .pl-node-content {
   display: none;
 }
 
 .pl-node--mini > .pl-node-mini {
-  display: flex;
-  flex: 1;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  gap: 8px;
-  padding: 8px;
-  overflow: hidden;
+  display: none;
 }
 
 /* Extended: show content, hide mini preview */
@@ -270,12 +360,24 @@
   flex: 0 0 28px;
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
   padding: 0 10px;
   border-bottom: 1px solid var(--color-border);
   color: var(--color-text-muted);
   font: 500 11px/1 var(--font-display);
   user-select: none;
+  overflow: hidden;
+  transition: flex 0.25s ease;
+}
+
+/* Inner wrapper — carries the rotation animation */
+.pl-node-header-inner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  transform: rotate(0deg);
+  transition: transform 0.3s ease;
 }
 
 .pl-node-header svg {
@@ -284,7 +386,17 @@
   flex-shrink: 0;
 }
 
-/* Extended node header — accent color */
+/* Mini: header expands to full height, content rotates vertical */
+.pl-node--mini > .pl-node-header {
+  flex: 1;
+  border-bottom: none;
+}
+
+.pl-node--mini > .pl-node-header .pl-node-header-inner {
+  transform: rotate(-90deg);
+}
+
+/* Extended node header — accent color, stays horizontal */
 .pl-node--extended > .pl-node-header {
   color: var(--color-accent);
 }

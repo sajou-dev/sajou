@@ -13,6 +13,7 @@ import { initHeader } from "./header.js";
 import { restoreState, initAutoSave } from "../state/persistence.js";
 import { initStateSync } from "../state/state-sync.js";
 import { initCommandConsumer } from "../state/command-consumer.js";
+import { initAutoWire } from "../state/auto-wire.js";
 import { initHelpBar } from "./help-bar.js";
 import { initUndoManager } from "../state/undo.js";
 import {
@@ -32,6 +33,7 @@ import { initRideau } from "./rideau.js";
 import { initConnectorBarH } from "./connector-bar-horizontal.js";
 import { initConnectorBarV } from "./connector-bar-vertical.js";
 import { initConnectorBarShader } from "./connector-bar-shader.js";
+import { initConnectorBarP5 } from "./connector-bar-p5.js";
 import { initWiringOverlay } from "./wiring-overlay.js";
 import { initWiringDrag } from "./wiring-drag.js";
 
@@ -51,6 +53,7 @@ import { initShortcutsPanel } from "../panels/shortcuts-panel.js";
 import { initSignalView } from "../views/signal-view.js";
 import { initChoreographyView } from "../views/choreography-view.js";
 import { initShaderView, initShaderEditorPanel } from "../shader-editor/shader-view.js";
+import { initP5View, initP5EditorPanel } from "../p5-editor/p5-view.js";
 
 // Tools
 import { createSelectTool, initSelectToolKeyboard } from "../tools/select-tool.js";
@@ -160,6 +163,7 @@ export async function initWorkspace(): Promise<void> {
   initConnectorBarH();
   initConnectorBarV();
   initConnectorBarShader();
+  initConnectorBarP5();
 
   // Wiring overlay (SVG bezier curves) + drag-to-connect interaction
   initWiringOverlay();
@@ -180,6 +184,9 @@ export async function initWorkspace(): Promise<void> {
 
   // Shader editor view (hidden by default, toggled via header button)
   initShaderView();
+
+  // p5.js editor view
+  initP5View();
 
   // Mini-previews for collapsed pipeline nodes
   initMiniPreviews();
@@ -221,11 +228,17 @@ export async function initWorkspace(): Promise<void> {
   const shaderPanel = createPanel({ id: "shader-editor", title: "Shader Editor", minWidth: 400, minHeight: 350, ownerNode: "shader" });
   initShaderEditorPanel(shaderPanel.contentEl);
 
+  const p5Panel = createPanel({ id: "p5-editor", title: "p5.js Editor", minWidth: 400, minHeight: 350, ownerNode: "p5" });
+  initP5EditorPanel(p5Panel.contentEl);
+
   const shortcutsPanel = createPanel({ id: "shortcuts", title: "Keyboard Shortcuts", minWidth: 280, minHeight: 300 });
   initShortcutsPanel(shortcutsPanel.contentEl);
 
   // Start auto-saving state changes AFTER all views and stores are initialized.
   initAutoSave();
+
+  // Auto-wire: create signal→signal-type wires when sources connect.
+  initAutoWire();
 
   // Start pushing state to the dev server for external tools (MCP server, CLI).
   initStateSync();

@@ -67,6 +67,7 @@ export default defineConfig({
             { text: "Choreographer Pipeline", link: "/guide/choreographer-pipeline" },
             { text: "Run Mode", link: "/guide/run-mode" },
             { text: "Shader System", link: "/guide/shader-system" },
+            { text: "p5.js Editor", link: "/guide/p5-editor" },
             { text: "Persistence", link: "/guide/persistence" },
             { text: "Local Discovery", link: "/guide/local-discovery" },
           ],

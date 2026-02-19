@@ -1,0 +1,241 @@
+/* ===========================================================================
+ * p5.js Editor
+ * =========================================================================== */
+
+/* p5 editor floating panel content: code + params stacked */
+.panel[data-panel-id="p5-editor"] .panel-content {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* Code editor area */
+.p5-code-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Code panel header (sketch selector, buttons) */
+.p5-code-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.p5-code-header select,
+.p5-code-header input {
+  background: var(--color-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 2px 6px;
+  height: 24px;
+}
+
+.p5-code-header select:focus,
+.p5-code-header input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+.p5-code-btn {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  font-size: 14px;
+  transition: background 0.12s, color 0.12s;
+}
+
+.p5-code-btn:hover {
+  background: var(--color-border-hover);
+  color: var(--color-text);
+}
+
+.p5-run-btn svg {
+  color: var(--color-accent);
+}
+
+/* CodeMirror container */
+.p5-code-panel .cm-editor {
+  flex: 1;
+  min-height: 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.p5-code-panel .cm-editor .cm-scroller {
+  overflow: auto;
+}
+
+/* Status bar */
+.p5-compile-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  border-top: 1px solid var(--color-border);
+  flex-shrink: 0;
+  min-height: 24px;
+}
+
+.p5-compile-status--ok {
+  color: var(--color-success);
+}
+
+.p5-compile-status--error {
+  color: var(--color-error);
+}
+
+/* Params panel (bottom of p5-editor panel) */
+.p5-params-panel {
+  max-height: 40%;
+  overflow-y: auto;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
+  padding: 8px 10px;
+  flex-shrink: 0;
+}
+
+.p5-params-panel:empty {
+  display: none;
+}
+
+.p5-param-label {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-muted);
+  margin-bottom: 2px;
+}
+
+.p5-param-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.p5-param-row input[type="range"] {
+  flex: 1;
+  accent-color: var(--color-accent);
+}
+
+.p5-param-row input[type="color"] {
+  width: 28px;
+  height: 22px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.p5-param-value {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-muted);
+  min-width: 40px;
+  text-align: right;
+}
+
+/* Bind badge */
+.p5-bind-badge {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--color-accent);
+  background: rgba(232, 168, 81, 0.12);
+  border-radius: 3px;
+  padding: 0 4px;
+  margin-left: 6px;
+  vertical-align: middle;
+  line-height: 16px;
+}
+
+/* Preview panel — fills the p5 pipeline node entirely */
+.p5-preview-panel {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  background: #07070c;
+  position: relative;
+  overflow: hidden;
+}
+
+.p5-preview-panel canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* p5 mini-bar — same style as zoom-bar / shader-mini-bar */
+#p5-mini-bar {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  z-index: 60;
+  user-select: none;
+}
+
+.p5-mini-btn {
+  border-radius: var(--radius-sm);
+}
+
+.p5-mini-btn--active {
+  color: var(--color-accent);
+}
+
+/* Preset dropdown */
+.p5-preset-menu {
+  position: fixed;
+  z-index: 1000;
+  background: var(--color-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow);
+  padding: 4px 0;
+  min-width: 180px;
+}
+
+.p5-preset-item {
+  display: block;
+  width: 100%;
+  padding: 6px 12px;
+  text-align: left;
+  font-size: 12px;
+  color: var(--color-text);
+  transition: background 0.1s;
+}
+
+.p5-preset-item:hover {
+  background: var(--color-border-hover);
+}
+
+.p5-preset-item-desc {
+  display: block;
+  font-size: 10px;
+  color: var(--color-text-muted);
+  margin-top: 1px;
+}

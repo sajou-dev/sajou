@@ -16,7 +16,7 @@
 // ---------------------------------------------------------------------------
 
 /** A zone that can be a wire endpoint. */
-export type WireZone = "signal" | "signal-type" | "choreographer" | "theme" | "shader";
+export type WireZone = "signal" | "signal-type" | "choreographer" | "theme" | "shader" | "p5";
 
 /** A single wire connection between two zone endpoints. */
 export interface WireConnection {
@@ -27,7 +27,7 @@ export interface WireConnection {
   /** Source endpoint ID (signal source ID, signal type name, or choreography ID). */
   fromId: string;
   /** Destination zone. */
-  toZone: "signal-type" | "choreographer" | "theme" | "shader";
+  toZone: "signal-type" | "choreographer" | "theme" | "shader" | "p5";
   /** Destination endpoint ID (signal type name, choreography ID, theme slot, or {shaderId}:{uniformName}). */
   toId: string;
   /** Optional mapping function applied to routed data. */

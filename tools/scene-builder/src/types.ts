@@ -423,7 +423,7 @@ export type ViewId = "signal" | "orchestrator" | "visual";
 // ---------------------------------------------------------------------------
 
 /** Pipeline node identifiers (left-to-right). */
-export type PipelineNodeId = "signal" | "choreographer" | "visual" | "shader";
+export type PipelineNodeId = "signal" | "choreographer" | "visual" | "shader" | "p5";
 
 /** Pipeline layout configuration — which nodes are extended. */
 export interface PipelineLayout {
@@ -451,7 +451,7 @@ export type ViewMode = "top-down" | "isometric";
 export type ToolId = "select" | "hand" | "background" | "place" | "position" | "route" | "light" | "particle";
 
 /** Panel identifiers. */
-export type PanelId = "entity-palette" | "asset-manager" | "entity-editor" | "inspector" | "layers" | "settings" | "signal-timeline" | "lighting" | "particles" | "shader-editor" | "shortcuts";
+export type PanelId = "entity-palette" | "asset-manager" | "entity-editor" | "inspector" | "layers" | "settings" | "signal-timeline" | "lighting" | "particles" | "shader-editor" | "p5-editor" | "shortcuts";
 
 /** Saved panel position and size. */
 export interface PanelLayout {

@@ -1,15 +1,21 @@
 /**
  * Scene import module.
  *
- * Opens a file picker for a ZIP archive, parses its contents,
- * and restores all stores (scene-state, entity-store, asset-store,
- * choreography-state, wiring-state).
+ * Opens a file picker for a ZIP archive, displays a selection dialog,
+ * and selectively restores stores based on the user's choices.
  * Clears undo history to prevent stale references.
+ *
+ * 4-phase flow:
+ *   1. pickZipFile()       — file picker
+ *   2. parseZip()          — parse all sections + count
+ *   3. showImportDialog()  — user selects sections
+ *   4. applyImport()       — selective reset + populate
  *
  * Expected ZIP structure:
  *   scene.json            — scene layout
  *   entities.json         — entity definitions
  *   choreographies.json   — choreography definitions + wire connections (optional, backward-compat)
+ *   shaders.json          — shader definitions (optional)
  *   assets/               — image files
  */
 
@@ -22,7 +28,12 @@ import { setWiringState, resetWiringState } from "../state/wiring-state.js";
 import { setBindingState, resetBindingState } from "../state/binding-store.js";
 import { clearHistory } from "../state/undo.js";
 import { forcePersistAll } from "../state/persistence.js";
+import { autoWireConnectedSources } from "../state/auto-wire.js";
 import { setShaderState, resetShaderState } from "../shader-editor/shader-state.js";
+import { setP5State, resetP5State } from "../p5-editor/p5-state.js";
+import type { P5EditorState } from "../p5-editor/p5-types.js";
+import { showImportDialog } from "./import-dialog.js";
+import type { ImportSelection, ZipSummary } from "./import-dialog.js";
 import type { ShaderEditorState } from "../shader-editor/shader-types.js";
 import type {
   SceneState,
@@ -69,6 +80,17 @@ interface ChoreographyExportJson {
   choreographies: ChoreographyDef[];
   wires: WireConnection[];
   bindings?: EntityBinding[];
+}
+
+/** All parsed contents from a ZIP archive. */
+interface ZipContents {
+  sceneJson: SceneExportJson;
+  entitiesJson: EntityExportJson;
+  choreoJson: ChoreographyExportJson | null;
+  shaderDefs: ShaderEditorState["shaders"] | null;
+  p5Sketches: P5EditorState["sketches"] | null;
+  assetFiles: AssetFile[];
+  summary: ZipSummary;
 }
 
 // ---------------------------------------------------------------------------
@@ -196,6 +218,24 @@ function parseShaderJson(data: Uint8Array | undefined): ShaderEditorState["shade
 }
 
 /**
+ * Parse p5.json from ZIP. Returns null if absent (backward-compat).
+ */
+function parseP5Json(data: Uint8Array | undefined): P5EditorState["sketches"] | null {
+  if (!data) return null;
+  const text = strFromU8(data);
+  const parsed: unknown = JSON.parse(text);
+
+  if (
+    typeof parsed !== "object" || parsed === null ||
+    !("sketches" in parsed)
+  ) {
+    return null;
+  }
+
+  return (parsed as { sketches: P5EditorState["sketches"] }).sketches;
+}
+
+/**
  * Extract asset files from ZIP entries under assets/.
  * Creates File objects and object URLs for each image file.
  */
@@ -242,24 +282,11 @@ function extractAssets(
 }
 
 // ---------------------------------------------------------------------------
-// Public API
+// Phase 2 — Parse ZIP contents
 // ---------------------------------------------------------------------------
 
-/**
- * Import a scene from a ZIP file.
- *
- * Opens a file picker, reads the ZIP, and replaces the current
- * scene state, entity definitions, and assets with the imported data.
- * Clears undo/redo history.
- */
-export async function importScene(): Promise<void> {
-  const file = await pickZipFile();
-  if (!file) return; // User cancelled
-
-  const buffer = await file.arrayBuffer();
-  const zipEntries = unzipSync(new Uint8Array(buffer));
-
-  // Validate required files
+/** Parse a ZIP file into structured contents with summary counts. */
+function parseZip(zipEntries: Record<string, Uint8Array>): ZipContents {
   const sceneData = zipEntries["scene.json"];
   const entitiesData = zipEntries["entities.json"];
 
@@ -270,68 +297,103 @@ export async function importScene(): Promise<void> {
     throw new Error("Invalid scene ZIP: missing entities.json");
   }
 
-  // Parse JSON files
   const sceneJson = parseSceneJson(sceneData);
   const entitiesJson = parseEntitiesJson(entitiesData);
   const choreoJson = parseChoreoJson(zipEntries["choreographies.json"]);
   const shaderDefs = parseShaderJson(zipEntries["shaders.json"]);
-
-  // Extract asset files
+  const p5Sketches = parseP5Json(zipEntries["p5.json"]);
   const assetFiles = extractAssets(zipEntries);
 
-  // --- Reset all stores ---
-  resetAssets();
-  resetEntities();
-  resetSceneState();
-  resetChoreographyState();
-  resetWiringState();
-  resetBindingState();
-  resetShaderState();
+  const summary: ZipSummary = {
+    entityPlacements: sceneJson.entities.length,
+    entityDefinitions: Object.keys(entitiesJson.entities).length,
+    assetFiles: assetFiles.length,
+    choreographies: choreoJson?.choreographies.length ?? 0,
+    wires: choreoJson?.wires.length ?? 0,
+    bindings: choreoJson?.bindings?.length ?? 0,
+    shaders: shaderDefs?.length ?? 0,
+    p5Sketches: p5Sketches?.length ?? 0,
+  };
+
+  return { sceneJson, entitiesJson, choreoJson, shaderDefs, p5Sketches, assetFiles, summary };
+}
+
+// ---------------------------------------------------------------------------
+// Phase 4 — Apply import (selective)
+// ---------------------------------------------------------------------------
+
+/** Apply parsed ZIP contents to stores based on the user's selection. */
+async function applyImport(contents: ZipContents, selection: ImportSelection): Promise<void> {
+  const { sceneJson, entitiesJson, choreoJson, shaderDefs, p5Sketches, assetFiles } = contents;
+
+  // Reset only the selected sections
+  if (selection.entitiesAndAssets) {
+    resetAssets();
+    resetEntities();
+  }
+  if (selection.visualLayout) {
+    resetSceneState();
+  }
+  if (selection.choreographiesAndWiring) {
+    resetChoreographyState();
+    resetWiringState();
+    resetBindingState();
+  }
+  if (selection.shaders) {
+    resetShaderState();
+  }
+  if (selection.p5Sketches) {
+    resetP5State();
+  }
+
   clearHistory();
 
-  // --- Populate stores ---
+  // --- Populate selected sections ---
 
-  // 1. Assets
-  addAssets(assetFiles);
+  // Entities & Assets
+  if (selection.entitiesAndAssets) {
+    addAssets(assetFiles);
 
-  // Add categories derived from asset subfolders
-  const categories = new Set(assetFiles.map((a) => a.category).filter(Boolean));
-  for (const cat of categories) {
-    addCategory(cat);
+    const categories = new Set(assetFiles.map((a) => a.category).filter(Boolean));
+    for (const cat of categories) {
+      addCategory(cat);
+    }
+
+    for (const [id, entry] of Object.entries(entitiesJson.entities)) {
+      setEntity(id, entry);
+    }
   }
 
-  // 2. Entity definitions
-  for (const [id, entry] of Object.entries(entitiesJson.entities)) {
-    setEntity(id, entry);
+  // Visual layout
+  if (selection.visualLayout) {
+    setSceneState({
+      dimensions: sceneJson.dimensions,
+      background: sceneJson.background,
+      layers: sceneJson.layers,
+      // Backward-compat: old scenes may lack per-placement zIndex
+      entities: sceneJson.entities.map((e, i) => ({
+        ...e,
+        zIndex: (e as { zIndex?: number }).zIndex ?? i,
+      })),
+      positions: sceneJson.positions ?? [],
+      routes: sceneJson.routes ?? [],
+      zoneTypes: sceneJson.zoneTypes ?? getSceneState().zoneTypes,
+      zoneGrid: sceneJson.zoneGrid ?? getSceneState().zoneGrid,
+      lighting: sceneJson.lighting ?? createDefaultLighting(),
+      particles: sceneJson.particles ?? [],
+    });
   }
 
-  // 3. Scene state
-  setSceneState({
-    dimensions: sceneJson.dimensions,
-    background: sceneJson.background,
-    layers: sceneJson.layers,
-    // Backward-compat: old scenes may lack per-placement zIndex
-    entities: sceneJson.entities.map((e, i) => ({
-      ...e,
-      zIndex: (e as { zIndex?: number }).zIndex ?? i,
-    })),
-    positions: sceneJson.positions ?? [],
-    routes: sceneJson.routes ?? [],
-    zoneTypes: sceneJson.zoneTypes ?? getSceneState().zoneTypes,
-    zoneGrid: sceneJson.zoneGrid ?? getSceneState().zoneGrid,
-    lighting: sceneJson.lighting ?? createDefaultLighting(),
-    particles: sceneJson.particles ?? [],
-  });
-
-  // 4. Choreographies + wires + bindings (optional — old ZIPs may lack this file)
-  if (choreoJson) {
+  // Choreographies + wires + bindings
+  if (selection.choreographiesAndWiring && choreoJson) {
     setChoreographyState({
       choreographies: choreoJson.choreographies ?? [],
       selectedChoreographyId: null,
       selectedStepId: null,
     });
     // Filter out signal→signal-type wires — sources are session-ephemeral
-    // and not included in exports, so these wires would be orphaned
+    // and not included in exports, so these wires would be orphaned.
+    // Auto-wire will re-create them for connected sources.
     const persistentWires = (choreoJson.wires ?? []).filter(
       (w) => w.fromZone !== "signal",
     );
@@ -339,14 +401,13 @@ export async function importScene(): Promise<void> {
       wires: persistentWires,
       draggingWireId: null,
     });
-    // 5. Level 2 bindings (optional — old ZIPs may lack this field)
     if (choreoJson.bindings && choreoJson.bindings.length > 0) {
       setBindingState({ bindings: choreoJson.bindings });
     }
   }
 
-  // 6. Shaders (optional — old ZIPs may lack this file)
-  if (shaderDefs && shaderDefs.length > 0) {
+  // Shaders
+  if (selection.shaders && shaderDefs && shaderDefs.length > 0) {
     setShaderState({
       shaders: shaderDefs,
       selectedShaderId: shaderDefs[0].id,
@@ -355,6 +416,49 @@ export async function importScene(): Promise<void> {
     });
   }
 
+  // p5 Sketches
+  if (selection.p5Sketches && p5Sketches && p5Sketches.length > 0) {
+    setP5State({
+      sketches: p5Sketches,
+      selectedSketchId: p5Sketches[0].id,
+      playing: true,
+    });
+  }
+
   // Persist imported state immediately so it survives a page reload
   await forcePersistAll();
+
+  // Auto-wire connected sources to imported choreography signal types
+  autoWireConnectedSources();
+}
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
+/**
+ * Import a scene from a ZIP file.
+ *
+ * 4-phase flow:
+ *   1. File picker
+ *   2. Parse all sections + summary counts
+ *   3. Import selection dialog
+ *   4. Selective apply + auto-wire
+ */
+export async function importScene(): Promise<void> {
+  // Phase 1 — File picker
+  const file = await pickZipFile();
+  if (!file) return;
+
+  // Phase 2 — Parse ZIP
+  const buffer = await file.arrayBuffer();
+  const zipEntries = unzipSync(new Uint8Array(buffer));
+  const contents = parseZip(zipEntries);
+
+  // Phase 3 — Import selection dialog
+  const selection = await showImportDialog(contents.summary);
+  if (!selection) return; // User cancelled
+
+  // Phase 4 — Apply
+  await applyImport(contents, selection);
 }

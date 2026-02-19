@@ -55,7 +55,25 @@ When a choreography has filtered wires, it's registered under `__f:<choreoId>` i
 - If signal-type->choreographer wires exist -- those are authoritative
 - If no wires -- fallback to choreography's `on` field
 
+---
+
+## Auto-Wiring
+
+When importing a scene ZIP or when a signal source connects, the scene-builder automatically creates `signal -> signal-type` wires for all (connected source x active signal type) pairs that don't already exist.
+
+This solves the portability problem: when Pierre imports a scene created by Yan, the choreographies are immediately wired to Pierre's connected sources without manual re-wiring.
+
+**Two entry points:**
+
+- `autoWireConnectedSources()` -- one-shot, called after ZIP import. Iterates all connected sources and all signal types used by choreographies, creates missing wires.
+- `initAutoWire()` -- reactive, called at workspace init. Subscribes to signal source state changes and auto-wires sources that transition into `"connected"`. Tracks previous status per source to avoid firing on unrelated state updates.
+
+**What counts as an "active signal type":**
+1. Signal types used as `fromId` in `signal-type -> choreographer` wires
+2. The `on` field of each choreography definition (fallback when no wires exist)
+
 **Key files:**
+- `tools/scene-builder/src/state/auto-wire.ts` -- auto-wire logic
 - `tools/scene-builder/src/state/wiring-state.ts` -- wire store + mutations
 - `tools/scene-builder/src/state/wiring-queries.ts` -- derived lookups
 - `tools/scene-builder/src/run-mode/signal-filters.ts` -- filter engine

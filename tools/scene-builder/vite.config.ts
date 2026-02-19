@@ -888,6 +888,24 @@ function stateSyncPlugin() {
           return;
         }
 
+        // -----------------------------------------------------------------
+        // GET /api/p5 — all p5.js sketch definitions
+        // -----------------------------------------------------------------
+        if (req.method === "GET" && url.startsWith("/api/p5")) {
+          if (!cachedState) { noStateResponse(res); return; }
+
+          const p5State = cachedState["p5"] as Record<string, unknown> | undefined;
+          const sketches = (p5State?.["sketches"] ?? []) as Array<Record<string, unknown>>;
+
+          res.writeHead(200, corsHeaders);
+          res.end(JSON.stringify({
+            ok: true,
+            lastPushAt,
+            data: { sketches },
+          }));
+          return;
+        }
+
         next();
       });
     },
@@ -913,9 +931,9 @@ interface SceneCommand {
   /** Unique command ID. */
   id: string;
   /** The mutation action. */
-  action: "add" | "remove" | "update" | "set-uniform";
+  action: "add" | "remove" | "update" | "set-uniform" | "set-param";
   /** Which store / entity type this command targets. */
-  type: "entity" | "choreography" | "binding" | "wire" | "source" | "shader";
+  type: "entity" | "choreography" | "binding" | "wire" | "source" | "shader" | "p5";
   /** Payload data — shape depends on action + type. */
   data: Record<string, unknown>;
   /** Timestamp when the command was queued. */
@@ -982,7 +1000,7 @@ function commandQueuePlugin() {
         const method = req.method ?? "GET";
 
         // OPTIONS preflight for /api/ write endpoints
-        if (method === "OPTIONS" && (url.startsWith("/api/scene/entities") || url.startsWith("/api/choreographies") || url.startsWith("/api/bindings") || url.startsWith("/api/wiring") || url.startsWith("/api/signals/sources") || url.startsWith("/api/shaders") || url.startsWith("/api/commands/"))) {
+        if (method === "OPTIONS" && (url.startsWith("/api/scene/entities") || url.startsWith("/api/choreographies") || url.startsWith("/api/bindings") || url.startsWith("/api/wiring") || url.startsWith("/api/signals/sources") || url.startsWith("/api/shaders") || url.startsWith("/api/p5") || url.startsWith("/api/commands/"))) {
           res.writeHead(204, {
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
@@ -1147,6 +1165,64 @@ function commandQueuePlugin() {
           const shaderId = url.slice("/api/shaders/".length).split("/uniforms")[0]!;
           readBody(req).then((body) => {
             const cmd = enqueue("set-uniform", "shader", { ...body, id: shaderId });
+            res.writeHead(200, corsHeaders);
+            res.end(JSON.stringify({ ok: true, commandId: cmd.id }));
+          }).catch((e) => {
+            res.writeHead(400, corsHeaders);
+            res.end(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }));
+          });
+          return;
+        }
+
+        // -----------------------------------------------------------------
+        // POST /api/p5 — create a p5 sketch
+        // -----------------------------------------------------------------
+        if (method === "POST" && url === "/api/p5") {
+          readBody(req).then((body) => {
+            const cmd = enqueue("add", "p5", body);
+            res.writeHead(200, corsHeaders);
+            res.end(JSON.stringify({ ok: true, commandId: cmd.id }));
+          }).catch((e) => {
+            res.writeHead(400, corsHeaders);
+            res.end(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }));
+          });
+          return;
+        }
+
+        // -----------------------------------------------------------------
+        // PUT /api/p5/:id — update a p5 sketch
+        // -----------------------------------------------------------------
+        if (method === "PUT" && url.startsWith("/api/p5/") && !url.includes("/params")) {
+          const sketchId = url.slice("/api/p5/".length).split("?")[0]!;
+          readBody(req).then((body) => {
+            const cmd = enqueue("update", "p5", { ...body, id: sketchId });
+            res.writeHead(200, corsHeaders);
+            res.end(JSON.stringify({ ok: true, commandId: cmd.id }));
+          }).catch((e) => {
+            res.writeHead(400, corsHeaders);
+            res.end(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }));
+          });
+          return;
+        }
+
+        // -----------------------------------------------------------------
+        // DELETE /api/p5/:id — remove a p5 sketch
+        // -----------------------------------------------------------------
+        if (method === "DELETE" && url.startsWith("/api/p5/") && !url.includes("/params")) {
+          const sketchId = url.slice("/api/p5/".length).split("?")[0]!;
+          const cmd = enqueue("remove", "p5", { id: sketchId });
+          res.writeHead(200, corsHeaders);
+          res.end(JSON.stringify({ ok: true, commandId: cmd.id }));
+          return;
+        }
+
+        // -----------------------------------------------------------------
+        // POST /api/p5/:id/params — set param values
+        // -----------------------------------------------------------------
+        if (method === "POST" && url.includes("/params") && url.startsWith("/api/p5/")) {
+          const sketchId = url.slice("/api/p5/".length).split("/params")[0]!;
+          readBody(req).then((body) => {
+            const cmd = enqueue("set-param", "p5", { ...body, id: sketchId });
             res.writeHead(200, corsHeaders);
             res.end(JSON.stringify({ ok: true, commandId: cmd.id }));
           }).catch((e) => {

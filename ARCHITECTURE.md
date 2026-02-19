@@ -67,10 +67,12 @@ Visual scene editor — the main authoring tool for creating and testing choreog
 
 - Vite + Three.js + Canvas2D overlay + vanilla TypeScript
 - Dual-canvas architecture: WebGLRenderer (3D scene) + Canvas2D (editor overlays, markers, labels)
-- 3-zone workflow: Signal → Choreographer → Theme
+- Pipeline layout: Signal ─rail─ Choreo ─rail─ Visual ─rail─ [ Shader │ p5.js ]
+- Shader and p5.js share a single pipeline slot (`.pl-node-group`) with vertical split; mini nodes show rotated headers
 - Wiring system (patch bay), node canvas, step chain with popover editing
 - Zone painting for semantic regions on background
-- Export/import ZIP, run mode with live preview, binding transitions
+- Export/import ZIP (selective import dialog: choose visual layout, entities, choreographies, shaders, p5 sketches independently), run mode with live preview, binding transitions
+- Auto-wire: on import or source connection, `signal → signal-type` wires are created automatically for connected sources × active choreography signal types
 - Signal sources split into **LOCAL** (auto-discovered) and **REMOTE** (manually added) categories
 - Local discovery: Vite plugin probes localhost for Claude Code (SSE), OpenClaw (TCP 18789), LM Studio (HTTP 1234), Ollama (HTTP 11434)
 - OpenClaw token auto-fill from `~/.openclaw/openclaw.json` → `gateway.auth.token` (CORS-restricted endpoint)
@@ -84,10 +86,11 @@ Visual scene editor — the main authoring tool for creating and testing choreog
 #### State persistence
 
 Auto-saves all scene-builder state to IndexedDB and restores on startup:
-- **IndexedDB** (`sajou-scene-builder`, 7 stores): scene state, entity definitions, choreographies, wires, bindings, signal timeline, assets (as `ArrayBuffer`)
+- **IndexedDB** (`sajou-scene-builder`, 8 stores): scene state, entity definitions, choreographies, wires, bindings, signal timeline, assets (as `ArrayBuffer`), p5 sketches
 - **localStorage**: remote signal sources (`sajou:remote-sources`), editor preferences (`sajou:editor-prefs`)
 - `persistence-db.ts`: minimal IndexedDB wrapper (singleton connection, CRUD helpers)
 - `persistence.ts`: orchestrator — debounced auto-save (500ms IDB, 300ms localStorage), `restoreState()` blocking on startup, `forcePersistAll()` after ZIP import, `newScene()` to clear all stores
+- `auto-wire.ts`: auto-creates `signal → signal-type` wires for connected sources on import and connection transitions
 - `beforeunload` handler flushes pending debounced saves
 - **Not persisted**: undo stack, local sources (re-discovered), connection status, active selections
 - Local sources have fixed identity colors (`LOCAL_SOURCE_COLORS`) to prevent visual drift across sessions
@@ -152,11 +155,28 @@ Built-in GLSL shader editor with live preview, compiled on a dedicated Three.js 
 
 Key files: `shader-canvas.ts` (compilation + rendering), `shader-uniforms-panel.ts` (UI controls + external value sync), `shader-code-panel.ts` (editor + compile trigger), `shader-uniform-parser.ts` (annotation parser), `shader-defaults.ts` (auto-injected block)
 
+#### p5.js editor
+
+Built-in p5.js sketch editor with live preview, running in instance mode (`new p5(sketch, container)`):
+- **Instance mode**: no global pollution — sketch function receives `p` instance, user code writes `p.setup`, `p.draw`
+- **Params bridge**: `p.sajou.speed`, `p.sajou.color` etc. — injected object on the p5 instance for live parameter control
+- **Auto-injected params**: `p.sajou._width`, `p.sajou._height`, `p.sajou._time` (ms since start), `p.sajou._mouse` ({x, y})
+- **Param annotations**: `// @param: name, control [, key: value, ...]` in JS comments — parsed to generate editor controls
+- **Control types**: `slider`, `color`, `toggle`, `xy` — same set as shader uniforms
+- **Semantic binding**: `// @bind: intensity` — marks params for choreographer wiring (inline or next line)
+- **Presets**: 3 built-in sketches (Particles, Wave, Grid) with predefined params
+- **Code editor**: CodeMirror 6 with JavaScript syntax, sketch selector, debounced re-run (500ms), Ctrl+Enter for immediate run
+- **Error handling**: `try/catch` around `new Function()` execution, errors displayed in status bar
+- **Wiring target format**: `p5:{sketchId}:{paramName}` in wire connections
+- **External control**: MCP `set-param` commands update both the state store and the live `p.sajou` object
+
+Key files: `p5-canvas.ts` (runtime instance management), `p5-params-panel.ts` (UI controls), `p5-code-panel.ts` (editor), `p5-param-parser.ts` (annotation parser), `p5-presets.ts` (default sketches), `p5-state.ts` (store), `p5-view.ts` (pipeline node integration)
+
 #### MCP command pipeline
 
 External tools (MCP server, `curl`, any HTTP client) control the scene-builder through a command queue system:
-- **Write path**: `POST /api/scene/entities`, `/api/choreographies`, `/api/wiring`, `/api/shaders`, `/api/shaders/:id/uniforms` → server enqueues `SceneCommand` → broadcasts via SSE (`/__commands__/stream`) → client `command-consumer.ts` executes against stores → ACK via `POST /api/commands/ack`
-- **Read path**: `GET /api/scene/state`, `/api/choreographies`, `/api/wiring`, `/api/shaders`, `/api/bindings` — reads from latest state pushed by browser
+- **Write path**: `POST /api/scene/entities`, `/api/choreographies`, `/api/wiring`, `/api/shaders`, `/api/shaders/:id/uniforms`, `/api/p5`, `/api/p5/:id/params` → server enqueues `SceneCommand` → broadcasts via SSE (`/__commands__/stream`) → client `command-consumer.ts` executes against stores → ACK via `POST /api/commands/ack`
+- **Read path**: `GET /api/scene/state`, `/api/choreographies`, `/api/wiring`, `/api/shaders`, `/api/p5`, `/api/bindings` — reads from latest state pushed by browser
 - **State push**: browser pushes full state snapshot via `POST /api/state/push` (debounced 300ms)
 - **SSE fallback**: if SSE disconnects, client polls `GET /api/commands/pending` every 500ms
 - **Signal ingestion**: `POST /api/signal` accepts JSON, normalizes it, broadcasts to all SSE clients on `/__signals__/stream`
@@ -180,6 +200,20 @@ Reusable interactive pattern for angle/direction input:
 | Zone | Z | Paint semantic zones |
 | Light | L | Place/configure lights |
 | Particle | K | Place/configure particle emitters |
+
+#### Pipeline layout
+
+```
+Signal ─rail─ Choreo ─rail─ Visual ─rail─ [ Shader │ p5.js ]
+  1              2             3             4         5
+```
+
+- 3 rails with chevron arrows and badge stacks (source badges, signal-type badges)
+- Shader + p5.js grouped in a single slot (`.pl-node-group`, vertical split)
+- Mini nodes: 48px wide, rotated header (-90°, animated transition)
+- Extended: fills available space, other nodes collapse
+- Inside the code group: extended node takes all space, sibling collapses to 28px horizontal bar
+- Keyboard: 1–5 toggle nodes, double-click header to solo-focus
 
 ### player (active)
 
