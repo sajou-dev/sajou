@@ -316,10 +316,19 @@ export function setUniform(shaderId: string, uniformName: string, value: number 
 }
 
 // ---------------------------------------------------------------------------
-// p5 sketch mutations
+// Sketch mutations (p5.js + Three.js)
 // ---------------------------------------------------------------------------
 
-/** p5 param definition shape. */
+/** Valid sketch runtime modes. */
+const VALID_SKETCH_MODES = new Set(["p5", "threejs"]);
+
+/** Validate and return sketch mode, defaulting to "p5". */
+function validateSketchMode(raw: unknown): string {
+  if (typeof raw === "string" && VALID_SKETCH_MODES.has(raw)) return raw;
+  return "p5";
+}
+
+/** Sketch param definition shape. */
 interface P5ParamDef {
   name: string;
   type: string;
@@ -360,6 +369,7 @@ export function addP5Sketch(data: Record<string, unknown>): void {
       params: parseP5Params(rawParams),
       width: data["width"] ?? 0,
       height: data["height"] ?? 0,
+      mode: validateSketchMode(data["mode"]),
     });
     s.p5["sketches"] = sketches;
   });
@@ -377,6 +387,7 @@ export function updateP5Sketch(id: string, data: Record<string, unknown>): void 
       if (data["source"] !== undefined) partial["source"] = data["source"];
       if (data["width"] !== undefined) partial["width"] = data["width"];
       if (data["height"] !== undefined) partial["height"] = data["height"];
+      if (data["mode"] !== undefined) partial["mode"] = validateSketchMode(data["mode"]);
       if (data["params"] !== undefined) {
         partial["params"] = parseP5Params(data["params"] as Array<Record<string, unknown>>);
       }
