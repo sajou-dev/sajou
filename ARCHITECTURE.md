@@ -149,8 +149,24 @@ Dynamic bindings connect choreographer triggers to entity properties:
 - **Animation engine**: rAF-driven interpolation in `run-mode-bindings.ts`, supports smooth interrupt (re-trigger from current value), revert (animate back to snapshot original), concurrent multi-property animations
 - **Easing**: linear, easeIn, easeOut, easeInOut, arc — local implementation (no `@sajou/core` dependency)
 - **Config popup**: radial menu shows a transition config popup for float properties (scale, opacity, rotation, position.x, position.y) with range hints; non-float properties (visible, animation.state, moveTo) use immediate binding
+- **Speech binding**: `speech` property routes text signals to Canvas2D speech bubbles above entities; streaming types (`text_delta`, `thinking`) use append mode with typewriter effect, others replace
 - **Store**: `binding-store.ts` — `addBinding()`, `updateBindingTransition()`, `updateBindingMapping()`, `updateBindingAction()`
 - **Persistence**: `BindingState` serialized to IndexedDB; optional `transition` field is backward-compatible
+
+#### Speech bubble system
+
+Canvas2D overlay rendering speech bubbles above entities in run mode:
+
+- **State machine**: `speech-bubble-state.ts` — per-entity entries with lifecycle: typing → visible → fading → removed
+- **Typewriter effect**: characters revealed at 30 chars/sec during typing phase
+- **Stream boundary**: gap > 3s between deltas starts a new message (clear buffer)
+- **Auto-dismiss**: configurable retention delay after typing completes, then 400ms fade-out
+- **Per-entity config**: `SpeechBubbleConfig` on `PlacedEntity` — colors (bg, border, text), opacity, font size, max width, max chars, retention delay, tail position (bottom/left/right)
+- **Defaults**: sajou brand colors (`rgba(14,14,22,0.85)` bg, `rgba(232,168,81,0.3)` border, `#E0E0E8` text)
+- **Inspector**: "Speech Bubble" section in inspector panel (actors only) — color pickers, sliders, dropdowns, "Reset to defaults" button
+- **Rendering**: `speech-bubble-renderer.ts` — screen-space Canvas2D (pixel-perfect regardless of zoom), word wrap, pointer tail with 3 orientations
+
+Key files: `speech-bubble-state.ts` (state + tick), `speech-bubble-renderer.ts` (Canvas2D rendering), `run-mode-bindings.ts` (speech case in binding executor)
 
 #### Shader system
 

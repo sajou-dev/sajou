@@ -15,7 +15,7 @@ Run mode = live choreography execution. The scene becomes alive.
 8. Start spritesheet animations (idle cycles)
 
 **Lifecycle -- stopRunMode():**
-0. Stop spritesheet animations (restore original textures)
+0. Clear speech bubbles + stop spritesheet animations (restore original textures)
 1. Dispose choreographer
 2. Dispose binding executor
 3. Unsubscribe signal listener
@@ -46,6 +46,7 @@ Signal arrives
 **Bindings:**
 - Peer of choreographer -- evaluates on every signal dispatch
 - Direct property assignments: `animation.state`, `visible`, `opacity`, `rotation`, `scale`, `position.x`, `position.y`, `teleportTo`
+- **Speech**: `speech` property routes text to Canvas2D speech bubbles above entities. Streaming signals (`text_delta`, `thinking`) use `appendSpeechText()` (typewriter effect); non-streaming use `setSpeechText()` (full replace). Per-entity visual config via `SpeechBubbleConfig` on `PlacedEntity` (colors, font size, opacity, tail position, retention delay)
 - Mapping functions: `lerp`, `clamp`, `step`, `smoothstep`
 - Uses `when` clause matching for conditional execution
 
@@ -61,3 +62,5 @@ Signal arrives
 - `tools/scene-builder/src/run-mode/run-mode-state.ts` -- snapshot/state
 - `tools/scene-builder/src/run-mode/run-mode-sink.ts` -- CommandSink adapter
 - `tools/scene-builder/src/run-mode/run-mode-animator.ts` -- spritesheet animations
+- `tools/scene-builder/src/run-mode/speech-bubble-state.ts` -- speech bubble state + tick
+- `tools/scene-builder/src/canvas/speech-bubble-renderer.ts` -- Canvas2D bubble rendering
