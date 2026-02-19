@@ -37,11 +37,13 @@ async function mcpHandler(req: Request, res: Response, serverFactory: () => McpS
     const server = serverFactory();
     await server.connect(transport);
 
+    // handleRequest processes the initialize message and assigns sessionId
+    await transport.handleRequest(req, res, req.body);
+
+    // Store AFTER handleRequest so the sessionId is available
     if (transport.sessionId) {
       transports.set(transport.sessionId, transport);
     }
-
-    await transport.handleRequest(req, res, req.body);
     return;
   }
 
