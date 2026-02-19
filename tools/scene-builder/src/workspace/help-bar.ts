@@ -142,7 +142,8 @@ function render(): void {
 
   const { activeTool } = getEditorState();
   const buildHint = TOOL_HINTS[activeTool];
-  const html = buildHint ? buildHint() : "";
+  const hints = buildHint ? buildHint() : "";
+  const html = hints + `<span class="hb-version">v${__APP_VERSION__}</span>`;
 
   // Skip DOM write if unchanged
   if (html === lastHtml) return;

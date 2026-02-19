@@ -1299,8 +1299,17 @@ function commandQueuePlugin() {
   };
 }
 
+// Read version from tauri.conf.json (single source of truth for the desktop app).
+// Falls back to package.json version for non-Tauri builds.
+const appVersion = await readFile(join(import.meta.dirname!, "src-tauri/tauri.conf.json"), "utf-8")
+  .then((raw) => JSON.parse(raw).version as string)
+  .catch(() => "dev");
+
 export default defineConfig({
   root: ".",
+  define: {
+    __APP_VERSION__: JSON.stringify(appVersion),
+  },
   plugins: [corsProxyPlugin(), signalIngestionPlugin(), tapHookPlugin(), openclawTokenPlugin(), localDiscoveryPlugin(), stateSyncPlugin(), commandQueuePlugin()],
   server: {
     host: "0.0.0.0",
