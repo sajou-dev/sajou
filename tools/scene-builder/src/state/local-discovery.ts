@@ -23,8 +23,9 @@ import { discoverMIDIDevices, registerMIDIHotPlug } from "../midi/midi-discovery
 import { connectLocalSSE, connectSource } from "../views/signal-connection.js";
 import { platformFetch } from "../utils/platform-fetch.js";
 
-/** Timeout for all local probes (ms). */
-const PROBE_TIMEOUT = 800;
+/** Timeout for all local probes (ms). Generous to cover first-request latency
+ *  on Windows where the Tauri HTTP plugin has slower cold-start. */
+const PROBE_TIMEOUT = 2000;
 
 // ---------------------------------------------------------------------------
 // Browser-side probes
@@ -172,15 +173,15 @@ export async function discoverLocalServices(): Promise<DiscoveredService[]> {
     ),
 
     // Ollama — HTTP probe on 11434
+    // Try 127.0.0.1 first, then localhost (some Windows configs bind IPv6-only)
     httpProbe("http://127.0.0.1:11434/v1/models", PROBE_TIMEOUT).then(
-      (r): DiscoveredService => ({
-        id: "local:ollama",
-        label: "Ollama",
-        protocol: "openai" as TransportProtocol,
-        url: "http://127.0.0.1:11434",
-        available: r.ok,
-        models: r.models,
-      }),
+      async (r): Promise<DiscoveredService> => {
+        if (r.ok) {
+          return { id: "local:ollama", label: "Ollama", protocol: "openai" as TransportProtocol, url: "http://127.0.0.1:11434", available: true, models: r.models };
+        }
+        const fallback = await httpProbe("http://localhost:11434/v1/models", PROBE_TIMEOUT);
+        return { id: "local:ollama", label: "Ollama", protocol: "openai" as TransportProtocol, url: "http://localhost:11434", available: fallback.ok, models: fallback.models };
+      },
     ),
   ]);
 
