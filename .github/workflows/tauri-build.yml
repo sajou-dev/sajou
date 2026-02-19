@@ -36,6 +36,7 @@ jobs:
     name: Build (${{ matrix.label }})
 
     if: >-
+      github.event_name == 'push' ||
       inputs.full_matrix ||
       matrix.label == 'macOS ARM'
 
