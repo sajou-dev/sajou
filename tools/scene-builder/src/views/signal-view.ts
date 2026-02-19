@@ -32,7 +32,7 @@ import {
 } from "./signal-source-popover.js";
 import { initRawLog, addLogEntry, addDebugEntry } from "./signal-raw-log.js";
 import { createSimulatorBar } from "./simulator-bar.js";
-import { scanAndSyncLocal, initMIDIHotPlug } from "../state/local-discovery.js";
+import { scanAndSyncLocal, initMIDIHotPlug, initPeriodicRescan } from "../state/local-discovery.js";
 
 // ---------------------------------------------------------------------------
 // DOM references
@@ -97,6 +97,9 @@ export function initSignalView(): void {
 
   // ── MIDI hot-plug: auto-rescan when devices are plugged/unplugged ──
   initMIDIHotPlug();
+
+  // ── Periodic rescan every 30s (detects services started after sajou) ──
+  initPeriodicRescan();
 }
 
 // ---------------------------------------------------------------------------
