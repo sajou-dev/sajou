@@ -15,6 +15,18 @@ import { initStateSync } from "../state/state-sync.js";
 import { initCommandConsumer } from "../state/command-consumer.js";
 import { isTauri } from "../utils/platform-fetch.js";
 import { initAutoWire } from "../state/auto-wire.js";
+import { probeServer } from "../state/server-config.js";
+import { setSceneState } from "../state/scene-state.js";
+import { setChoreographyState } from "../state/choreography-state.js";
+import { setWiringState } from "../state/wiring-state.js";
+import { setBindingState } from "../state/binding-store.js";
+import { setShaderState } from "../shader-editor/shader-state.js";
+import { setP5State } from "../p5-editor/p5-state.js";
+import type { SceneState, ChoreographyEditorState } from "../types.js";
+import type { WiringState } from "../state/wiring-state.js";
+import type { BindingState } from "../state/binding-store.js";
+import type { ShaderEditorState } from "../shader-editor/shader-types.js";
+import type { P5EditorState } from "../p5-editor/p5-types.js";
 import { initHelpBar } from "./help-bar.js";
 import { initUndoManager } from "../state/undo.js";
 import {
@@ -135,11 +147,46 @@ function initToolSwitching(): void {
 // Init
 // ---------------------------------------------------------------------------
 
+/**
+ * If the sajou server has real state, overwrite local stores with it.
+ * Called after restoreState() so assets + localStorage are already loaded.
+ */
+function restoreFromServer(data: Record<string, unknown>): void {
+  if (data["scene"]) setSceneState(data["scene"] as SceneState);
+  if (data["choreographies"]) {
+    const c = data["choreographies"] as ChoreographyEditorState;
+    setChoreographyState({ ...c, selectedChoreographyId: null, selectedStepId: null });
+  }
+  if (data["wiring"]) {
+    const w = data["wiring"] as WiringState;
+    setWiringState({ ...w, draggingWireId: null });
+  }
+  if (data["bindings"]) setBindingState(data["bindings"] as BindingState);
+  if (data["shaders"]) {
+    const s = data["shaders"] as ShaderEditorState;
+    setShaderState({ ...s, selectedShaderId: null, playing: true });
+  }
+  if (data["p5"]) {
+    const p = data["p5"] as P5EditorState;
+    setP5State({ ...p, selectedSketchId: null, playing: true });
+  }
+  console.info("[workspace] State restored from sajou server");
+}
+
 /** Initialize the full workspace. */
 export async function initWorkspace(): Promise<void> {
-  // Attempt to restore persisted state before initializing views.
-  // If data exists in IndexedDB, stores are populated; otherwise defaults remain.
+  // 1. Restore from IndexedDB (assets, localStorage, state stores).
   await restoreState();
+
+  // 2. If sajou server is available, sync state with it.
+  //    Server wins if it has real state; otherwise initStateSync() will push
+  //    the IDB state to the server on its first immediate push.
+  if (!isTauri()) {
+    const probe = await probeServer();
+    if (probe.hasState && probe.data) {
+      restoreFromServer(probe.data);
+    }
+  }
 
   // Undo/redo shortcuts
   initUndoManager();
