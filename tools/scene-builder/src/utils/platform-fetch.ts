@@ -41,6 +41,16 @@ export async function platformFetch(
 
   // Tauri — Rust-side fetch, no restrictions
   if (_tauriFetch) {
+    // Force a localhost Origin header for local services (Ollama, etc.)
+    // so they don't reject the request due to Tauri's webview origin
+    // (https://tauri.localhost) not being in their allowed origins list.
+    if (_isLocalUrl(url)) {
+      const headers = new Headers(options?.headers);
+      if (!headers.has("Origin")) {
+        headers.set("Origin", "http://localhost");
+      }
+      return _tauriFetch(url, { ...options, headers });
+    }
     return _tauriFetch(url, options);
   }
 
@@ -52,6 +62,16 @@ export async function platformFetch(
 
   // Production browser — raw fetch (may fail on mixed content)
   return fetch(url, options);
+}
+
+/** Check if a URL targets a local service (localhost / 127.0.0.1). */
+function _isLocalUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return u.hostname === "localhost" || u.hostname === "127.0.0.1";
+  } catch {
+    return false;
+  }
 }
 
 /** Whether we're running inside a Tauri desktop app. */
