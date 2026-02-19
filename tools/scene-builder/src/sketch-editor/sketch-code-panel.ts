@@ -13,19 +13,19 @@ import { closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { javascript } from "@codemirror/lang-javascript";
 
-import { runSketch, stopSketch, isRunning, onRunResult, initP5Canvas } from "./p5-canvas.js";
-import type { RunResult } from "./p5-canvas.js";
+import { runSketch, stopSketch, isRunning, onRunResult, initSketchCanvas } from "./sketch-canvas.js";
+import type { RunResult } from "./sketch-canvas.js";
 import {
-  getP5State,
+  getSketchState,
   addSketch,
   removeSketch,
   updateSketch,
-  updateP5State,
+  updateSketchState,
   selectSketch,
-  subscribeP5,
-} from "./p5-state.js";
-import type { P5SketchDef, SketchMode } from "./p5-types.js";
-import { P5_PRESETS } from "./p5-presets.js";
+  subscribeSketch,
+} from "./sketch-state.js";
+import type { SketchDef, SketchMode } from "./sketch-types.js";
+import { SKETCH_PRESETS } from "./sketch-presets.js";
 
 // ---------------------------------------------------------------------------
 // State
@@ -96,7 +96,7 @@ const DEFAULT_SOURCE = DEFAULT_P5_SOURCE;
 // ---------------------------------------------------------------------------
 
 /** Initialize the p5 code panel inside the given container. */
-export function initP5CodePanel(codeEl: HTMLElement): void {
+export function initSketchCodePanel(codeEl: HTMLElement): void {
   containerEl = codeEl;
 
   // Build header
@@ -133,7 +133,7 @@ export function initP5CodePanel(codeEl: HTMLElement): void {
     if (newMode === oldMode) return;
     // Swap source if it's still the default for the old mode
     const isDefault = selected.source.trim() === defaultSourceForMode(oldMode).trim();
-    const patch: Partial<P5SketchDef> = { mode: newMode };
+    const patch: Partial<SketchDef> = { mode: newMode };
     if (isDefault) {
       patch.source = defaultSourceForMode(newMode);
     }
@@ -158,8 +158,8 @@ export function initP5CodePanel(codeEl: HTMLElement): void {
   runBtn.title = "Run sketch (Ctrl+Enter)";
   runBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>`;
   runBtn.addEventListener("click", () => {
-    const { playing } = getP5State();
-    updateP5State({ playing: !playing });
+    const { playing } = getSketchState();
+    updateSketchState({ playing: !playing });
     // If starting, trigger an immediate run with current editor content
     if (!playing) {
       doRun();
@@ -199,10 +199,10 @@ export function initP5CodePanel(codeEl: HTMLElement): void {
   presetMenu.style.display = "none";
 
   // Build categorized preset menu
-  const p5Presets = P5_PRESETS.filter((p) => (p.mode ?? "p5") === "p5");
-  const threejsPresets = P5_PRESETS.filter((p) => p.mode === "threejs");
+  const p5Presets = SKETCH_PRESETS.filter((p) => (p.mode ?? "p5") === "p5");
+  const threejsPresets = SKETCH_PRESETS.filter((p) => p.mode === "threejs");
 
-  const addPresetGroup = (label: string, presets: typeof P5_PRESETS[number][]): void => {
+  const addPresetGroup = (label: string, presets: typeof SKETCH_PRESETS[number][]): void => {
     if (presets.length === 0) return;
     const header = document.createElement("div");
     header.className = "p5-preset-group-header";
@@ -302,7 +302,7 @@ export function initP5CodePanel(codeEl: HTMLElement): void {
   onRunResult(onRun);
 
   // Subscribe to p5 state changes
-  subscribeP5(syncFromState);
+  subscribeSketch(syncFromState);
 
   // Ensure we have at least one sketch
   ensureDefaultSketch();
@@ -320,9 +320,9 @@ export function initP5CodePanel(codeEl: HTMLElement): void {
 
 function createNewSketch(): void {
   const id = crypto.randomUUID();
-  const count = getP5State().sketches.length + 1;
+  const count = getSketchState().sketches.length + 1;
   const currentMode: SketchMode = getSelectedSketch()?.mode ?? "p5";
-  const sketch: P5SketchDef = {
+  const sketch: SketchDef = {
     id,
     name: `Sketch ${count}`,
     source: defaultSourceForMode(currentMode),
@@ -335,26 +335,26 @@ function createNewSketch(): void {
 }
 
 function deleteSelectedSketch(): void {
-  const { sketches, selectedSketchId } = getP5State();
+  const { sketches, selectedSketchId } = getSketchState();
   if (!selectedSketchId || sketches.length <= 1) return;
   removeSketch(selectedSketchId);
-  const remaining = getP5State().sketches;
-  if (remaining.length > 0 && !getP5State().selectedSketchId) {
+  const remaining = getSketchState().sketches;
+  if (remaining.length > 0 && !getSketchState().selectedSketchId) {
     selectSketch(remaining[0].id);
   }
 }
 
 function ensureDefaultSketch(): void {
-  const { sketches } = getP5State();
+  const { sketches } = getSketchState();
   if (sketches.length === 0) {
     createNewSketch();
-  } else if (!getP5State().selectedSketchId) {
+  } else if (!getSketchState().selectedSketchId) {
     selectSketch(sketches[0].id);
   }
 }
 
-function getSelectedSketch(): P5SketchDef | undefined {
-  const { sketches, selectedSketchId } = getP5State();
+function getSelectedSketch(): SketchDef | undefined {
+  const { sketches, selectedSketchId } = getSketchState();
   return sketches.find((s) => s.id === selectedSketchId);
 }
 
@@ -364,7 +364,7 @@ function getSelectedSketch(): P5SketchDef | undefined {
 
 /** Sync code panel UI from p5 state (selection change, external updates). */
 function syncFromState(): void {
-  const { sketches, selectedSketchId } = getP5State();
+  const { sketches, selectedSketchId } = getSketchState();
 
   // Update selector dropdown
   if (sketchSelectorEl) {
@@ -404,7 +404,7 @@ function syncFromState(): void {
 
 function scheduleRun(): void {
   // Only auto-run on code changes when playing
-  if (!getP5State().playing) return;
+  if (!getSketchState().playing) return;
   if (compileTimer) clearTimeout(compileTimer);
   compileTimer = setTimeout(doRun, RUN_DEBOUNCE_MS);
 }
@@ -431,7 +431,7 @@ function onRun(result: RunResult): void {
 
   if (result.success) {
     statusEl.className = "p5-compile-status p5-compile-status--ok";
-    statusEl.textContent = getP5State().playing ? "Running" : "Stopped";
+    statusEl.textContent = getSketchState().playing ? "Running" : "Stopped";
   } else {
     statusEl.className = "p5-compile-status p5-compile-status--error";
     statusEl.textContent = `Error: ${result.error}`;
@@ -442,7 +442,7 @@ function onRun(result: RunResult): void {
 function syncRunButton(): void {
   const btn = containerEl?.querySelector(".p5-run-btn");
   if (!btn) return;
-  const { playing } = getP5State();
+  const { playing } = getSketchState();
   if (playing) {
     btn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>`;
     btn.setAttribute("title", "Pause sketch");
@@ -467,6 +467,6 @@ function initCanvasLazy(): void {
   const previewEl = document.getElementById("p5-preview-panel");
   if (!previewEl) return;
 
-  initP5Canvas(previewEl);
+  initSketchCanvas(previewEl);
   canvasInitialized = true;
 }

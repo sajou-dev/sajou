@@ -30,8 +30,8 @@ import { clearHistory } from "../state/undo.js";
 import { forcePersistAll } from "../state/persistence.js";
 import { autoWireConnectedSources } from "../state/auto-wire.js";
 import { setShaderState, resetShaderState } from "../shader-editor/shader-state.js";
-import { setP5State, resetP5State } from "../p5-editor/p5-state.js";
-import type { P5EditorState } from "../p5-editor/p5-types.js";
+import { setSketchState, resetSketchState } from "../sketch-editor/sketch-state.js";
+import type { SketchEditorState } from "../sketch-editor/sketch-types.js";
 import { showImportDialog } from "./import-dialog.js";
 import type { ImportSelection, ZipSummary } from "./import-dialog.js";
 import type { ShaderEditorState } from "../shader-editor/shader-types.js";
@@ -88,7 +88,7 @@ interface ZipContents {
   entitiesJson: EntityExportJson;
   choreoJson: ChoreographyExportJson | null;
   shaderDefs: ShaderEditorState["shaders"] | null;
-  p5Sketches: P5EditorState["sketches"] | null;
+  p5Sketches: SketchEditorState["sketches"] | null;
   assetFiles: AssetFile[];
   summary: ZipSummary;
 }
@@ -220,7 +220,7 @@ function parseShaderJson(data: Uint8Array | undefined): ShaderEditorState["shade
 /**
  * Parse p5.json from ZIP. Returns null if absent (backward-compat).
  */
-function parseP5Json(data: Uint8Array | undefined): P5EditorState["sketches"] | null {
+function parseP5Json(data: Uint8Array | undefined): SketchEditorState["sketches"] | null {
   if (!data) return null;
   const text = strFromU8(data);
   const parsed: unknown = JSON.parse(text);
@@ -232,7 +232,7 @@ function parseP5Json(data: Uint8Array | undefined): P5EditorState["sketches"] | 
     return null;
   }
 
-  return (parsed as { sketches: P5EditorState["sketches"] }).sketches;
+  return (parsed as { sketches: SketchEditorState["sketches"] }).sketches;
 }
 
 /**
@@ -343,7 +343,7 @@ async function applyImport(contents: ZipContents, selection: ImportSelection): P
     resetShaderState();
   }
   if (selection.p5Sketches) {
-    resetP5State();
+    resetSketchState();
   }
 
   clearHistory();
@@ -418,7 +418,7 @@ async function applyImport(contents: ZipContents, selection: ImportSelection): P
 
   // p5 Sketches
   if (selection.p5Sketches && p5Sketches && p5Sketches.length > 0) {
-    setP5State({
+    setSketchState({
       sketches: p5Sketches,
       selectedSketchId: p5Sketches[0].id,
       playing: true,

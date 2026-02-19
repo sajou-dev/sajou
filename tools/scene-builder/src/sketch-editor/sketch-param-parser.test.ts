@@ -3,12 +3,12 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { parseP5Source } from "./p5-param-parser.js";
+import { parseSketchSource } from "./sketch-param-parser.js";
 
-describe("parseP5Source", () => {
+describe("parseSketchSource", () => {
   it("parses a slider param with min/max", () => {
     const source = `// @param: speed, slider, min: 0.1, max: 5.0`;
-    const { params } = parseP5Source(source);
+    const { params } = parseSketchSource(source);
 
     expect(params).toHaveLength(1);
     expect(params[0].name).toBe("speed");
@@ -21,7 +21,7 @@ describe("parseP5Source", () => {
 
   it("parses a color param", () => {
     const source = `// @param: tint, color`;
-    const { params } = parseP5Source(source);
+    const { params } = parseSketchSource(source);
 
     expect(params).toHaveLength(1);
     expect(params[0].name).toBe("tint");
@@ -32,7 +32,7 @@ describe("parseP5Source", () => {
 
   it("parses a toggle param", () => {
     const source = `// @param: enable, toggle`;
-    const { params } = parseP5Source(source);
+    const { params } = parseSketchSource(source);
 
     expect(params).toHaveLength(1);
     expect(params[0].name).toBe("enable");
@@ -43,7 +43,7 @@ describe("parseP5Source", () => {
 
   it("parses a vec2 (xy) param with range", () => {
     const source = `// @param: center, xy, min: 0.0, max: 1.0`;
-    const { params } = parseP5Source(source);
+    const { params } = parseSketchSource(source);
 
     expect(params).toHaveLength(1);
     expect(params[0].name).toBe("center");
@@ -56,7 +56,7 @@ describe("parseP5Source", () => {
 
   it("parses a step annotation", () => {
     const source = `// @param: count, slider, min: 1, max: 100, step: 1`;
-    const { params } = parseP5Source(source);
+    const { params } = parseSketchSource(source);
 
     expect(params).toHaveLength(1);
     expect(params[0].step).toBe(1);
@@ -69,7 +69,7 @@ describe("parseP5Source", () => {
       "// @param: enable, toggle",
     ].join("\n");
 
-    const { params } = parseP5Source(source);
+    const { params } = parseSketchSource(source);
     expect(params).toHaveLength(3);
     expect(params[0].name).toBe("speed");
     expect(params[1].name).toBe("color");
@@ -84,14 +84,14 @@ describe("parseP5Source", () => {
       "function setup() {}",
     ].join("\n");
 
-    const { params } = parseP5Source(source);
+    const { params } = parseSketchSource(source);
     expect(params).toHaveLength(1);
     expect(params[0].name).toBe("speed");
   });
 
   it("parses @bind on the same line", () => {
     const source = `// @param: intensity, slider, min: 0, max: 1 @bind: intensity`;
-    const { params } = parseP5Source(source);
+    const { params } = parseSketchSource(source);
 
     expect(params).toHaveLength(1);
     expect(params[0].name).toBe("intensity");
@@ -104,33 +104,33 @@ describe("parseP5Source", () => {
       "// @bind: scale",
     ].join("\n");
 
-    const { params } = parseP5Source(source);
+    const { params } = parseSketchSource(source);
     expect(params).toHaveLength(1);
     expect(params[0].bind).toEqual({ semantic: "scale" });
   });
 
   it("ignores invalid control types", () => {
     const source = `// @param: foo, unknown`;
-    const { params } = parseP5Source(source);
+    const { params } = parseSketchSource(source);
     expect(params).toHaveLength(0);
   });
 
   it("ignores annotations with no name", () => {
     const source = `// @param: slider`;
-    const { params } = parseP5Source(source);
+    const { params } = parseSketchSource(source);
     // "slider" is name, but there's no second part for control
     expect(params).toHaveLength(0);
   });
 
   it("returns empty for source with no annotations", () => {
     const source = `p.setup = function() { p.createCanvas(400, 400); };`;
-    const { params } = parseP5Source(source);
+    const { params } = parseSketchSource(source);
     expect(params).toHaveLength(0);
   });
 
   it("uses default min/max/step when not specified", () => {
     const source = `// @param: value, slider`;
-    const { params } = parseP5Source(source);
+    const { params } = parseSketchSource(source);
 
     expect(params).toHaveLength(1);
     expect(params[0].min).toBe(0);

@@ -7,7 +7,7 @@
 
 import p5 from "p5";
 import { getEditorState, subscribeEditor } from "../state/editor-state.js";
-import { getP5State, subscribeP5 } from "./p5-state.js";
+import { getSketchState, subscribeSketch } from "./sketch-state.js";
 import { isFullWindow, getFullWindowElement, onFullWindowChange } from "../utils/fullscreen.js";
 import {
   initThreejsCanvas,
@@ -16,7 +16,7 @@ import {
   setThreejsParam,
   isThreejsRunning,
 } from "./threejs-canvas.js";
-import type { SketchMode } from "./p5-types.js";
+import type { SketchMode } from "./sketch-types.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -52,7 +52,7 @@ let threejsInitialized = false;
 // ---------------------------------------------------------------------------
 
 /** Initialize the p5 preview in the given container element. */
-export function initP5Canvas(el: HTMLElement): void {
+export function initSketchCanvas(el: HTMLElement): void {
   container = el;
 
   // Resize p5 canvas when container changes size (e.g. fullscreen enter/exit)
@@ -64,7 +64,7 @@ export function initP5Canvas(el: HTMLElement): void {
   resizeObserver.observe(el);
 
   subscribeEditor(syncLoop);
-  subscribeP5(syncLoop);
+  subscribeSketch(syncLoop);
   onFullWindowChange(() => syncLoop());
   syncLoop();
 }
@@ -198,7 +198,7 @@ function createSketchFn(source: string, bridge: Record<string, unknown>): (p: p5
 /** Start/stop sketch based on pipeline visibility and playing state. */
 function syncLoop(): void {
   const { pipelineLayout } = getEditorState();
-  const { playing, sketches, selectedSketchId } = getP5State();
+  const { playing, sketches, selectedSketchId } = getSketchState();
   const p5El = document.getElementById("p5-node-content");
   const isFS = isFullWindow() && getFullWindowElement() === p5El;
   const shouldRun = (pipelineLayout.extended.includes("p5") || isFS) && playing;
@@ -230,7 +230,7 @@ function syncLoop(): void {
 // ---------------------------------------------------------------------------
 
 /** Dispose of all resources. */
-export function disposeP5Canvas(): void {
+export function disposeSketchCanvas(): void {
   stopSketch();
   resizeObserver?.disconnect();
   resizeObserver = null;

@@ -1,11 +1,11 @@
 /**
  * Built-in sketch presets (p5.js and Three.js).
  *
- * Each preset is a complete P5SketchDef ready to be cloned and added
+ * Each preset is a complete SketchDef ready to be cloned and added
  * to the sketch editor state.
  */
 
-import type { P5SketchDef, SketchMode } from "./p5-types.js";
+import type { SketchDef, SketchMode } from "./sketch-types.js";
 
 // ---------------------------------------------------------------------------
 // 1. Particles — bouncing particles
@@ -384,7 +384,7 @@ function draw(ctx, state) {
 // ---------------------------------------------------------------------------
 
 /** A preset entry with factory function. */
-export interface P5Preset {
+export interface SketchPreset {
   /** Display name. */
   name: string;
   /** Short description. */
@@ -392,11 +392,11 @@ export interface P5Preset {
   /** Runtime mode (default: "p5"). */
   mode?: SketchMode;
   /** Factory that creates a fresh sketch definition. */
-  create: () => P5SketchDef;
+  create: () => SketchDef;
 }
 
 /** All built-in sketch presets (p5.js + Three.js). */
-export const P5_PRESETS: readonly P5Preset[] = [
+export const SKETCH_PRESETS: readonly SketchPreset[] = [
   // -- p5.js presets --
   {
     name: "Particles",

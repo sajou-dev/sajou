@@ -37,11 +37,11 @@ import {
   subscribeShaders,
 } from "../shader-editor/shader-state.js";
 import {
-  getP5State,
-  setP5State,
-  resetP5State,
-  subscribeP5,
-} from "../p5-editor/p5-state.js";
+  getSketchState,
+  setSketchState,
+  resetSketchState,
+  subscribeSketch,
+} from "../sketch-editor/sketch-state.js";
 import {
   getSignalSourcesState,
   updateSignalSourcesState,
@@ -74,7 +74,7 @@ import type {
 import type { WiringState } from "./wiring-state.js";
 import type { BindingState } from "./binding-store.js";
 import type { ShaderEditorState } from "../shader-editor/shader-types.js";
-import type { P5EditorState } from "../p5-editor/p5-types.js";
+import type { SketchEditorState } from "../sketch-editor/sketch-types.js";
 
 // ---------------------------------------------------------------------------
 // Versioned envelope
@@ -362,8 +362,8 @@ export function initAutoSave(): void {
   subscribeShaders(() =>
     debouncedSave("shaders", () => getShaderState()),
   );
-  subscribeP5(() =>
-    debouncedSave("p5", () => getP5State()),
+  subscribeSketch(() =>
+    debouncedSave("p5", () => getSketchState()),
   );
 
   // Assets — incremental, debounced
@@ -478,9 +478,9 @@ export async function restoreState(): Promise<boolean> {
     }
 
     // 9. Restore p5 state
-    const p5Record = await dbGet<VersionedData<P5EditorState>>("p5", "current");
+    const p5Record = await dbGet<VersionedData<SketchEditorState>>("p5", "current");
     if (p5Record?.data) {
-      setP5State({
+      setSketchState({
         ...p5Record.data,
         selectedSketchId: null,
         playing: true,
@@ -555,7 +555,7 @@ export async function forcePersistAll(): Promise<void> {
     dbPut("bindings", "current", wrap(getBindingState())),
     dbPut("timeline", "current", wrap(getSignalTimelineState())),
     dbPut("shaders", "current", wrap(getShaderState())),
-    dbPut("p5", "current", wrap(getP5State())),
+    dbPut("p5", "current", wrap(getSketchState())),
   ]);
 
   // Assets: save all (force, not incremental)
@@ -607,7 +607,7 @@ export async function newScene(): Promise<void> {
   resetBindingState();
   resetSignalTimeline();
   resetShaderState();
-  resetP5State();
+  resetSketchState();
   resetSignalSources();
   clearHistory();
 
@@ -637,7 +637,7 @@ function flushPendingSaves(): void {
     dbPut("bindings", "current", wrap(getBindingState())).catch(() => {});
     dbPut("timeline", "current", wrap(getSignalTimelineState())).catch(() => {});
     dbPut("shaders", "current", wrap(getShaderState())).catch(() => {});
-    dbPut("p5", "current", wrap(getP5State())).catch(() => {});
+    dbPut("p5", "current", wrap(getSketchState())).catch(() => {});
   } catch {
     // Best effort — page is unloading
   }

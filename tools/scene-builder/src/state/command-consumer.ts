@@ -20,8 +20,8 @@ import { addBinding, removeBinding } from "./binding-store.js";
 import { addSource, removeSource } from "./signal-source-state.js";
 import { getShaderState, addShader, updateShader, removeShader } from "../shader-editor/shader-state.js";
 import type { ShaderDef, ShaderUniformDef, ShaderObjectDef } from "../shader-editor/shader-types.js";
-import { getP5State, addSketch, updateSketch, removeSketch } from "../p5-editor/p5-state.js";
-import type { P5SketchDef, P5ParamDef } from "../p5-editor/p5-types.js";
+import { getSketchState, addSketch, updateSketch, removeSketch } from "../sketch-editor/sketch-state.js";
+import type { SketchDef, SketchParamDef } from "../sketch-editor/sketch-types.js";
 import type { PlacedEntity, ChoreographyDef, ChoreographyStepDef, BindingValueType } from "../types.js";
 
 /** Poll interval in milliseconds (fallback only). */
@@ -264,19 +264,19 @@ function executeP5Command(action: string, data: Record<string, unknown>): void {
   if (action === "add") {
     const id = (data["id"] as string) ?? crypto.randomUUID();
     const rawParams = (data["params"] as Array<Record<string, unknown>>) ?? [];
-    const params: P5ParamDef[] = rawParams.map((p) => ({
+    const params: SketchParamDef[] = rawParams.map((p) => ({
       name: p["name"] as string,
-      type: (p["type"] as P5ParamDef["type"]) ?? "float",
-      control: (p["control"] as P5ParamDef["control"]) ?? "slider",
+      type: (p["type"] as SketchParamDef["type"]) ?? "float",
+      control: (p["control"] as SketchParamDef["control"]) ?? "slider",
       value: p["value"] as number | boolean | number[],
       defaultValue: (p["defaultValue"] ?? p["value"]) as number | boolean | number[],
       min: (p["min"] as number) ?? 0,
       max: (p["max"] as number) ?? 1,
       step: (p["step"] as number) ?? 0.01,
-      bind: p["bind"] as P5ParamDef["bind"],
+      bind: p["bind"] as SketchParamDef["bind"],
     }));
 
-    const sketch: P5SketchDef = {
+    const sketch: SketchDef = {
       id,
       name: (data["name"] as string) ?? "Untitled",
       source: (data["source"] as string) ?? "",
@@ -287,7 +287,7 @@ function executeP5Command(action: string, data: Record<string, unknown>): void {
     addSketch(sketch);
   } else if (action === "update") {
     const id = data["id"] as string;
-    const partial: Partial<P5SketchDef> = {};
+    const partial: Partial<SketchDef> = {};
     if (data["name"] !== undefined) partial.name = data["name"] as string;
     if (data["source"] !== undefined) partial.source = data["source"] as string;
     if (data["width"] !== undefined) partial.width = data["width"] as number;
@@ -296,14 +296,14 @@ function executeP5Command(action: string, data: Record<string, unknown>): void {
       const rawParams = data["params"] as Array<Record<string, unknown>>;
       partial.params = rawParams.map((p) => ({
         name: p["name"] as string,
-        type: (p["type"] as P5ParamDef["type"]) ?? "float",
-        control: (p["control"] as P5ParamDef["control"]) ?? "slider",
+        type: (p["type"] as SketchParamDef["type"]) ?? "float",
+        control: (p["control"] as SketchParamDef["control"]) ?? "slider",
         value: p["value"] as number | boolean | number[],
         defaultValue: (p["defaultValue"] ?? p["value"]) as number | boolean | number[],
         min: (p["min"] as number) ?? 0,
         max: (p["max"] as number) ?? 1,
         step: (p["step"] as number) ?? 0.01,
-        bind: p["bind"] as P5ParamDef["bind"],
+        bind: p["bind"] as SketchParamDef["bind"],
       }));
     }
     updateSketch(id, partial);
@@ -315,7 +315,7 @@ function executeP5Command(action: string, data: Record<string, unknown>): void {
     const paramName = data["paramName"] as string;
     const value = data["value"] as number | boolean | number[];
     // Update just the target param's value in the sketch's params array
-    const sketch = getP5State().sketches.find((s) => s.id === id);
+    const sketch = getSketchState().sketches.find((s) => s.id === id);
     if (!sketch) return;
     const updatedParams = sketch.params.map((p) =>
       p.name === paramName ? { ...p, value } : p,

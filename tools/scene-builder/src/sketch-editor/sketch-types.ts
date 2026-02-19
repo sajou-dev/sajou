@@ -10,25 +10,25 @@
 // ---------------------------------------------------------------------------
 
 /** Control widget type for a sketch param in the editor UI. */
-export type P5ParamControl = "slider" | "color" | "toggle" | "xy";
+export type SketchParamControl = "slider" | "color" | "toggle" | "xy";
 
 /** Supported param value types. */
-export type P5ParamType = "float" | "int" | "bool" | "color" | "vec2";
+export type SketchParamType = "float" | "int" | "bool" | "color" | "vec2";
 
 /** Semantic binding hint for choreographer integration. */
-export interface P5ParamBinding {
+export interface SketchParamBinding {
   /** Semantic role (e.g. "intensity", "position", "scale"). */
   semantic: string;
 }
 
 /** A single user-defined param exposed in the editor. */
-export interface P5ParamDef {
+export interface SketchParamDef {
   /** Param name as used in `p.sajou.xxx`. */
   name: string;
   /** Value type. */
-  type: P5ParamType;
+  type: SketchParamType;
   /** UI control widget. */
-  control: P5ParamControl;
+  control: SketchParamControl;
   /** Current value. Type depends on `type`: number, boolean, or number[]. */
   value: number | boolean | number[];
   /** Default value (reset target). */
@@ -40,7 +40,7 @@ export interface P5ParamDef {
   /** Step increment for sliders. */
   step: number;
   /** Semantic binding for choreographer integration. */
-  bind?: P5ParamBinding;
+  bind?: SketchParamBinding;
 }
 
 // ---------------------------------------------------------------------------
@@ -51,7 +51,7 @@ export interface P5ParamDef {
 export type SketchMode = "p5" | "threejs";
 
 /** A complete sketch definition as stored in the editor. */
-export interface P5SketchDef {
+export interface SketchDef {
   /** Unique sketch ID. */
   id: string;
   /** Display name. */
@@ -59,7 +59,7 @@ export interface P5SketchDef {
   /** JavaScript source code. */
   source: string;
   /** User-defined params parsed from annotations. */
-  params: P5ParamDef[];
+  params: SketchParamDef[];
   /** Canvas width (0 = fit container). */
   width: number;
   /** Canvas height (0 = fit container). */
@@ -73,9 +73,9 @@ export interface P5SketchDef {
 // ---------------------------------------------------------------------------
 
 /** Full state for the p5.js editor. */
-export interface P5EditorState {
+export interface SketchEditorState {
   /** All sketch definitions. */
-  sketches: P5SketchDef[];
+  sketches: SketchDef[];
   /** Currently selected sketch ID (null = none). */
   selectedSketchId: string | null;
   /** Whether the sketch is running. */

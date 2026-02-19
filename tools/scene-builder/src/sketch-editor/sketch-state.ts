@@ -5,13 +5,13 @@
  * Holds sketch definitions, selection, and playback state.
  */
 
-import type { P5EditorState, P5SketchDef } from "./p5-types.js";
+import type { SketchEditorState, SketchDef } from "./sketch-types.js";
 
 // ---------------------------------------------------------------------------
 // Default state
 // ---------------------------------------------------------------------------
 
-function createDefault(): P5EditorState {
+function createDefault(): SketchEditorState {
   return {
     sketches: [],
     selectedSketchId: null,
@@ -25,28 +25,28 @@ function createDefault(): P5EditorState {
 
 type Listener = () => void;
 
-let state: P5EditorState = createDefault();
+let state: SketchEditorState = createDefault();
 const listeners: Listener[] = [];
 
 /** Get current p5 editor state. */
-export function getP5State(): P5EditorState {
+export function getSketchState(): SketchEditorState {
   return state;
 }
 
 /** Replace the entire p5 state and notify listeners. */
-export function setP5State(next: P5EditorState): void {
+export function setSketchState(next: SketchEditorState): void {
   state = next;
   notify();
 }
 
 /** Partially update p5 state (shallow merge) and notify. */
-export function updateP5State(partial: Partial<P5EditorState>): void {
+export function updateSketchState(partial: Partial<SketchEditorState>): void {
   state = { ...state, ...partial };
   notify();
 }
 
 /** Reset to defaults. */
-export function resetP5State(): void {
+export function resetSketchState(): void {
   state = createDefault();
   notify();
 }
@@ -56,7 +56,7 @@ export function resetP5State(): void {
 // ---------------------------------------------------------------------------
 
 /** Add a new sketch definition. Returns the added sketch. */
-export function addSketch(sketch: P5SketchDef): P5SketchDef {
+export function addSketch(sketch: SketchDef): SketchDef {
   state = {
     ...state,
     sketches: [...state.sketches, sketch],
@@ -67,7 +67,7 @@ export function addSketch(sketch: P5SketchDef): P5SketchDef {
 }
 
 /** Update an existing sketch by ID (shallow merge). */
-export function updateSketch(id: string, partial: Partial<P5SketchDef>): void {
+export function updateSketch(id: string, partial: Partial<SketchDef>): void {
   state = {
     ...state,
     sketches: state.sketches.map((s) => (s.id === id ? { ...s, ...partial } : s)),
@@ -98,7 +98,7 @@ export function selectSketch(id: string | null): void {
 // ---------------------------------------------------------------------------
 
 /** Subscribe to p5 state changes. Returns unsubscribe function. */
-export function subscribeP5(fn: Listener): () => void {
+export function subscribeSketch(fn: Listener): () => void {
   listeners.push(fn);
   return () => {
     const idx = listeners.indexOf(fn);
