@@ -11,6 +11,8 @@ EXCLUDE=(
   docs/brand
   docs/archive
   docs/sajou-mcp-server-design.md
+  CLAUDE.md
+  SAJOU-MANIFESTO.md
   .claude
   .mcp.json
   packages/theme-api
