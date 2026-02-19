@@ -49,6 +49,11 @@ import {
   subscribeSignalSources,
 } from "./signal-source-state.js";
 import { getEditorState, updateEditorState, subscribeEditor } from "./editor-state.js";
+import {
+  getActiveBarHSource,
+  setActiveBarHSource,
+  subscribeActiveSource,
+} from "../workspace/connector-bar-horizontal.js";
 import { clearHistory } from "./undo.js";
 import { scanAndSyncLocal } from "./local-discovery.js";
 
@@ -186,6 +191,7 @@ interface PersistedEditorPrefs {
   interfaceState: InterfaceState;
   viewMode: ViewMode;
   pipelineLayout?: PipelineLayout;
+  activeSourceId?: string | null;
 }
 
 function serializeEditorPrefs(): string {
@@ -199,6 +205,7 @@ function serializeEditorPrefs(): string {
     interfaceState: s.interfaceState,
     viewMode: s.viewMode,
     pipelineLayout: s.pipelineLayout,
+    activeSourceId: getActiveBarHSource(),
   };
   return JSON.stringify(prefs);
 }
@@ -240,6 +247,11 @@ function restoreEditorPrefs(): void {
 
     if (Object.keys(update).length > 0) {
       updateEditorState(update);
+    }
+
+    // Restore active source selection (separate from EditorState)
+    if (typeof prefs.activeSourceId === "string") {
+      setActiveBarHSource(prefs.activeSourceId);
     }
   } catch {
     // Corrupted data — ignore
@@ -374,6 +386,9 @@ export function initAutoSave(): void {
     debouncedLocalSave(LS_REMOTE_SOURCES, serializeRemoteSources),
   );
   subscribeEditor(() =>
+    debouncedLocalSave(LS_EDITOR_PREFS, serializeEditorPrefs),
+  );
+  subscribeActiveSource(() =>
     debouncedLocalSave(LS_EDITOR_PREFS, serializeEditorPrefs),
   );
 
