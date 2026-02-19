@@ -145,14 +145,19 @@ function createSystem(config: ParticleEmitterState): ParticleSystemRuntime {
     size: config.size[0],
     vertexColors: true,
     transparent: true,
+    depthTest: false,
     depthWrite: false,
     blending: config.glow ? THREE.AdditiveBlending : THREE.NormalBlending,
     sizeAttenuation: false,
   });
 
   const points = new THREE.Points(geometry, material);
-  // Place at emitter position, Y=0.5 (above ground, below entities)
+  // Place at emitter position, Y=0.5 (above ground plane)
   points.position.set(config.x, 0.5, config.y);
+  // Force particles to render after all entity meshes.
+  // Without this, isometric back-to-front transparent sorting draws
+  // particles first (Y=0.5 is "farther" from camera) then floor tiles over them.
+  points.renderOrder = 1000;
 
   // Initialize particles with random ages for immediate visual spread
   const particles: Particle[] = [];

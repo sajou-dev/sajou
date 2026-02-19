@@ -10,6 +10,7 @@
  */
 
 import { getEditorState, subscribeEditor, togglePanel } from "../state/editor-state.js";
+import { toggleFullWindow, onFullWindowChange } from "../utils/fullscreen.js";
 
 // ---------------------------------------------------------------------------
 // Module state
@@ -42,6 +43,20 @@ export function initShaderView(): void {
   editorBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"/><path d="m6 8-4 4 4 4"/><path d="m14.5 4-5 16"/></svg>`;
   editorBtn.addEventListener("click", () => togglePanel("shader-editor"));
   miniBar.appendChild(editorBtn);
+
+  const fsBtn = document.createElement("button");
+  fsBtn.className = "zoom-btn shader-mini-btn";
+  fsBtn.title = "Full window (F)";
+  fsBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" x2="14" y1="3" y2="10"/><line x1="3" x2="10" y1="21" y2="14"/></svg>`;
+  fsBtn.addEventListener("click", () => {
+    if (container) toggleFullWindow(container);
+  });
+  onFullWindowChange((active) => {
+    fsBtn.innerHTML = active
+      ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" x2="21" y1="10" y2="3"/><line x1="3" x2="10" y1="21" y2="14"/></svg>`
+      : `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" x2="14" y1="3" y2="10"/><line x1="3" x2="10" y1="21" y2="14"/></svg>`;
+  });
+  miniBar.appendChild(fsBtn);
 
   previewPanel.appendChild(miniBar);
 
