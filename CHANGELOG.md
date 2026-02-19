@@ -1,5 +1,50 @@
 # Changelog
 
+## v0.5.6 (2026-02-19)
+
+- feat(scene-builder): full-window preview mode (F key, auto-activates run mode + hand tool)
+- fix(scene-builder): particle render order fix
+
+## v0.5.5 (2026-02-19)
+
+- feat: Tauri desktop app for macOS (ARM + Intel), Windows, and Linux
+- feat: tauri-plugin-http for localhost mixed-content bypass
+- feat: HTML confirm dialog (replaces broken window.confirm in WKWebView)
+
+## v0.5.4 (2026-02-19)
+
+- feat(scene-builder): persist active source connection across sessions
+- feat(scene-builder): periodic local source rescan (30s interval)
+
+## v0.5.3 (2026-02-19)
+
+- feat(scene-builder): speech bubbles — Canvas2D overlay with streaming typewriter effect
+- feat(scene-builder): per-entity speech bubble config (colors, opacity, tail position, retention, font size)
+- feat(scene-builder): speech binding property in radial menu
+- test: 26 speech bubble state tests
+
+## v0.5.2 (2026-02-19)
+
+- feat(scene-builder): binding transitions — animated float property bindings with easing
+- feat(scene-builder): transition config popup in radial menu (scale, opacity, rotation, position)
+- feat(scene-builder): easing functions: linear, easeIn, easeOut, easeInOut, arc
+- test: 18 binding transition tests
+
+## v0.5.1 (2026-02-19)
+
+- feat(scene-builder): particle system — radial and directional emitters with color-over-life
+- feat(scene-builder): particle tool (K key), particle panel with compass dial
+- feat(scene-builder): glow particles (AdditiveBlending)
+- feat(scene-builder): lighting system — ambient, directional, point lights with flicker
+- feat(scene-builder): light tool (J key), lighting panel with Canvas2D dials
+
+## v0.5.0 (2026-02-19)
+
+- feat(scene-builder): OpenClaw signal source integration (auto-detect port 18789)
+- feat(scene-builder): local signal source discovery (Claude Code, OpenClaw, LM Studio, Ollama)
+- feat(scene-builder): platformFetch for Tauri/browser/proxy auto-selection
+- test: 42 OpenClaw parser tests
+
 ## v0.4.0 (2026-02-19)
 
 - feat: p5.js editor with full pipeline integration (instance mode runtime, CodeMirror JS, params panel, 3 presets)

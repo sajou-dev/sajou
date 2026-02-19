@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>sajou — A visual choreographer for AI agents</title>
-  <meta name="description" content="sajou translates AI agent events into animated visual scenes through declarative choreographies. MCP server included — any AI agent can compose scenes." />
+  <meta name="description" content="sajou translates AI agent events into animated visual scenes through declarative choreographies. Desktop app with MCP server — any AI agent can compose scenes." />
   <link rel="icon" href="/sajou-favicon.svg" type="image/svg+xml" />
   <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;700&display=swap" rel="stylesheet" />
   <style>
@@ -233,7 +233,7 @@
     }
     .mcp-tools {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
       gap: 12px;
       margin-bottom: 32px;
     }
@@ -321,6 +321,12 @@
       font-size: 0.7rem;
       color: var(--color-text-dim);
     }
+    footer .domains a {
+      color: var(--color-text-dim);
+    }
+    footer .domains a:hover {
+      color: var(--color-text-muted);
+    }
 
     @media (max-width: 640px) {
       .hero h1 { font-size: 2rem; }
@@ -337,9 +343,10 @@
       <div class="header-brand">sajou</div>
       <nav>
         <ul class="header-nav">
-          <li><a href="/guide/">Docs</a></li>
-          <li><a href="/guide/mcp-server">MCP</a></li>
-          <li><a href="/reference/signal-protocol">Reference</a></li>
+          <li><a href="https://docs.sajou.dev">Docs</a></li>
+          <li><a href="https://docs.sajou.dev/guide/mcp-server">MCP</a></li>
+          <li><a href="https://github.com/sajou-dev/sajou/releases/latest">Download</a></li>
+          <li><a href="https://github.com/sajou-dev/sajou">GitHub</a></li>
         </ul>
       </nav>
     </div>
@@ -348,12 +355,12 @@
   <!-- Hero -->
   <section class="hero">
     <div class="container">
-      <div class="hero-version">v0.3.0 — MCP Server</div>
+      <div class="hero-version">v0.5.6 — Desktop App + MCP Server</div>
       <h1>A visual choreographer<br />for <em>AI agents</em></h1>
       <p>sajou translates agent events into animated visual scenes through declarative choreographies. Signals are the music. Themes are the dancers. sajou is the choreographer.</p>
       <div class="hero-actions">
-        <a href="/guide/" class="btn btn-primary">Get started</a>
-        <a href="/guide/mcp-server" class="btn">MCP integration</a>
+        <a href="https://github.com/sajou-dev/sajou/releases/latest" class="btn btn-primary">Download</a>
+        <a href="https://docs.sajou.dev" class="btn">Documentation</a>
       </div>
     </div>
   </section>
@@ -380,14 +387,13 @@
         </div>
 
         <div class="feature-card">
-          <div class="tag">NEW IN v0.3.0</div>
-          <h3>MCP Server — 16 tools</h3>
-          <p>Any MCP-compatible AI agent can read scenes, compose choreographies, place entities, write GLSL shaders, and control uniforms in real-time.</p>
+          <h3>MCP Server — 20 tools</h3>
+          <p>Any MCP-compatible AI agent can read scenes, compose choreographies, place entities, write GLSL shaders, create p5.js sketches, and control uniforms in real-time.</p>
         </div>
 
         <div class="feature-card">
           <h3>Visual scene editor</h3>
-          <p>Node-based workspace with pipeline layout, interlocking block choreographer, shader editor, wiring patch bay, and live run mode.</p>
+          <p>Node-based workspace with pipeline layout, interlocking block choreographer, shader editor, wiring patch bay, and Three.js live run mode.</p>
         </div>
 
         <div class="feature-card">
@@ -396,25 +402,43 @@
         </div>
 
         <div class="feature-card">
-          <div class="tag">NEW IN v0.3.0</div>
-          <h3>Shared Actor IDs</h3>
-          <p>Multiple entities share the same Actor ID for group choreography. One command, many instances — fan-out to all with a single step.</p>
+          <div class="tag">NEW</div>
+          <h3>p5.js creative coding</h3>
+          <p>Instance mode p5.js sketches with param annotations, choreographer wiring, and MCP control. Three presets included — Particles, Wave, Grid.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="tag">NEW</div>
+          <h3>Lighting &amp; particles</h3>
+          <p>Three.js AmbientLight, DirectionalLight, and PointLight array with flicker. CPU-simulated particle emitters with color-over-life, glow, and radial/directional modes.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="tag">NEW</div>
+          <h3>Speech bubbles</h3>
+          <p>Canvas2D overlay with streaming typewriter effect for text_delta/thinking signals. Per-entity config for colors, opacity, tail position, retention.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="tag">NEW</div>
+          <h3>Binding transitions</h3>
+          <p>Animated property bindings with configurable duration, easing (linear, easeIn, easeOut, easeInOut, arc), and auto-revert. Float properties only.</p>
         </div>
 
         <div class="feature-card">
           <h3>Open signal protocol</h3>
-          <p>14 well-known types with typed payloads, plus any custom type. WebSocket, SSE, OpenAI, Anthropic, OpenClaw, MIDI — all auto-detected.</p>
+          <p>14 well-known types with typed payloads, plus any custom type. WebSocket, SSE, OpenAI, Anthropic, OpenClaw, Ollama, LM Studio, MIDI — all auto-detected.</p>
         </div>
 
         <div class="feature-card">
-          <h3>Wiring & filters</h3>
+          <div class="tag">NEW</div>
+          <h3>Desktop app (Tauri)</h3>
+          <p>Native desktop app for macOS, Windows, and Linux. No browser mixed-content limits — connect directly to localhost AI services.</p>
+        </div>
+
+        <div class="feature-card">
+          <h3>Wiring &amp; filters</h3>
           <p>TouchDesigner-style patch bay connecting signals to choreographies to renderers. Wire-level filters: throttle, sample, delta, when, map.</p>
-        </div>
-
-        <div class="feature-card">
-          <div class="tag">NEW IN v0.3.0</div>
-          <h3>State sync & REST API</h3>
-          <p>Bidirectional sync between browser and dev server. Full REST API for reading and writing scene state, choreographies, bindings, wiring, and shaders.</p>
         </div>
 
         <div class="feature-card">
@@ -430,7 +454,7 @@
   <section class="mcp">
     <div class="container">
       <h2>AI agent integration via MCP</h2>
-      <p>Any MCP-compatible AI agent can read, compose, and animate sajou scenes. The MCP server exposes 16 tools — an agent connects via stdio, inspects the scene, builds choreographies, and watches them animate in real-time.</p>
+      <p>Any MCP-compatible AI agent can read, compose, and animate sajou scenes. The MCP server exposes 20 tools — an agent connects via stdio, inspects the scene, builds choreographies, and watches them animate in real-time.</p>
 
       <div class="mcp-tools">
         <div class="mcp-tool-group">
@@ -460,6 +484,15 @@
             <li>update_shader</li>
             <li>set_uniform</li>
             <li>get_shaders</li>
+          </ul>
+        </div>
+        <div class="mcp-tool-group">
+          <h4>p5.js</h4>
+          <ul>
+            <li>create_p5_sketch</li>
+            <li>update_p5_sketch</li>
+            <li>delete_p5_sketch</li>
+            <li>set_p5_param</li>
           </ul>
         </div>
         <div class="mcp-tool-group">
@@ -495,6 +528,8 @@
         <span class="source-badge">OpenAI-compatible</span>
         <span class="source-badge">Anthropic API</span>
         <span class="source-badge">OpenClaw</span>
+        <span class="source-badge">Ollama</span>
+        <span class="source-badge">LM Studio</span>
         <span class="source-badge">MIDI</span>
         <span class="source-badge">MCP</span>
         <span class="source-badge">Claude Code (local)</span>
@@ -506,7 +541,7 @@
   <footer>
     <div class="container">
       <p>sajou — a visual choreographer for AI agents</p>
-      <p class="domains">sajou.dev &middot; sajou.org &middot; sajou.app</p>
+      <p class="domains">sajou.dev &middot; sajou.app &middot; docs.sajou.dev &middot; <a href="https://github.com/sajou-dev/sajou">GitHub</a></p>
     </div>
   </footer>
 

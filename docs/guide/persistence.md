@@ -6,7 +6,7 @@ The scene-builder auto-saves your work to the browser's IndexedDB and localStora
 
 ### IndexedDB (debounced 500ms)
 
-The `sajou-scene-builder` database has 8 object stores:
+The `sajou-scene-builder` database has 9 object stores:
 
 | Store | Content |
 |---|---|
@@ -18,6 +18,9 @@ The `sajou-scene-builder` database has 8 object stores:
 | `timeline` | Signal timeline state |
 | `shaders` | Shader definitions, sources, uniforms |
 | `assets` | Image files as `ArrayBuffer` (incremental save) |
+| `p5` | p5.js sketch definitions, source code, params |
+
+**DB_VERSION history:** 1 (initial) → 2 (added `shaders` store) → 3 (added `p5` store).
 
 Each store wraps its data in a versioned envelope `{ version: 1, data: ... }`.
 
@@ -103,6 +106,7 @@ When importing a ZIP, a dialog lets you choose which sections to load:
 | **Entities & Assets** | Entity definitions, asset files |
 | **Choreographies & Wiring** | Choreography definitions, wire connections, bindings |
 | **Shaders** | Shader definitions |
+| **p5.js Sketches** | p5.js sketch definitions, source code, params |
 
 Unchecked sections keep their current state. The dialog shows summary counts for each section and contextual warnings (e.g. "Visual layout without Entities may produce invisible meshes").
 

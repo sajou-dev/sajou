@@ -65,6 +65,7 @@ All shortcuts are ignored when focus is in INPUT or TEXTAREA elements.
 
 | Key | Action |
 |---|---|
+| `F` | Toggle Full-Window Preview (auto-activates run mode + hand tool on Visual) |
 | `I` | Toggle Isometric / Top-Down |
 | `G` | Toggle Grid |
 | `?` | Toggle Help Bar |
@@ -78,7 +79,7 @@ These keys work when the corresponding tool is active:
 | Key | Action |
 |---|---|
 | `Delete` / `Backspace` | Delete selected element(s) -- works in Select, Position, Route, Light, and Particle tools |
-| `Escape` | Deselect / Cancel -- works in Select, Place, Position, Route, Light, and Particle tools |
+| `Escape` | Deselect / Cancel -- works in Select, Place, Position, Route, Light, and Particle tools. Also exits full-window preview mode. |
 
 ### Route Tool specifics
 - `Delete` / `Backspace` while hovering a point handle: delete that point (minimum 2 enforced)

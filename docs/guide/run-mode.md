@@ -56,6 +56,39 @@ Signal arrives
 - Resolves `defaultTargetEntityId` -> step `entity` field
 - Structural actions (parallel, onArrive, onInterrupt) convert recursively
 
+**Binding transitions:**
+
+Float properties (`scale`, `opacity`, `rotation`, `position.x`, `position.y`) support animated transitions instead of instant assignment. When a binding has a `transition` field, the property animates smoothly to the target value.
+
+```typescript
+transition: {
+  targetValue: number;     // final value
+  durationMs: number;      // animation duration
+  easing: ChoreographyEasing; // linear | easeIn | easeOut | easeInOut | arc
+  revert?: boolean;        // return to original value after?
+  revertDelayMs?: number;  // wait before reverting
+}
+```
+
+The animation engine (`run-mode-bindings.ts`) uses `requestAnimationFrame` for smooth interpolation. Interrupts are handled gracefully — a new signal starts the transition from the current interpolated value, not the original.
+
+Easing functions:
+- **linear** — constant speed
+- **easeIn** — slow start, accelerating
+- **easeOut** — fast start, decelerating
+- **easeInOut** — slow start and end
+- **arc** — overshoot and settle
+
+Non-float properties (`visible`, `animation.state`, `moveTo`, `followRoute`, `teleportTo`) remain instant assignment.
+
+The transition config popup appears in the radial binding menu when binding a float property. It provides range hints: scale (0.1–10), opacity (0–1), rotation (0–360°), position in pixels.
+
+**Full-window preview mode:**
+
+Press <kbd>F</kbd> to toggle full-window preview. This expands the Visual node to fill the entire browser window, automatically activates run mode and the hand tool. Press <kbd>Escape</kbd> or <kbd>F</kbd> again to exit.
+
+Full-window mode is useful for presentations, demos, and focused monitoring of a running scene.
+
 **Key files:**
 - `tools/scene-builder/src/run-mode/run-mode-controller.ts` -- lifecycle manager
 - `tools/scene-builder/src/run-mode/run-mode-bindings.ts` -- binding executor
