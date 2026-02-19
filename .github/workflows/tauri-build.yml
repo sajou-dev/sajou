@@ -1,10 +1,12 @@
 name: "Build Tauri Desktop App"
 
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
+    inputs:
+      full_matrix:
+        description: "Build all platforms (macOS Intel, Linux, Windows)"
+        type: boolean
+        default: false
 
 jobs:
   build-tauri:
@@ -29,6 +31,10 @@ jobs:
 
     runs-on: ${{ matrix.platform }}
     name: Build (${{ matrix.label }})
+
+    if: >-
+      inputs.full_matrix ||
+      matrix.label == 'macOS ARM'
 
     steps:
       - uses: actions/checkout@v4
