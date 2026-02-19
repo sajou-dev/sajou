@@ -84,6 +84,34 @@ export interface PlacedEntity {
    * Only meaningful for actors (entities with semanticId set).
    */
   topology?: EntityTopology;
+  /**
+   * Optional speech bubble visual configuration.
+   * When absent, brand defaults are used. Per-instance so different
+   * actors of the same entity type can have different bubble styles.
+   */
+  speechBubble?: SpeechBubbleConfig;
+}
+
+/** Per-entity speech bubble visual configuration. */
+export interface SpeechBubbleConfig {
+  /** Bubble background color. */
+  bgColor: string;
+  /** Bubble border color. */
+  borderColor: string;
+  /** Text color. */
+  textColor: string;
+  /** Overall bubble opacity (0–1). */
+  opacity: number;
+  /** Auto-dismiss delay in ms after typing completes. */
+  retentionMs: number;
+  /** Maximum characters before truncation. */
+  maxChars: number;
+  /** Font size in px. */
+  fontSize: number;
+  /** Max bubble width in px. */
+  maxWidth: number;
+  /** Pointer tail position relative to entity. */
+  tailPosition: "bottom" | "left" | "right";
 }
 
 /**
@@ -104,7 +132,7 @@ export interface EntityTopology {
 // ---------------------------------------------------------------------------
 
 /** Output type from a choreographer node. */
-export type BindingValueType = "float" | "point2D" | "bool" | "enum" | "event" | "color" | "int";
+export type BindingValueType = "float" | "point2D" | "bool" | "enum" | "event" | "color" | "int" | "string";
 
 /**
  * Category of bindable property on an entity.

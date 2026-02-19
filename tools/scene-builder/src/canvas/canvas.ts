@@ -24,6 +24,7 @@ import {
 } from "./camera-controller.js";
 import { initLightRenderer, tickFlicker } from "./light-renderer.js";
 import { initParticleRenderer, tickParticles } from "./particle-renderer.js";
+import { tickSpeechBubbles } from "../run-mode/speech-bubble-state.js";
 
 // ---------------------------------------------------------------------------
 // Interfaces
@@ -489,6 +490,8 @@ function startRenderLoop(): void {
       lastFrameTime = now;
       tickFlicker(now);
       tickParticles(dt);
+      const speechActive = tickSpeechBubbles(dt * 1000); // dt is seconds, tickSpeechBubbles expects ms
+      if (speechActive) redrawOverlay();
       webGLRenderer.render(scene, controller.camera);
     }
   };

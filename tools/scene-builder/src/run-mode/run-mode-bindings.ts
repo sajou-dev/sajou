@@ -39,6 +39,8 @@ import { getBindingsFromChoreography } from "../state/binding-store.js";
 import { resolveEntityId, resolveAllEntityIds, resolvePosition } from "./run-mode-resolve.js";
 import { switchAnimation } from "./run-mode-animator.js";
 import { getSnapshot } from "./run-mode-state.js";
+import { appendSpeechText, setSpeechText } from "./speech-bubble-state.js";
+import { getSceneState } from "../state/scene-state.js";
 
 // ---------------------------------------------------------------------------
 // Easing functions (local — no @sajou/core dependency)
@@ -260,6 +262,22 @@ function executeBinding(
       case "teleportTo":
         executeTeleportTo(placedId, binding, adapter);
         break;
+
+      case "speech": {
+        const text = extractStringValue(signal.payload, binding.sourceField);
+        if (!text) break;
+        // Look up entity's bubble config for maxChars/retentionMs overrides
+        const placed = getSceneState().entities.find(e => e.id === placedId);
+        const sbConfig = placed?.speechBubble;
+        const opts = sbConfig ? { maxChars: sbConfig.maxChars, retentionMs: sbConfig.retentionMs } : undefined;
+        const isStreaming = signal.type === "text_delta" || signal.type === "thinking";
+        if (isStreaming) {
+          appendSpeechText(placedId, text, opts);
+        } else {
+          setSpeechText(placedId, text, opts);
+        }
+        break;
+      }
 
       default:
         console.warn(`[bindings] Unknown property: ${binding.property}`);
@@ -491,6 +509,48 @@ function tickAnims(
 // ---------------------------------------------------------------------------
 
 /**
+ * Extract a string value from the signal payload.
+ *
+ * Strategy:
+ *   0. Explicit sourceField (e.g. "content") → payload[sourceField]
+ *   1. Try "content" as a conventional field (text_delta, thinking)
+ *   2. Try "text" as a conventional field
+ *   3. Try "message" as a conventional field
+ *   4. Find the first string field in the payload
+ */
+function extractStringValue(
+  payload: Record<string, unknown>,
+  sourceField?: string,
+): string | null {
+  // Strategy 0: explicit source field
+  if (sourceField && typeof payload[sourceField] === "string") {
+    return payload[sourceField] as string;
+  }
+
+  // Strategy 1: "content" (text_delta, thinking)
+  if (typeof payload["content"] === "string") {
+    return payload["content"] as string;
+  }
+
+  // Strategy 2: "text"
+  if (typeof payload["text"] === "string") {
+    return payload["text"] as string;
+  }
+
+  // Strategy 3: "message"
+  if (typeof payload["message"] === "string") {
+    return payload["message"] as string;
+  }
+
+  // Strategy 4: first string field
+  for (const val of Object.values(payload)) {
+    if (typeof val === "string" && val.length > 0) return val;
+  }
+
+  return null;
+}
+
+/**
  * Extract a numeric value from the signal payload.
  *
  * Strategy:
@@ -689,5 +749,6 @@ export const __test__ = {
   writeHandleProp,
   tickAnims,
   extractNumericValue,
+  extractStringValue,
   applyMapping,
 } as const;

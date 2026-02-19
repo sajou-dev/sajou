@@ -72,6 +72,7 @@ function buildItems(
   items.push({ key: "scale", label: "Scale", icon: "\u2922", sourceType: "float" });
   items.push({ key: "opacity", label: "Opacity", icon: "\u25D1", sourceType: "float" });
   items.push({ key: "visible", label: "Visible", icon: "\u25C9", sourceType: "bool" });
+  items.push({ key: "speech", label: "Speech", icon: "\uD83D\uDCAC", sourceType: "string" });
 
   return items;
 }
@@ -277,6 +278,22 @@ function showRadialMenu(
 
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
+
+      // Speech binding — auto-set sourceField for streaming signal types
+      if (item.key === "speech") {
+        const speechSourceField = (triggerSignalType === "text_delta" || triggerSignalType === "thinking")
+          ? "content"
+          : selectedSourceField;
+        addBinding({
+          targetEntityId: targetSemanticId,
+          property: "speech",
+          sourceChoreographyId: choreographyId,
+          sourceType: "string",
+          ...(speechSourceField ? { sourceField: speechSourceField } : {}),
+        });
+        hideBindingDropMenu();
+        return;
+      }
 
       // MIDI float → instant continuous binding (value-driven, no transition)
       if (FLOAT_PROPERTIES.has(item.key) && selectedSourceField) {

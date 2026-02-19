@@ -36,6 +36,8 @@ export const BINDABLE_PROPERTIES: readonly BindablePropertyDef[] = [
   { key: "animation.speed", label: "Animation Speed", category: "visual", acceptsTypes: ["float"] },
   { key: "zIndex", label: "Z-Index", category: "visual", acceptsTypes: ["int", "float"] },
 
+  { key: "speech", label: "Speech", category: "visual", acceptsTypes: ["string", "event"] },
+
   // Topological (only available if entity has topology)
   { key: "moveTo:waypoint", label: "Move To", category: "topological", acceptsTypes: ["enum", "event"] },
   { key: "followRoute", label: "Follow Route", category: "topological", acceptsTypes: ["enum", "event"] },

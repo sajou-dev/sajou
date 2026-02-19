@@ -9,7 +9,7 @@ import { describe, it, expect, vi } from "vitest";
 import type { DisplayObjectHandle } from "../canvas/render-adapter.js";
 import { __test__ } from "./run-mode-bindings.js";
 
-const { EASING_FNS, resolveEasing, readHandleProp, writeHandleProp, tickAnims, extractNumericValue, applyMapping } = __test__;
+const { EASING_FNS, resolveEasing, readHandleProp, writeHandleProp, tickAnims, extractNumericValue, extractStringValue, applyMapping } = __test__;
 
 // ---------------------------------------------------------------------------
 // Mock handle factory
@@ -380,6 +380,44 @@ describe("extractNumericValue", () => {
   it("sourceField miss falls through to subsequent strategies", () => {
     // sourceField "missing" is not in payload, but "value" is → strategy 2
     expect(extractNumericValue({ value: 50 }, "opacity", "missing")).toBe(50);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// extractStringValue
+// ---------------------------------------------------------------------------
+
+describe("extractStringValue", () => {
+  it("strategy 0: explicit sourceField", () => {
+    expect(extractStringValue({ content: "hello", message: "world" }, "message")).toBe("world");
+  });
+
+  it("strategy 1: 'content' field", () => {
+    expect(extractStringValue({ content: "token", other: 42 })).toBe("token");
+  });
+
+  it("strategy 2: 'text' field", () => {
+    expect(extractStringValue({ text: "some text", num: 5 })).toBe("some text");
+  });
+
+  it("strategy 3: 'message' field", () => {
+    expect(extractStringValue({ message: "an error occurred" })).toBe("an error occurred");
+  });
+
+  it("strategy 4: first string field in payload", () => {
+    expect(extractStringValue({ count: 5, label: "hello" })).toBe("hello");
+  });
+
+  it("returns null when payload has no string values", () => {
+    expect(extractStringValue({ count: 5, flag: true })).toBeNull();
+  });
+
+  it("skips empty strings in fallback scan", () => {
+    expect(extractStringValue({ empty: "", real: "value" })).toBe("value");
+  });
+
+  it("sourceField miss falls through to subsequent strategies", () => {
+    expect(extractStringValue({ content: "fallback" }, "missing")).toBe("fallback");
   });
 });
 
