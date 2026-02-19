@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.4.0 (2026-02-19)
+
+- feat: p5.js editor with full pipeline integration (instance mode runtime, CodeMirror JS, params panel, 3 presets)
+- feat: p5.js param annotations (`@param:` slider/color/toggle/xy, `@bind:` for wiring)
+- feat: p5.js MCP endpoints (create, update, delete, set-param) — tool count 16→20
+- feat: Auto-wire connected sources on import/connect
+- feat: Selective import dialog (pick sections from ZIP)
+- feat: Header redesign with grouped layout, undo/redo, help buttons
+- feat: Shader + p5.js grouped in shared pipeline slot (keys 4/5)
+- fix: Lazy panel init for persisted state (shader + p5)
+- fix: p5 params panel losing sketch binding on switch
+- docs: p5 editor guide, MCP server update, keyboard shortcuts update
+
 ## v0.3.0 (2026-02-18)
 
 - feat: MCP server with 16 tools for AI agent integration

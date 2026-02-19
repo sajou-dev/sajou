@@ -20,64 +20,32 @@ Same data, different scene, completely different experience.
 
 Read the full vision in [SAJOU-MANIFESTO.md](./SAJOU-MANIFESTO.md)
 
-## What's new in v0.3.0
+## What's new in v0.4.0
 
-### MCP Server — AI agents can compose scenes
+### p5.js Editor — creative coding in the pipeline
 
-sajou now ships an [MCP server](./adapters/mcp-server/) with **16 tools** that let any MCP-compatible AI agent read, compose, and animate scenes programmatically. An agent can describe the current scene, place entities, create choreographies, wire signals, write GLSL shaders, and control uniforms — all through the standard Model Context Protocol.
+Built-in p5.js sketch editor with live preview, running in instance mode. Write sketches with `p.setup`/`p.draw`, control parameters via `// @param:` annotations, and wire them to the choreographer — just like shaders.
 
-```json
-{
-  "mcpServers": {
-    "sajou": {
-      "command": "npx",
-      "args": ["sajou-mcp"],
-      "env": { "SAJOU_DEV_SERVER": "http://localhost:5175" }
-    }
-  }
-}
-```
+- **Params bridge**: `p.sajou.speed`, `p.sajou.color` — live parameter control without re-run
+- **Annotations**: `// @param: speed, slider, min: 0.1, max: 5.0` generates interactive controls
+- **Wiring**: p5 params appear as badges on the connector bar, wireable to choreographer outputs
+- **MCP**: 4 new tools (`create_p5_sketch`, `update_p5_sketch`, `delete_p5_sketch`, `set_p5_param`)
+- **3 presets**: Particles, Wave, Grid
 
-**Tool categories:**
+Shader and p5.js share a pipeline slot — press `4` for Shader, `5` for p5.js.
 
-| Category | Tools | What they do |
-|----------|-------|------------|
-| **Read** | `describe_scene`, `get_scene_state`, `get_choreographies`, `get_shaders`, `map_signals` | Inspect scene state, entities, choreographies, shaders, wiring |
-| **Write** | `place_entity`, `create_choreography`, `create_binding`, `create_wire`, `remove_item` | Compose scenes — place entities, author choreographies, wire signals |
-| **Shader** | `create_shader`, `update_shader`, `set_uniform`, `get_shaders` | Create GLSL shaders, set uniforms in real-time |
-| **Runtime** | `emit_signal` | Trigger choreographies by emitting signals |
+### Auto-wire & selective import
 
-**Example workflow** — an AI agent building a scene:
+- **Auto-wire**: connected signal sources are automatically wired to choreography signal types on import or connect
+- **Selective import**: ZIP import dialog lets you pick which sections to restore (visual layout, entities, choreographies, shaders, p5 sketches)
 
-```
-describe_scene          → understand what's on stage
-place_entity            → add a peon at (200, 300)
-create_choreography     → "on task_dispatch, move peon to forge"
-create_wire             → connect signal source to choreography
-create_shader           → add a glow effect with @ui uniforms
-emit_signal             → fire task_dispatch and watch it animate
-set_uniform             → tweak shader intensity in real-time
-```
+### Header redesign
 
-### Multi-instance Actor IDs
+Grouped layout with undo/redo buttons, help toggle, and cleaner visual hierarchy.
 
-Multiple entities can now share the same Actor ID. A choreography step targeting `"peon"` fans out to **all** instances — one command, many entities. The inspector shows a **×N badge** when entities share an ID. See [Shared Actor IDs](./docs/features/shared-actor-id.md).
+### Previous: v0.3.0
 
-### State sync & REST API
-
-Bidirectional state sync between the browser and dev server. External tools can read and write scene state through REST endpoints:
-
-- `GET /api/scene/state` — full scene state
-- `GET /api/choreographies` — all choreographies
-- `GET /api/bindings` — all bindings
-- `GET /api/wiring` — wiring graph
-- `GET /api/signals/sources` — connected signal sources
-- `GET /api/shaders` — all shaders
-- `POST /api/commands` — push commands to the scene
-
-### MIDI binding pipeline fix
-
-`pitch_bend` field support and continuous value dispatch for smooth hardware controller integration.
+MCP server (20 tools), multi-instance Actor IDs, state sync, REST API, MIDI binding fix. See [CHANGELOG.md](./CHANGELOG.md) for full history.
 
 ## Architecture
 
@@ -115,7 +83,7 @@ sajou/
 │   ├── theme-office/      # Corporate/office theme (early prototype)
 │   └── emitter/           # Test signal emitter (WebSocket)
 ├── adapters/
-│   ├── mcp-server/        # MCP server — 16 tools for AI agent integration
+│   ├── mcp-server/        # MCP server — 20 tools for AI agent integration
 │   └── tap/               # Signal tap — hooks into Claude Code, bridges to scene-builder
 ├── tools/
 │   ├── scene-builder/     # Visual scene editor — main authoring tool (Three.js)
@@ -141,7 +109,7 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed package descriptions and c
 - **Stage**: Three.js (WebGLRenderer + Canvas2D overlay)
 - **Signal sources**: WebSocket, SSE, OpenAI-compatible, Anthropic API, OpenClaw gateway, MIDI
 - **MCP**: Model Context Protocol server (stdio transport) for AI agent integration
-- **Code editor**: CodeMirror 6 (GLSL)
+- **Code editors**: CodeMirror 6 (GLSL + JavaScript)
 - **Monorepo**: pnpm workspaces
 - **Build**: Vite
 - **Test**: Vitest
@@ -170,12 +138,14 @@ The main authoring tool — a visual editor for building sajou scenes.
 - **Pipeline layout**: node-based workspace with signal, choreographer, visual, and shader nodes
 - **Interlocking blocks**: choreography authoring with sentence-blocks, drag-reorder, and action palette
 - **Shader editor**: CodeMirror 6 with GLSL highlighting, live preview canvas, multi-pass ping-pong feedback, 3 built-in presets, JSON export/import
-- **Uniform annotations**: `@ui` (slider, color, toggle, xy), `@bind` (choreographer wiring), `@object` (grouped controls)
+- **p5.js editor**: CodeMirror 6 with JavaScript, instance mode runtime, `@param:` annotations, live param bridge
+- **Uniform/param annotations**: `@ui` / `@param:` (slider, color, toggle, xy), `@bind` (choreographer wiring), `@object` (grouped controls)
 - **GLSL auto-detect**: static analysis finds extractable literals (vec constructors, smoothstep, mix, pow, time multipliers, SDF radii...) with confidence scoring and Expose/Unexpose toggle
-- **Choreo→shader wiring**: bind choreography actions to shader uniforms
+- **Choreo→shader/p5 wiring**: bind choreography actions to shader uniforms and p5 params
 - **Lighting**: ambient, directional, point lights with flicker modulation
 - **Particles**: CPU-simulated emitters with color-over-life, radial/directional modes, glow
-- **State persistence**: IndexedDB + localStorage, auto-save, scene ZIP import/export
+- **State persistence**: IndexedDB + localStorage, auto-save, scene ZIP import/export with selective import
+- **Auto-wire**: connected signal sources automatically wired to active choreography signal types
 - **Shared Actor IDs**: multiple entities can share an Actor ID for group choreography (×N badge in inspector)
 
 ## Status
