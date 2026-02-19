@@ -881,3 +881,53 @@
   opacity: 0.8;
 }
 
+/* ---------------------------------------------------------------------------
+ * Full-window mode — covers entire sajou UI with a single visualizer
+ * --------------------------------------------------------------------------- */
+
+.fullwindow {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 9999 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  display: flex !important;
+  flex-direction: column !important;
+  background: var(--color-bg) !important;
+}
+
+/* Visual full-window: hide tools/panels/help, keep only fullscreen + view-mode */
+.fullwindow .toolbar-columns {
+  display: none !important;
+}
+
+.fullwindow .toolbar-btn--help {
+  display: none !important;
+}
+
+.fullwindow #zoom-bar {
+  display: none !important;
+}
+
+/* Mini-bars in shader/p5 stay visible */
+.fullwindow #shader-mini-bar,
+.fullwindow #p5-mini-bar {
+  z-index: 10000;
+}
+
+/* Elements visible only in full-window mode */
+.fullwindow-only {
+  display: none;
+}
+
+.fullwindow .fullwindow-only {
+  display: flex !important;
+}
+
+/* Full-window button separator in toolbar */
+.fullscreen-btn {
+  margin-left: 4px;
+  border-left: 1px solid var(--color-border-hover);
+  padding-left: 4px;
+}
+

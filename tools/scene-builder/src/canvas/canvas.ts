@@ -16,6 +16,7 @@ import { shouldSuppressShortcut } from "../shortcuts/shortcut-registry.js";
 import { getSceneState, subscribeScene } from "../state/scene-state.js";
 import { getEditorState, subscribeEditor } from "../state/editor-state.js";
 import { isRunModeActive } from "../run-mode/run-mode-state.js";
+import { isFullWindow } from "../utils/fullscreen.js";
 import type { ToolId, ViewMode } from "../types.js";
 import {
   TopDownController,
@@ -24,6 +25,7 @@ import {
 } from "./camera-controller.js";
 import { initLightRenderer, tickFlicker } from "./light-renderer.js";
 import { initParticleRenderer, tickParticles } from "./particle-renderer.js";
+import { tickSpeechBubbles } from "../run-mode/speech-bubble-state.js";
 
 // ---------------------------------------------------------------------------
 // Interfaces
@@ -244,12 +246,14 @@ export function redrawOverlay(): void {
   const t = controller.getOverlayTransform();
   const effectiveZoom = controller.getEffectiveZoom();
 
-  // Draw grid and boundary in scene coordinates
-  overlayCtx.save();
-  overlayCtx.setTransform(t.a, t.b, t.c, t.d, t.e, t.f);
-  drawSceneBoundary(overlayCtx, effectiveZoom);
-  drawGrid(overlayCtx, effectiveZoom);
-  overlayCtx.restore();
+  // Draw grid and boundary in scene coordinates (hidden in run mode and full-window)
+  if (!isRunModeActive() && !isFullWindow()) {
+    overlayCtx.save();
+    overlayCtx.setTransform(t.a, t.b, t.c, t.d, t.e, t.f);
+    drawSceneBoundary(overlayCtx, effectiveZoom);
+    drawGrid(overlayCtx, effectiveZoom);
+    overlayCtx.restore();
+  }
 
   // Scene overlays (positions, routes, selection, etc.)
   overlayDrawCallback?.(overlayCtx, effectiveZoom, t.e, t.f);
@@ -489,6 +493,8 @@ function startRenderLoop(): void {
       lastFrameTime = now;
       tickFlicker(now);
       tickParticles(dt);
+      const speechActive = tickSpeechBubbles(dt * 1000); // dt is seconds, tickSpeechBubbles expects ms
+      if (speechActive) redrawOverlay();
       webGLRenderer.render(scene, controller.camera);
     }
   };

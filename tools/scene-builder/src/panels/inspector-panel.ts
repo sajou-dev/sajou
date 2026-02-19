@@ -36,6 +36,7 @@ import { executeCommand } from "../state/undo.js";
 import type {
   EntityTopology,
   PlacedEntity,
+  SpeechBubbleConfig,
   ScenePosition,
   SceneRoute,
   UndoableCommand,
@@ -45,6 +46,20 @@ import type {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/** Convert an rgba/hex color string to hex for <input type="color">. */
+function rgbaToHex(color: string): string {
+  // Already hex
+  if (color.startsWith("#")) return color.length === 4 || color.length === 7 ? color : color.slice(0, 7);
+
+  // Parse rgba(r, g, b, a) or rgb(r, g, b)
+  const match = color.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+  if (!match) return "#000000";
+  const r = Number(match[1]);
+  const g = Number(match[2]);
+  const b = Number(match[3]);
+  return "#" + [r, g, b].map(c => c.toString(16).padStart(2, "0")).join("");
+}
 
 /** Get the first selected PlacedEntity, or null. */
 function getSelectedPlaced(): PlacedEntity | null {
@@ -716,6 +731,128 @@ export function initInspectorPanel(contentEl: HTMLElement): void {
         addContainer.appendChild(propSelect);
         form.appendChild(addContainer);
       }
+    }
+
+    // ── Speech Bubble section (actors only) ──
+    if (placed.semanticId) {
+      const sbHeader = document.createElement("div");
+      sbHeader.className = "ip-section-header";
+      sbHeader.textContent = "Speech Bubble";
+      form.appendChild(sbHeader);
+
+      const SB_DEFAULTS: SpeechBubbleConfig = {
+        bgColor: "rgba(14, 14, 22, 0.85)",
+        borderColor: "rgba(232, 168, 81, 0.3)",
+        textColor: "#E0E0E8",
+        opacity: 1,
+        retentionMs: 5000,
+        maxChars: 200,
+        fontSize: 12,
+        maxWidth: 220,
+        tailPosition: "bottom",
+      };
+
+      const currentSb: SpeechBubbleConfig = { ...SB_DEFAULTS, ...placed.speechBubble };
+
+      /** Helper: update one field in the speech bubble config. */
+      function updateSbField(field: keyof SpeechBubbleConfig, value: unknown): void {
+        const updated = { ...currentSb, [field]: value } as SpeechBubbleConfig;
+        executeCommand(createUpdateCommand(
+          placed.id,
+          { speechBubble: updated },
+          `Speech bubble ${field}`,
+        ));
+      }
+
+      // BG color
+      const bgColorInput = document.createElement("input");
+      bgColorInput.type = "color";
+      bgColorInput.className = "ip-color";
+      bgColorInput.value = rgbaToHex(currentSb.bgColor);
+      bgColorInput.addEventListener("change", () => updateSbField("bgColor", bgColorInput.value));
+      form.appendChild(createRow("BG color", bgColorInput));
+
+      // Border color
+      const borderColorInput = document.createElement("input");
+      borderColorInput.type = "color";
+      borderColorInput.className = "ip-color";
+      borderColorInput.value = rgbaToHex(currentSb.borderColor);
+      borderColorInput.addEventListener("change", () => updateSbField("borderColor", borderColorInput.value));
+      form.appendChild(createRow("Border", borderColorInput));
+
+      // Text color
+      const textColorInput = document.createElement("input");
+      textColorInput.type = "color";
+      textColorInput.className = "ip-color";
+      textColorInput.value = rgbaToHex(currentSb.textColor);
+      textColorInput.addEventListener("change", () => updateSbField("textColor", textColorInput.value));
+      form.appendChild(createRow("Text", textColorInput));
+
+      // Opacity
+      const sbOpacitySlider = document.createElement("input");
+      sbOpacitySlider.type = "range";
+      sbOpacitySlider.className = "ip-slider";
+      sbOpacitySlider.min = "0";
+      sbOpacitySlider.max = "1";
+      sbOpacitySlider.step = "0.05";
+      sbOpacitySlider.value = String(currentSb.opacity);
+      const sbOpacityLabel = document.createElement("span");
+      sbOpacityLabel.className = "ip-slider-value";
+      sbOpacityLabel.textContent = Math.round(currentSb.opacity * 100) + "%";
+      sbOpacitySlider.addEventListener("input", () => {
+        sbOpacityLabel.textContent = Math.round(Number(sbOpacitySlider.value) * 100) + "%";
+      });
+      sbOpacitySlider.addEventListener("change", () => updateSbField("opacity", Number(sbOpacitySlider.value)));
+      const sbOpacityRow = document.createElement("div");
+      sbOpacityRow.className = "ip-inline";
+      sbOpacityRow.appendChild(sbOpacitySlider);
+      sbOpacityRow.appendChild(sbOpacityLabel);
+      form.appendChild(createRow("Opacity", sbOpacityRow));
+
+      // Retention (ms)
+      form.appendChild(createRow("Retention", createNumInputEl(currentSb.retentionMs, (v) =>
+        updateSbField("retentionMs", Math.max(0, v)))));
+
+      // Max chars
+      form.appendChild(createRow("Max chars", createNumInputEl(currentSb.maxChars, (v) =>
+        updateSbField("maxChars", Math.max(1, Math.round(v))))));
+
+      // Font size
+      form.appendChild(createRow("Font size", createNumInputEl(currentSb.fontSize, (v) =>
+        updateSbField("fontSize", Math.max(6, Math.round(v))))));
+
+      // Max width
+      form.appendChild(createRow("Max width", createNumInputEl(currentSb.maxWidth, (v) =>
+        updateSbField("maxWidth", Math.max(50, Math.round(v))))));
+
+      // Tail position
+      const tailSelect = document.createElement("select");
+      tailSelect.className = "ip-select";
+      const tailOptions: Array<SpeechBubbleConfig["tailPosition"]> = ["bottom", "left", "right"];
+      for (const t of tailOptions) {
+        const opt = document.createElement("option");
+        opt.value = t;
+        opt.textContent = t;
+        if (t === currentSb.tailPosition) opt.selected = true;
+        tailSelect.appendChild(opt);
+      }
+      tailSelect.addEventListener("change", () =>
+        updateSbField("tailPosition", tailSelect.value));
+      form.appendChild(createRow("Tail", tailSelect));
+
+      // Reset to defaults button
+      const resetBtn = document.createElement("button");
+      resetBtn.className = "ip-btn";
+      resetBtn.textContent = "Reset to defaults";
+      resetBtn.title = "Clear custom speech bubble config — use brand defaults";
+      resetBtn.addEventListener("click", () => {
+        executeCommand(createUpdateCommand(
+          placed.id,
+          { speechBubble: undefined } as unknown as Partial<PlacedEntity>,
+          "Reset speech bubble to defaults",
+        ));
+      });
+      form.appendChild(createRow("", resetBtn));
     }
 
     contentEl.appendChild(form);

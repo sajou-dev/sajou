@@ -14,6 +14,7 @@ import * as THREE from "three";
 import { UNIFORM_PREFIX, MULTIPASS_PREFIX, DEFAULT_VERTEX_SOURCE, DEFAULT_FRAGMENT_SOURCE } from "./shader-defaults.js";
 import { getEditorState, subscribeEditor } from "../state/editor-state.js";
 import { getShaderState, subscribeShaders } from "./shader-state.js";
+import { isFullWindow, getFullWindowElement, onFullWindowChange } from "../utils/fullscreen.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -108,6 +109,7 @@ export function initShaderCanvas(el: HTMLElement): void {
   // Subscribe to editor view changes to start/stop the loop
   subscribeEditor(syncLoop);
   subscribeShaders(syncLoop);
+  onFullWindowChange(() => syncLoop());
   syncLoop();
 }
 
@@ -401,7 +403,9 @@ function resetRenderTargets(): void {
 function syncLoop(): void {
   const { pipelineLayout } = getEditorState();
   const { playing } = getShaderState();
-  const shouldRun = pipelineLayout.extended.includes("shader") && playing;
+  const shaderEl = document.getElementById("shader-node-content");
+  const isFS = isFullWindow() && getFullWindowElement() === shaderEl;
+  const shouldRun = (pipelineLayout.extended.includes("shader") || isFS) && playing;
 
   if (shouldRun && animFrameId === 0) {
     startTime = performance.now() / 1000;

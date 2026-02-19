@@ -40,6 +40,7 @@ import {
 import { createRunModeSink } from "./run-mode-sink.js";
 import { startAnimations, stopAnimations } from "./run-mode-animator.js";
 import { createBindingExecutor, type BindingExecutor } from "./run-mode-bindings.js";
+import { clearAllSpeechBubbles } from "./speech-bubble-state.js";
 import { createThreeAdapter } from "../canvas/three-adapter.js";
 import { getEntityRecord } from "../canvas/scene-renderer.js";
 import { getCachedTextureSize } from "@sajou/stage";
@@ -149,7 +150,8 @@ export async function startRunMode(): Promise<void> {
 
 /** Stop run mode — dispose choreographer, restore snapshot. */
 export function stopRunMode(): void {
-  // 0. Stop spritesheet animations (restores original textures)
+  // 0. Clear speech bubbles + stop spritesheet animations
+  clearAllSpeechBubbles();
   stopAnimations();
 
   // 1. Dispose choreographer

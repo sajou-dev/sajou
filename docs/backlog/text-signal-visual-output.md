@@ -27,5 +27,9 @@ Les `text_delta` arrivent token par token. Un buffer dans le choreographer recon
 - **Entités** : propriété `speech` sur entités existantes → bulle Canvas2D overlay positionnée relativement, ou nouveau type d'entité `text-panel` pour les panneaux muraux
 
 ## Idées liées
-- `docs/backlog/entity-speech-bubbles.md` (déjà en backlog)
+- ~~`docs/backlog/entity-speech-bubbles.md`~~ → **done** (`docs/done/entity-speech-bubbles.md`) — bulles speech implémentées avec binding `speech`, streaming typewriter, config visuelle par entité
 - Filtrage par source : montrer le texte d'un agent spécifique sur une entité spécifique
+
+## État partiel (2026-02-19)
+- **Fait** : bulles de dialogue sur entités (binding `speech`, streaming, config visuelle), binding string type
+- **Reste** : texte comme texture shader (Canvas2D → iChannel), texte comme param p5.js (`p.sajou.text`), panneaux d'information muraux

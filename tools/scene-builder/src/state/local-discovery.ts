@@ -281,3 +281,34 @@ export function initMIDIHotPlug(): () => void {
     void scanAndSyncLocal();
   });
 }
+
+// ---------------------------------------------------------------------------
+// Periodic rescan
+// ---------------------------------------------------------------------------
+
+const RESCAN_INTERVAL_MS = 30_000;
+let rescanTimer: ReturnType<typeof setInterval> | null = null;
+
+/**
+ * Start a periodic rescan of local services every 30 seconds.
+ *
+ * The rescan calls `scanAndSyncLocal()` which only touches disconnected
+ * sources — active connections are never interrupted. Newly appeared
+ * services become available, disappeared ones are marked unavailable.
+ *
+ * Returns a cleanup function that stops the timer.
+ */
+export function initPeriodicRescan(): () => void {
+  if (rescanTimer !== null) clearInterval(rescanTimer);
+
+  rescanTimer = setInterval(() => {
+    void scanAndSyncLocal();
+  }, RESCAN_INTERVAL_MS);
+
+  return () => {
+    if (rescanTimer !== null) {
+      clearInterval(rescanTimer);
+      rescanTimer = null;
+    }
+  };
+}

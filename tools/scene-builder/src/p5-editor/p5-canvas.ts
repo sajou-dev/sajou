@@ -9,6 +9,7 @@
 import p5 from "p5";
 import { getEditorState, subscribeEditor } from "../state/editor-state.js";
 import { getP5State, subscribeP5 } from "./p5-state.js";
+import { isFullWindow, getFullWindowElement, onFullWindowChange } from "../utils/fullscreen.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -35,6 +36,7 @@ let sajouBridge: Record<string, unknown> = {};
 let startTime = 0;
 let runListeners: RunListener[] = [];
 let lastRunSketchId: string | null = null;
+let resizeObserver: ResizeObserver | null = null;
 
 // ---------------------------------------------------------------------------
 // Initialization
@@ -44,8 +46,17 @@ let lastRunSketchId: string | null = null;
 export function initP5Canvas(el: HTMLElement): void {
   container = el;
 
+  // Resize p5 canvas when container changes size (e.g. fullscreen enter/exit)
+  resizeObserver = new ResizeObserver(() => {
+    if (p5Instance && container) {
+      p5Instance.resizeCanvas(container.clientWidth, container.clientHeight);
+    }
+  });
+  resizeObserver.observe(el);
+
   subscribeEditor(syncLoop);
   subscribeP5(syncLoop);
+  onFullWindowChange(() => syncLoop());
   syncLoop();
 }
 
@@ -159,7 +170,9 @@ function createSketchFn(source: string, bridge: Record<string, unknown>): (p: p5
 function syncLoop(): void {
   const { pipelineLayout } = getEditorState();
   const { playing, sketches, selectedSketchId } = getP5State();
-  const shouldRun = pipelineLayout.extended.includes("p5") && playing;
+  const p5El = document.getElementById("p5-node-content");
+  const isFS = isFullWindow() && getFullWindowElement() === p5El;
+  const shouldRun = (pipelineLayout.extended.includes("p5") || isFS) && playing;
 
   // Re-run if sketch selection changed while running
   const sketchChanged = selectedSketchId !== lastRunSketchId;
@@ -188,6 +201,8 @@ function syncLoop(): void {
 /** Dispose of all resources. */
 export function disposeP5Canvas(): void {
   stopSketch();
+  resizeObserver?.disconnect();
+  resizeObserver = null;
   runListeners = [];
   container = null;
 }

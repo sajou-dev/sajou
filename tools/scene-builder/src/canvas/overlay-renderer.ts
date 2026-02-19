@@ -14,6 +14,7 @@ import { getSceneState } from "../state/scene-state.js";
 import { getEditorState } from "../state/editor-state.js";
 import { getEntityStore } from "../state/entity-store.js";
 import { isRunModeActive } from "../run-mode/run-mode-state.js";
+import { isFullWindow } from "../utils/fullscreen.js";
 import { buildPathPoints } from "../tools/route-tool.js";
 import { flattenRoutePath } from "../tools/route-math.js";
 import { sceneToScreen, worldToScreen } from "./canvas.js";
@@ -155,7 +156,7 @@ function drawLabel(
 
 /** Render the painted zone grid overlay. */
 export function renderZoneGrid(ctx: CanvasRenderingContext2D, _zoom: number): void {
-  if (isRunModeActive()) return;
+  if (isRunModeActive() || isFullWindow()) return;
 
   const { zoneGrid, zoneTypes } = getSceneState();
   const { activeTool } = getEditorState();
@@ -188,7 +189,7 @@ export function renderZoneGrid(ctx: CanvasRenderingContext2D, _zoom: number): vo
 
 /** Render selection highlights around selected entities. */
 export function renderSelection(ctx: CanvasRenderingContext2D, zoom: number): void {
-  if (isRunModeActive()) return;
+  if (isRunModeActive() || isFullWindow()) return;
 
   const { selectedIds } = getEditorState();
   if (selectedIds.length === 0) return;
@@ -333,7 +334,7 @@ const TYPE_HINT_BADGES: Record<string, string> = {
 
 /** Render position markers. */
 export function renderPositions(ctx: CanvasRenderingContext2D, zoom: number): void {
-  if (isRunModeActive()) return;
+  if (isRunModeActive() || isFullWindow()) return;
 
   const { positions } = getSceneState();
   const { activeTool, selectedPositionIds } = getEditorState();
@@ -460,7 +461,7 @@ function drawDashedPolyline(
 
 /** Render routes in scene coordinates. */
 export function renderRoutes(ctx: CanvasRenderingContext2D, zoom: number): void {
-  if (isRunModeActive()) return;
+  if (isRunModeActive() || isFullWindow()) return;
 
   const { routes } = getSceneState();
   const { activeTool, selectedRouteIds } = getEditorState();
@@ -586,7 +587,7 @@ export function renderRoutes(ctx: CanvasRenderingContext2D, zoom: number): void 
 
 /** Render the live preview during route creation. */
 export function renderRouteCreationPreview(ctx: CanvasRenderingContext2D, zoom: number): void {
-  if (isRunModeActive()) return;
+  if (isRunModeActive() || isFullWindow()) return;
 
   const { routeCreationPreview } = getEditorState();
   if (!routeCreationPreview) return;
@@ -655,7 +656,7 @@ export function renderRouteCreationPreview(ctx: CanvasRenderingContext2D, zoom: 
 
 /** Render small diamond badges on entities that have a semanticId. */
 export function renderActorBadges(ctx: CanvasRenderingContext2D, _zoom: number): void {
-  if (isRunModeActive()) return;
+  if (isRunModeActive() || isFullWindow()) return;
 
   const { entities } = getSceneState();
   const entityStore = getEntityStore();
@@ -715,7 +716,7 @@ export function renderActorBadges(ctx: CanvasRenderingContext2D, _zoom: number):
 
 /** Render topology overlay when a single actor entity is selected. */
 export function renderTopologyOverlay(ctx: CanvasRenderingContext2D, zoom: number): void {
-  if (isRunModeActive()) return;
+  if (isRunModeActive() || isFullWindow()) return;
 
   const { selectedIds, topologyAssociationPreview } = getEditorState();
   const { entities, positions, routes } = getSceneState();
@@ -814,7 +815,7 @@ export function renderTopologyOverlay(ctx: CanvasRenderingContext2D, zoom: numbe
 
 /** Render light source markers on the Canvas2D overlay. */
 export function renderLightMarkers(ctx: CanvasRenderingContext2D, zoom: number): void {
-  if (isRunModeActive()) return;
+  if (isRunModeActive() || isFullWindow()) return;
 
   const { lighting } = getSceneState();
   const { activeTool, selectedLightIds } = getEditorState();
@@ -896,7 +897,7 @@ export function renderLightMarkers(ctx: CanvasRenderingContext2D, zoom: number):
 
 /** Render particle emitter markers on the Canvas2D overlay. */
 export function renderParticleMarkers(ctx: CanvasRenderingContext2D, zoom: number): void {
-  if (isRunModeActive()) return;
+  if (isRunModeActive() || isFullWindow()) return;
 
   const { particles } = getSceneState();
   const { activeTool, selectedParticleIds } = getEditorState();

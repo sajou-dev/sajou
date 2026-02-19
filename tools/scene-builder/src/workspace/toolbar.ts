@@ -12,6 +12,8 @@ import { getEditorState, setActiveTool, togglePanel, subscribeEditor, toggleGrid
 import { zoomIn, zoomOut, setZoomLevel, fitToView } from "../canvas/canvas.js";
 import { toggleHelpBar, isHelpBarVisible } from "./help-bar.js";
 import { shouldSuppressShortcut } from "../shortcuts/shortcut-registry.js";
+import { toggleFullWindow, exitFullWindow, isFullWindow, getFullWindowElement, onFullWindowChange } from "../utils/fullscreen.js";
+import { isRunModeActive } from "../run-mode/run-mode-state.js";
 
 // ---------------------------------------------------------------------------
 // Lucide SVG icons (inline, stroke="currentColor")
@@ -105,6 +107,23 @@ const ICON = {
     '<path d="m6 8-4 4 4 4"/>' +
     '<path d="m14.5 4-5 16"/>'
   ),
+  maximize: lucide(
+    '<polyline points="15 3 21 3 21 9"/>' +
+    '<polyline points="9 21 3 21 3 15"/>' +
+    '<line x1="21" x2="14" y1="3" y2="10"/>' +
+    '<line x1="3" x2="10" y1="21" y2="14"/>'
+  ),
+  minimize: lucide(
+    '<polyline points="4 14 10 14 10 20"/>' +
+    '<polyline points="20 10 14 10 14 4"/>' +
+    '<line x1="14" x2="21" y1="10" y2="3"/>' +
+    '<line x1="3" x2="10" y1="21" y2="14"/>'
+  ),
+  viewMode: lucide(
+    '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>' +
+    '<polyline points="3.27 6.96 12 12.01 20.73 6.96"/>' +
+    '<line x1="12" y1="22.08" x2="12" y2="12"/>'
+  ),
 };
 
 // ---------------------------------------------------------------------------
@@ -143,6 +162,16 @@ const PANEL_TOGGLES: PanelToggleDef[] = [
   { panelId: "lighting", label: "Lighting", iconKey: "light", shortcut: "" },
   { panelId: "particles", label: "Particles", iconKey: "particle", shortcut: "" },
 ];
+
+// ---------------------------------------------------------------------------
+// Full-window tool save/restore
+// ---------------------------------------------------------------------------
+
+/** Tool active before entering full-window, restored on exit. */
+let toolBeforeFullWindow: ToolId | null = null;
+
+/** Whether we started run mode on full-window enter (so we stop it on exit). */
+let startedRunModeForFullWindow = false;
 
 // ---------------------------------------------------------------------------
 // Help button sync
@@ -204,6 +233,57 @@ export function initToolbarPanel(toolbar: HTMLElement): void {
     syncHelpBtn();
   });
 
+  // Full-window toggle button
+  const fsBtn = document.createElement("button");
+  fsBtn.className = "toolbar-btn fullscreen-btn";
+  fsBtn.title = "Full window (F)";
+  fsBtn.innerHTML = ICON.maximize;
+  fsBtn.addEventListener("click", () => {
+    const el = document.getElementById("zone-theme");
+    if (el) toggleFullWindow(el);
+  });
+
+  // View mode button — visible only in full-window mode
+  const fwViewModeBtn = document.createElement("button");
+  fwViewModeBtn.className = "toolbar-btn fullwindow-only";
+  fwViewModeBtn.title = "Toggle isometric view (I)";
+  fwViewModeBtn.innerHTML = ICON.viewMode;
+  fwViewModeBtn.addEventListener("click", () => toggleViewMode());
+  subscribeEditor(() => {
+    const { viewMode } = getEditorState();
+    fwViewModeBtn.classList.toggle("view-mode-btn--active", viewMode === "isometric");
+  });
+
+  // React to full-window enter/exit
+  onFullWindowChange((active) => {
+    fsBtn.innerHTML = active ? ICON.minimize : ICON.maximize;
+
+    const isVisualFW = active && getFullWindowElement() === document.getElementById("zone-theme");
+    if (isVisualFW) {
+      // Save current tool, switch to hand, fit view
+      toolBeforeFullWindow = getEditorState().activeTool;
+      setActiveTool("hand");
+      requestAnimationFrame(() => fitToView());
+
+      // Start run mode if not already active
+      if (!isRunModeActive()) {
+        startedRunModeForFullWindow = true;
+        void import("../run-mode/run-mode-controller.js").then(({ startRunMode }) => startRunMode());
+      }
+    } else if (!active && toolBeforeFullWindow !== null) {
+      // Restore previous tool
+      setActiveTool(toolBeforeFullWindow);
+      toolBeforeFullWindow = null;
+      requestAnimationFrame(() => fitToView());
+
+      // Stop run mode if we started it
+      if (startedRunModeForFullWindow) {
+        startedRunModeForFullWindow = false;
+        void import("../run-mode/run-mode-controller.js").then(({ stopRunMode }) => stopRunMode());
+      }
+    }
+  });
+
   // Two-column layout: tools | panels
   const columns = document.createElement("div");
   columns.className = "toolbar-columns";
@@ -212,6 +292,8 @@ export function initToolbarPanel(toolbar: HTMLElement): void {
 
   toolbar.appendChild(columns);
   toolbar.appendChild(helpBtn);
+  toolbar.appendChild(fwViewModeBtn);
+  toolbar.appendChild(fsBtn);
 
   // Sync active states
   function syncState(): void {
@@ -298,6 +380,13 @@ function initShortcuts(): void {
       }
     }
 
+    // ESC exits full-window mode (always, even in inputs)
+    if (e.key === "Escape" && isFullWindow()) {
+      exitFullWindow();
+      e.preventDefault();
+      return;
+    }
+
     if (e.altKey) return;
 
     switch (e.key) {
@@ -324,6 +413,21 @@ function initShortcuts(): void {
 
       // Shortcuts panel
       case "?": togglePanel("shortcuts"); break;
+
+      // Full window — targets the currently extended visualizer node
+      case "f": case "F": {
+        const { pipelineLayout } = getEditorState();
+        const ext = pipelineLayout.extended;
+        let targetId: string | null = null;
+        if (ext.includes("visual")) targetId = "zone-theme";
+        else if (ext.includes("shader")) targetId = "shader-node-content";
+        else if (ext.includes("p5")) targetId = "p5-node-content";
+        if (targetId) {
+          const el = document.getElementById(targetId);
+          if (el) toggleFullWindow(el);
+        }
+        break;
+      }
 
       // Zoom
       case "+": case "=": zoomIn(); break;

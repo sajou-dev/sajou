@@ -31,6 +31,7 @@ import {
   renderParticleMarkers,
 } from "./overlay-renderer.js";
 import { drawGuideLines } from "../tools/guide-lines.js";
+import { renderSpeechBubbles } from "./speech-bubble-renderer.js";
 import type { PlacedEntity, EntityEntry, SceneLayer } from "../types.js";
 
 // ---------------------------------------------------------------------------
@@ -448,6 +449,10 @@ function drawSceneOverlays(
   drawGuideLines(ctx, effectiveZoom);
 
   ctx.restore();
+
+  // Speech bubbles render in screen-space (after ctx.restore)
+  // Active during run mode — not gated by isRunModeActive() check
+  renderSpeechBubbles(ctx);
 }
 
 // ---------------------------------------------------------------------------
