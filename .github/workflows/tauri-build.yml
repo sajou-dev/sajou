@@ -80,6 +80,17 @@ jobs:
             Desktop app for the sajou visual choreographer.
 
             Download the installer for your platform below.
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
+          includeUpdaterJson: false
           args: ${{ matrix.args }}
+
+      - name: Remove .app.tar.gz duplicates (macOS only)
+        if: matrix.platform == 'macos-latest'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="v$(jq -r .version tools/scene-builder/src-tauri/tauri.conf.json)"
+          for asset in $(gh release view "$TAG" --json assets --jq '.assets[].name | select(endswith(".app.tar.gz"))'); do
+            gh release delete-asset "$TAG" "$asset" --yes || true
+          done
