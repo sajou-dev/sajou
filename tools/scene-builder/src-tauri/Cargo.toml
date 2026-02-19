@@ -1,6 +1,6 @@
 [package]
 name = "sajou"
-version = "0.5.4"
+version = "0.5.5"
 description = "sajou — A visual choreographer for AI agents"
 authors = ["Yan"]
 edition = "2021"
