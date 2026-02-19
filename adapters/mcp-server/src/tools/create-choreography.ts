@@ -7,7 +7,7 @@
  */
 
 import { z } from "zod";
-import { createChoreography } from "../bridge.js";
+import { addChoreography } from "../state/mutations.js";
 
 export const name = "create_choreography";
 
@@ -106,7 +106,10 @@ export const inputSchema = z.object({
 export async function handler(
   params: z.infer<typeof inputSchema>,
 ): Promise<{ content: Array<{ type: "text"; text: string }> }> {
-  const result = await createChoreography({
+  const choreographyId = crypto.randomUUID();
+
+  addChoreography({
+    id: choreographyId,
     on: params.on,
     steps: params.steps.map((s) => ({
       action: s.action,
@@ -127,12 +130,9 @@ export async function handler(
       {
         type: "text" as const,
         text: JSON.stringify({
-          ok: result.ok,
-          choreographyId: result.choreographyId,
-          error: result.error ?? null,
-          hint: result.ok
-            ? `Choreography created. Wire it to a signal type with create_wire: { fromZone: 'signal-type', fromId: '${params.on}', toZone: 'choreographer', toId: '${result.choreographyId}' }`
-            : undefined,
+          ok: true,
+          choreographyId,
+          hint: `Choreography created. Wire it to a signal type with create_wire: { fromZone: 'signal-type', fromId: '${params.on}', toZone: 'choreographer', toId: '${choreographyId}' }`,
         }),
       },
     ],

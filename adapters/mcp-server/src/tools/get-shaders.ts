@@ -5,7 +5,7 @@
  */
 
 import { z } from "zod";
-import { getShaders, ping } from "../bridge.js";
+import { getShaders } from "../state/store.js";
 
 export const name = "get_shaders";
 
@@ -19,26 +19,8 @@ export const inputSchema = z.object({});
 export async function handler(): Promise<{
   content: Array<{ type: "text"; text: string }>;
 }> {
-  const shaders = await getShaders();
-
-  if (shaders === null) {
-    const isRunning = await ping();
-
-    return {
-      content: [
-        {
-          type: "text" as const,
-          text: JSON.stringify({
-            ok: false,
-            message: isRunning
-              ? "Scene-builder is running but no shader state has been synced yet. Open the scene-builder UI — state syncs automatically when the page loads."
-              : "Scene-builder is not running. Start it with: cd tools/scene-builder && pnpm dev",
-            shaders: [],
-          }),
-        },
-      ],
-    };
-  }
+  const shadersState = getShaders();
+  const shaders = (shadersState["shaders"] ?? []) as Array<Record<string, unknown>>;
 
   return {
     content: [
@@ -48,14 +30,14 @@ export async function handler(): Promise<{
           ok: true,
           shaderCount: shaders.length,
           shaders: shaders.map((s) => ({
-            id: s.id,
-            name: s.name,
-            mode: s.mode,
-            passes: s.passes,
-            fragmentSource: s.fragmentSource,
-            vertexSource: s.vertexSource,
-            uniforms: s.uniforms,
-            objects: s.objects,
+            id: s["id"],
+            name: s["name"],
+            mode: s["mode"],
+            passes: s["passes"],
+            fragmentSource: s["fragmentSource"],
+            vertexSource: s["vertexSource"],
+            uniforms: s["uniforms"],
+            objects: s["objects"],
           })),
         }),
       },

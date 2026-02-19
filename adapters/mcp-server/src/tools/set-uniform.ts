@@ -6,7 +6,7 @@
  */
 
 import { z } from "zod";
-import { setUniform } from "../bridge.js";
+import { setUniform } from "../state/mutations.js";
 
 export const name = "set_uniform";
 
@@ -41,18 +41,17 @@ export const inputSchema = z.object({
 export async function handler(
   params: z.infer<typeof inputSchema>,
 ): Promise<{ content: Array<{ type: "text"; text: string }> }> {
-  const result = await setUniform(params.shaderId, params.uniformName, params.value);
+  setUniform(params.shaderId, params.uniformName, params.value);
 
   return {
     content: [
       {
         type: "text" as const,
         text: JSON.stringify({
-          ok: result.ok,
+          ok: true,
           shaderId: params.shaderId,
           uniformName: params.uniformName,
           value: params.value,
-          error: result.error ?? null,
         }),
       },
     ],

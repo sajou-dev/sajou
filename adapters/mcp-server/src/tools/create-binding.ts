@@ -7,7 +7,7 @@
  */
 
 import { z } from "zod";
-import { createBinding } from "../bridge.js";
+import { addBinding } from "../state/mutations.js";
 
 export const name = "create_binding";
 
@@ -80,7 +80,7 @@ export const inputSchema = z.object({
 export async function handler(
   params: z.infer<typeof inputSchema>,
 ): Promise<{ content: Array<{ type: "text"; text: string }> }> {
-  const result = await createBinding({
+  addBinding({
     targetEntityId: params.targetEntityId,
     property: params.property,
     sourceChoreographyId: params.sourceChoreographyId,
@@ -96,9 +96,7 @@ export async function handler(
       {
         type: "text" as const,
         text: JSON.stringify({
-          ok: result.ok,
-          commandId: result.commandId ?? null,
-          error: result.error ?? null,
+          ok: true,
         }),
       },
     ],

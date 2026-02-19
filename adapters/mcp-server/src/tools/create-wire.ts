@@ -6,7 +6,7 @@
  */
 
 import { z } from "zod";
-import { createWire } from "../bridge.js";
+import { addWire } from "../state/mutations.js";
 
 export const name = "create_wire";
 
@@ -82,7 +82,7 @@ export async function handler(
     };
   }
 
-  const result = await createWire({
+  addWire({
     fromZone: params.fromZone,
     fromId: params.fromId,
     toZone: params.toZone,
@@ -94,9 +94,7 @@ export async function handler(
       {
         type: "text" as const,
         text: JSON.stringify({
-          ok: result.ok,
-          commandId: result.commandId ?? null,
-          error: result.error ?? null,
+          ok: true,
         }),
       },
     ],

@@ -6,7 +6,7 @@
  */
 
 import { z } from "zod";
-import { placeEntity } from "../bridge.js";
+import { addEntity } from "../state/mutations.js";
 
 export const name = "place_entity";
 
@@ -68,7 +68,10 @@ export const inputSchema = z.object({
 export async function handler(
   params: z.infer<typeof inputSchema>,
 ): Promise<{ content: Array<{ type: "text"; text: string }> }> {
-  const result = await placeEntity({
+  const instanceId = crypto.randomUUID();
+
+  addEntity({
+    id: instanceId,
     entityId: params.entityId,
     x: params.x,
     y: params.y,
@@ -85,10 +88,9 @@ export async function handler(
       {
         type: "text" as const,
         text: JSON.stringify({
-          ok: result.ok,
-          instanceId: result.instanceId,
-          error: result.error ?? null,
-          hint: result.ok && params.semanticId
+          ok: true,
+          instanceId,
+          hint: params.semanticId
             ? `Entity placed with semanticId '${params.semanticId}'. Use this name in choreography steps and bindings.`
             : undefined,
         }),

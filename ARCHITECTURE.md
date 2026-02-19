@@ -81,7 +81,7 @@ Visual scene editor — the main authoring tool for creating and testing choreog
 - HTTP POST ingestion (`POST /api/signal`) + SSE broadcast (`GET /__signals__/stream`)
 - Signal log: 10k entries in memory, 500 rendered, "Load older" button for virtual scrolling
 - `platformFetch()`: Tauri-aware fetch wrapper — uses `tauri-plugin-http` (Rust-side) in desktop, Vite CORS proxy in dev, native fetch in browser prod
-- Vite dev plugins: `corsProxyPlugin`, `signalIngestionPlugin`, `tapHookPlugin`, `openclawTokenPlugin`, `localDiscoveryPlugin`
+- Vite dev server: `corsProxyPlugin` only (external CORS bypass); all API/SSE/MCP traffic proxied to sajou state server
 - Dependencies: `@sajou/core`, `three`, `fflate`, `gifuct-js`, `@tauri-apps/api`, `@tauri-apps/plugin-http`
 
 #### Tauri desktop app
@@ -200,16 +200,44 @@ Built-in p5.js sketch editor with live preview, running in instance mode (`new p
 
 Key files: `p5-canvas.ts` (runtime instance management), `p5-params-panel.ts` (UI controls), `p5-code-panel.ts` (editor), `p5-param-parser.ts` (annotation parser), `p5-presets.ts` (default sketches), `p5-state.ts` (store), `p5-view.ts` (pipeline node integration)
 
-#### MCP command pipeline
+#### Server-authoritative state
 
-External tools (MCP server, `curl`, any HTTP client) control the scene-builder through a command queue system:
-- **Write path**: `POST /api/scene/entities`, `/api/choreographies`, `/api/wiring`, `/api/shaders`, `/api/shaders/:id/uniforms`, `/api/p5`, `/api/p5/:id/params` → server enqueues `SceneCommand` → broadcasts via SSE (`/__commands__/stream`) → client `command-consumer.ts` executes against stores → ACK via `POST /api/commands/ack`
-- **Read path**: `GET /api/scene/state`, `/api/choreographies`, `/api/wiring`, `/api/shaders`, `/api/p5`, `/api/bindings` — reads from latest state pushed by browser
-- **State push**: browser pushes full state snapshot via `POST /api/state/push` (debounced 300ms)
-- **SSE fallback**: if SSE disconnects, client polls `GET /api/commands/pending` every 500ms
-- **Signal ingestion**: `POST /api/signal` accepts JSON, normalizes it, broadcasts to all SSE clients on `/__signals__/stream`
+The **sajou state server** (`adapters/mcp-server/`) is the source of truth for scene state. It runs as a standalone Node.js process and provides:
+- **In-memory state store** with pub/sub notifications (`state/store.ts`)
+- **REST API** on `/api/*` — same endpoints the browser has always used
+- **MCP Streamable HTTP** on `/mcp` — for remote AI agents
+- **MCP stdio** — for local Claude Code integration
+- **SSE streams** for real-time browser updates
 
-Key files: `command-consumer.ts` (client-side executor), `vite.config.ts` (server-side endpoints + command queue)
+**Architecture:**
+```
+Browser ──HTTP──→ sajou server (view + edit)
+Claude  ──stdio─→ sajou server (compose scenes)
+Codex   ──MCP───→ sajou server (compose scenes)
+botoul  ──HTTP──→ same code, Express middleware
+```
+
+MCP tools read/write the store directly (no browser needed). Connected browsers receive state updates via SSE. The server works standalone — agents can compose scenes without any browser open.
+
+**Dev mode**: `pnpm dev` starts the server (port 3001) and Vite (port 5175) in parallel. Vite proxies `/api`, `/__signals__`, `/__commands__`, `/mcp` to the server. Browser code uses relative URLs transparently.
+
+**Startup flow**:
+1. Browser restores from IndexedDB (assets, localStorage, state stores)
+2. Probes server via `GET /api/state/full` (2s timeout)
+3. If server has real state → overwrites local stores with server data
+4. If server is empty → `initStateSync()` pushes IDB state to server
+5. Tauri production builds skip the server probe (local-only mode)
+
+Key files: `state/store.ts` (in-memory state), `state/mutations.ts` (mutation functions), `routes/*.ts` (Express routes), `mcp/transport.ts` (Streamable HTTP), `app.ts` (Express app)
+
+#### MCP command pipeline (browser side)
+
+The browser listens for commands from the server and applies them to local stores:
+- **SSE**: `command-consumer.ts` connects to `/__commands__/stream`, executes commands, ACKs
+- **Polling fallback**: `GET /api/commands/pending` every 500ms if SSE disconnects
+- **State push**: `state-sync.ts` pushes full state snapshot via `POST /api/state/push` (debounced 300ms)
+
+Key files: `command-consumer.ts` (client-side executor), `state-sync.ts` (state push), `server-config.ts` (server probe)
 
 #### Canvas2D dial widgets
 
