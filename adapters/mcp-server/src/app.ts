@@ -20,6 +20,8 @@ import { createSignalRoutes } from "./routes/signals.js";
 import { createDiscoveryRoutes } from "./routes/discovery.js";
 import { createTapRoutes } from "./routes/tap.js";
 import { createProxyRoutes } from "./routes/proxy.js";
+import { mountMcpTransport } from "./mcp/transport.js";
+import { createServer } from "./server.js";
 
 /** Simple CORS middleware — allows all origins (dev-friendly). */
 function corsMiddleware(_req: Request, res: Response, next: NextFunction): void {
@@ -56,6 +58,10 @@ export function createApp(): express.Express {
 /**
  * Create an Express Router for use as middleware (botoul deployment).
  *
+ * Mounts REST routes + MCP Streamable HTTP transport on the router root.
+ * When the parent app mounts this on `/mcp`, MCP requests go to `/mcp/`
+ * and REST API to `/mcp/api/*`.
+ *
  * Usage in botoul's index.js:
  * ```js
  * const { createMcpRouter } = require('./lib/sajou-server.cjs');
@@ -68,11 +74,15 @@ export function createMcpRouter(): express.Router {
   router.use(corsMiddleware);
   router.use(express.json({ limit: "10mb" }));
 
+  // REST API routes
   router.use(createSceneRoutes());
   router.use(createSignalRoutes());
   router.use(createDiscoveryRoutes());
   router.use(createTapRoutes());
   router.use(createProxyRoutes());
+
+  // MCP Streamable HTTP — mounted on "/" (router is already prefixed by parent)
+  mountMcpTransport(router, createServer, "/");
 
   return router;
 }
