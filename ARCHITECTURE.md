@@ -67,8 +67,8 @@ Visual scene editor — the main authoring tool for creating and testing choreog
 
 - Vite + Three.js + Canvas2D overlay + vanilla TypeScript + Tauri v2 desktop shell
 - Dual-canvas architecture: WebGLRenderer (3D scene) + Canvas2D (editor overlays, markers, labels)
-- Pipeline layout: Signal ─rail─ Choreo ─rail─ Visual ─rail─ [ Shader │ p5.js ]
-- Shader and p5.js share a single pipeline slot (`.pl-node-group`) with vertical split; mini nodes show rotated headers
+- Pipeline layout: Signal ─rail─ Choreo ─rail─ Visual ─rail─ [ Shader │ Sketches ]
+- Shader and Sketches share a single pipeline slot (`.pl-node-group`) with vertical split; mini nodes show rotated headers
 - Wiring system (patch bay), node canvas, step chain with popover editing
 - Zone painting for semantic regions on background
 - Export/import ZIP (selective import dialog: choose visual layout, entities, choreographies, shaders, p5 sketches independently), run mode with live preview, binding transitions
@@ -183,22 +183,23 @@ Built-in GLSL shader editor with live preview, compiled on a dedicated Three.js 
 
 Key files: `shader-canvas.ts` (compilation + rendering), `shader-uniforms-panel.ts` (UI controls + external value sync), `shader-code-panel.ts` (editor + compile trigger), `shader-uniform-parser.ts` (annotation parser), `shader-defaults.ts` (auto-injected block)
 
-#### p5.js editor
+#### Sketch editor (p5.js + Three.js)
 
-Built-in p5.js sketch editor with live preview, running in instance mode (`new p5(sketch, container)`):
-- **Instance mode**: no global pollution — sketch function receives `p` instance, user code writes `p.setup`, `p.draw`
-- **Params bridge**: `p.sajou.speed`, `p.sajou.color` etc. — injected object on the p5 instance for live parameter control
-- **Auto-injected params**: `p.sajou._width`, `p.sajou._height`, `p.sajou._time` (ms since start), `p.sajou._mouse` ({x, y})
-- **Param annotations**: `// @param: name, control [, key: value, ...]` in JS comments — parsed to generate editor controls
-- **Control types**: `slider`, `color`, `toggle`, `xy` — same set as shader uniforms
-- **Semantic binding**: `// @bind: intensity` — marks params for choreographer wiring (inline or next line)
-- **Presets**: 3 built-in sketches (Particles, Wave, Grid) with predefined params
-- **Code editor**: CodeMirror 6 with JavaScript syntax, sketch selector, debounced re-run (500ms), Ctrl+Enter for immediate run
+Dual-mode sketch editor with live preview, supporting both p5.js and Three.js runtimes:
+- **Mode selector**: `<select>` in code panel header — switches between `p5` and `threejs` runtime modes per sketch
+- **p5.js mode**: instance mode (`new p5(sketch, container)`), user code writes `p.setup`/`p.draw`, params bridge on `p.sajou.*`
+- **Three.js mode**: `setup(ctx)`/`draw(ctx, state)` API — `ctx.scene`, `ctx.camera`, `ctx.renderer`, `ctx.THREE` (full module), `ctx.sajou` (params bridge). `setup()` returns user state passed to `draw()`.
+- **Shared across modes**: param annotations (`// @param:`, `// @bind:`), params panel controls, wiring, persistence, MCP endpoints
+- **Auto-injected params**: `_width`, `_height`, `_time`, `_mouse` (p5); `_width`, `_height`, `_time`, `_deltaTime`, `_mouse` (Three.js)
+- **Presets**: 6 built-in — p5.js (Particles, Wave, Grid) + Three.js (Bar Chart, City Block, Orbit Ring), categorized in dropdown
+- **Code editor**: CodeMirror 6 with JavaScript syntax, sketch selector, mode selector, debounced re-run (500ms), Ctrl+Enter for immediate run
+- **Runtime routing**: `p5-canvas.ts` delegates to p5 or `threejs-canvas.ts` based on `sketch.mode`; mode changes trigger runtime switch (stop one, start the other)
 - **Error handling**: `try/catch` around `new Function()` execution, errors displayed in status bar
-- **Wiring target format**: `p5:{sketchId}:{paramName}` in wire connections
-- **External control**: MCP `set-param` commands update both the state store and the live `p.sajou` object
+- **Wiring target format**: `p5:{sketchId}:{paramName}` in wire connections (same for both modes)
+- **External control**: MCP `set-param` commands update both the state store and the live params object
+- **Backward-compatible**: `mode ?? "p5"` — existing sketches without the field default to p5.js
 
-Key files: `p5-canvas.ts` (runtime instance management), `p5-params-panel.ts` (UI controls), `p5-code-panel.ts` (editor), `p5-param-parser.ts` (annotation parser), `p5-presets.ts` (default sketches), `p5-state.ts` (store), `p5-view.ts` (pipeline node integration)
+Key files: `p5-canvas.ts` (runtime routing), `threejs-canvas.ts` (Three.js runtime), `p5-params-panel.ts` (UI controls), `p5-code-panel.ts` (editor + mode selector), `p5-param-parser.ts` (annotation parser), `p5-presets.ts` (p5 + Three.js presets), `p5-state.ts` (store), `p5-view.ts` (pipeline node integration)
 
 #### Server-authoritative state
 
@@ -260,12 +261,12 @@ Reusable interactive pattern for angle/direction input:
 #### Pipeline layout
 
 ```
-Signal ─rail─ Choreo ─rail─ Visual ─rail─ [ Shader │ p5.js ]
-  1              2             3             4         5
+Signal ─rail─ Choreo ─rail─ Visual ─rail─ [ Shader │ Sketches ]
+  1              2             3             4          5
 ```
 
 - 3 rails with chevron arrows and badge stacks (source badges, signal-type badges)
-- Shader + p5.js grouped in a single slot (`.pl-node-group`, vertical split)
+- Shader + Sketches grouped in a single slot (`.pl-node-group`, vertical split)
 - Mini nodes: 48px wide, rotated header (-90°, animated transition)
 - Extended: fills available space, other nodes collapse
 - Inside the code group: extended node takes all space, sibling collapses to 28px horizontal bar

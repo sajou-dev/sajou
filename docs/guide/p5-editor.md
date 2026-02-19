@@ -1,12 +1,10 @@
-# p5.js Editor
+# Sketch Editor
 
 ## Overview
 
-The scene-builder includes a built-in p5.js sketch editor with live preview. Sketches run in [instance mode](https://github.com/processing/p5.js/wiki/Global-and-instance-mode) — each sketch is an isolated function receiving a `p` instance, with no global pollution.
+The scene-builder includes a built-in sketch editor with live preview, supporting two runtime modes: **p5.js** and **Three.js**. Each sketch has a mode selector in the code panel header — the same annotations, params panel, wiring, and persistence work across both modes.
 
-The p5.js node shares a pipeline slot with the Shader node — they are grouped in a single vertical-split container. When one is extended, it fills the slot while the other collapses to a thin 28px bar. Keyboard shortcut: `5` for p5.js, `4` for Shader.
-
-The p5 editor supports interactive param controls via annotation comments, a params bridge for live parameter updates without re-running, and multiple sketch management with presets.
+The Sketches node shares a pipeline slot with the Shader node — they are grouped in a single vertical-split container. When one is extended, it fills the slot while the other collapses to a thin 28px bar. Keyboard shortcut: `5` for Sketches, `4` for Shader.
 
 ---
 
@@ -15,6 +13,8 @@ The p5 editor supports interactive param controls via annotation comments, a par
 Sketches are stored as `P5SketchDef` objects:
 
 ```typescript
+type SketchMode = "p5" | "threejs";
+
 interface P5SketchDef {
   id: string;
   name: string;
@@ -22,12 +22,15 @@ interface P5SketchDef {
   params: P5ParamDef[];    // Parsed from @param annotations
   width: number;           // Canvas size (0 = fit container)
   height: number;
+  mode?: SketchMode;       // Runtime mode (default: "p5")
 }
 ```
 
+Existing sketches without a `mode` field default to `"p5"` (backward-compatible).
+
 ---
 
-## Writing Sketches
+## p5.js Mode
 
 User code receives a `p` instance with the full p5.js API, plus a `p.sajou` bridge object for accessing parameters:
 
@@ -49,11 +52,7 @@ p.draw = function() {
 };
 ```
 
----
-
-## Auto-Injected Parameters
-
-The following values are automatically available on `p.sajou` without any annotation:
+### Auto-injected parameters (p5)
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
@@ -64,9 +63,63 @@ The following values are automatically available on `p.sajou` without any annota
 
 ---
 
+## Three.js Mode
+
+User code defines `setup(ctx)` and `draw(ctx, state)` as top-level functions. The context object provides a pre-configured Three.js scene:
+
+```javascript
+// @param: speed, slider, min: 0.1, max: 5.0
+
+function setup(ctx) {
+  const geo = new ctx.THREE.BoxGeometry(1, 1, 1);
+  const mat = new ctx.THREE.MeshStandardMaterial({ color: 0xe8a851 });
+  const cube = new ctx.THREE.Mesh(geo, mat);
+  ctx.scene.add(cube);
+
+  const light = new ctx.THREE.DirectionalLight(0xffffff, 1);
+  light.position.set(2, 3, 4);
+  ctx.scene.add(light);
+  ctx.scene.add(new ctx.THREE.AmbientLight(0x404040));
+
+  return { cube };
+}
+
+function draw(ctx, state) {
+  state.cube.rotation.y += (ctx.sajou.speed ?? 1.0) * ctx.sajou._deltaTime;
+}
+```
+
+### Context object
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `ctx.scene` | `THREE.Scene` | The scene (dark background by default) |
+| `ctx.camera` | `THREE.PerspectiveCamera` | 60 FOV camera at (0, 2, 5) looking at origin |
+| `ctx.renderer` | `THREE.WebGLRenderer` | The WebGL renderer (anti-aliased) |
+| `ctx.THREE` | `typeof THREE` | The full Three.js module — no import needed |
+| `ctx.sajou` | `Record<string, unknown>` | Params bridge (same as p5) |
+
+### setup() and draw()
+
+- `setup(ctx)` runs once when the sketch starts. Return an object to store user state (meshes, materials, etc.).
+- `draw(ctx, state)` runs every frame. `state` is whatever `setup()` returned.
+- The renderer calls `renderer.render(scene, camera)` automatically after `draw()` — no need to call it yourself.
+
+### Auto-injected parameters (Three.js)
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `_width` | `number` | Container width in pixels |
+| `_height` | `number` | Container height in pixels |
+| `_time` | `number` | Seconds since sketch start |
+| `_deltaTime` | `number` | Seconds since last frame |
+| `_mouse` | `{x, y}` | Mouse position relative to canvas |
+
+---
+
 ## Param Annotations
 
-Add `// @param:` comments in your source to create interactive controls in the params panel:
+Add `// @param:` comments in your source to create interactive controls in the params panel. The same syntax works in both p5.js and Three.js modes:
 
 ```javascript
 // @param: speed, slider, min: 0.1, max: 5.0
@@ -83,8 +136,8 @@ Add `// @param:` comments in your source to create interactive controls in the p
 
 ### Control types
 
-| Control | p5 Value Type | Description |
-|---------|---------------|-------------|
+| Control | Value Type | Description |
+|---------|------------|-------------|
 | `slider` | `number` | Numeric slider with min/max/step |
 | `color` | `[r, g, b]` | Color picker (0-1 RGB) |
 | `toggle` | `boolean` | Checkbox |
@@ -114,9 +167,24 @@ Or on a separate line:
 
 ---
 
+## Mode Selector
+
+The code panel header contains a mode dropdown between the sketch name and the sketch selector:
+
+```
+[Name] [p5.js ▾] [Sketch ▾] [▶] [spacer] [Presets] [+] [🗑]
+```
+
+When switching modes:
+- If the source is still the default for the old mode, it's replaced by the default for the new mode.
+- If the source has been edited by the user, it's kept as-is (the user is responsible for adapting their code).
+- Creating a new sketch (`+`) inherits the mode of the currently selected sketch.
+
+---
+
 ## Live Parameter Updates
 
-When a slider or control is moved in the params panel, the value is updated directly on the `p.sajou` bridge object of the running p5 instance. No re-run is needed — the sketch reads the new value on its next `draw()` call.
+When a slider or control is moved in the params panel, the value is updated directly on the running instance's params bridge. No re-run is needed — the sketch reads the new value on its next frame.
 
 This makes parameter tuning instant and smooth, unlike code changes which trigger a full sketch restart (debounced 500ms).
 
@@ -124,9 +192,9 @@ This makes parameter tuning instant and smooth, unlike code changes which trigge
 
 ## Wiring to Choreographer
 
-p5 sketch params are exposed as badges on the connector bar in the scene-builder wiring view. This allows choreographer outputs to drive sketch parameters in real time.
+Sketch params are exposed as badges on the connector bar in the scene-builder wiring view. This allows choreographer outputs to drive sketch parameters in real time.
 
-Wire connections use the format `p5:{sketchId}:{paramName}` as their target identifier.
+Wire connections use the format `p5:{sketchId}:{paramName}` as their target identifier (same format for both p5.js and Three.js sketches).
 
 Type colors on the connector badges follow the same scheme as shader uniforms:
 
@@ -140,7 +208,7 @@ Type colors on the connector badges follow the same scheme as shader uniforms:
 
 ## External Control (MCP / HTTP)
 
-p5 sketch params can be set externally via the scene-builder's HTTP API:
+Sketch params can be set externally via the scene-builder's HTTP API:
 
 ```
 POST /api/p5/{sketchId}/params
@@ -152,8 +220,8 @@ Content-Type: application/json
 When a param value is changed externally (via MCP or direct HTTP call):
 
 1. The server enqueues a `set-param` command and broadcasts it via SSE.
-2. The browser's `command-consumer` updates the p5 state store.
-3. The `p5-params-panel` subscriber detects the value change, calls `setParam()` on the running p5 instance, and syncs the DOM slider position.
+2. The browser's `command-consumer` updates the sketch state store.
+3. The `p5-params-panel` subscriber detects the value change, calls `setParam()` on the running instance, and syncs the DOM slider position.
 
 ### Sketch management endpoints
 
@@ -161,7 +229,7 @@ When a param value is changed externally (via MCP or direct HTTP call):
 |----------|--------|-------------|
 | `/api/p5` | GET | Read all sketches |
 | `/api/p5` | POST | Add a new sketch |
-| `/api/p5/:id` | PUT | Update a sketch (source, name, params) |
+| `/api/p5/:id` | PUT | Update a sketch (source, name, params, mode) |
 | `/api/p5/:id` | DELETE | Remove a sketch |
 | `/api/p5/:id/params` | POST | Set a param value in real-time |
 
@@ -169,13 +237,21 @@ When a param value is changed externally (via MCP or direct HTTP call):
 
 ## Presets
 
-Three built-in presets are available:
+Six built-in presets are available, organized by mode:
+
+### p5.js
 
 1. **Particles** — bouncing particles with speed and count params
 2. **Wave** — animated sine wave with speed and amplitude
 3. **Grid** — mouse-reactive grid with scale param
 
-Use the book icon in the code panel header to load a preset.
+### Three.js
+
+4. **Bar Chart** — animated 3D bar chart with dynamic height targets
+5. **City Block** — procedural buildings with flickering windows
+6. **Orbit Ring** — orbiting agents around a glowing center
+
+Use the book icon in the code panel header to load a preset. The dropdown groups presets by mode.
 
 ---
 
@@ -183,11 +259,12 @@ Use the book icon in the code panel header to load a preset.
 
 | File | Purpose |
 |------|---------|
-| `tools/scene-builder/src/p5-editor/p5-canvas.ts` | p5 instance lifecycle (start/stop/rerun, sajou bridge) |
-| `tools/scene-builder/src/p5-editor/p5-code-panel.ts` | CodeMirror 6 JS editor + sketch selector + run/stop |
-| `tools/scene-builder/src/p5-editor/p5-types.ts` | `P5SketchDef`, `P5ParamDef` type definitions |
-| `tools/scene-builder/src/p5-editor/p5-param-parser.ts` | `@param:` / `@bind:` annotation parser |
-| `tools/scene-builder/src/p5-editor/p5-params-panel.ts` | Interactive param controls (slider, color, toggle, xy) |
-| `tools/scene-builder/src/p5-editor/p5-presets.ts` | Built-in sketch presets |
-| `tools/scene-builder/src/p5-editor/p5-state.ts` | Module-state store with subscribe/notify |
-| `tools/scene-builder/src/workspace/connector-bar-p5.ts` | Wiring badges for p5 params |
+| `p5-editor/p5-canvas.ts` | Runtime routing — delegates to p5 or Three.js based on sketch mode |
+| `p5-editor/threejs-canvas.ts` | Three.js runtime — WebGLRenderer, Scene, Camera, rAF loop, sajou bridge |
+| `p5-editor/p5-code-panel.ts` | CodeMirror 6 JS editor, mode selector, sketch selector, run/stop |
+| `p5-editor/p5-types.ts` | `P5SketchDef`, `P5ParamDef`, `SketchMode` type definitions |
+| `p5-editor/p5-param-parser.ts` | `@param:` / `@bind:` annotation parser |
+| `p5-editor/p5-params-panel.ts` | Interactive param controls (slider, color, toggle, xy) |
+| `p5-editor/p5-presets.ts` | Built-in p5.js + Three.js presets |
+| `p5-editor/p5-state.ts` | Module-state store with subscribe/notify |
+| `workspace/connector-bar-p5.ts` | Wiring badges for sketch params |

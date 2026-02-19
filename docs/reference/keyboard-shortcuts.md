@@ -57,7 +57,7 @@ All shortcuts are ignored when focus is in INPUT or TEXTAREA elements.
 | `2` | Choreographer |
 | `3` | Visual (Stage) |
 | `4` | Shader |
-| `5` | p5.js |
+| `5` | Sketches |
 
 ---
 
