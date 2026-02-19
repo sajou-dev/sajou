@@ -276,7 +276,7 @@ export async function initWorkspace(): Promise<void> {
   const shaderPanel = createPanel({ id: "shader-editor", title: "Shader Editor", minWidth: 400, minHeight: 350, ownerNode: "shader" });
   initShaderEditorPanel(shaderPanel.contentEl);
 
-  const p5Panel = createPanel({ id: "p5-editor", title: "p5.js Editor", minWidth: 400, minHeight: 350, ownerNode: "p5" });
+  const p5Panel = createPanel({ id: "p5-editor", title: "Sketch Editor", minWidth: 400, minHeight: 350, ownerNode: "p5" });
   initP5EditorPanel(p5Panel.contentEl);
 
   const shortcutsPanel = createPanel({ id: "shortcuts", title: "Keyboard Shortcuts", minWidth: 280, minHeight: 300 });

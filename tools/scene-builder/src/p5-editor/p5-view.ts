@@ -38,7 +38,7 @@ export function initP5View(): void {
 
   const editorBtn = document.createElement("button");
   editorBtn.className = "zoom-btn p5-mini-btn";
-  editorBtn.title = "Toggle p5.js editor";
+  editorBtn.title = "Toggle sketch editor";
   editorBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"/><path d="m6 8-4 4 4 4"/><path d="m14.5 4-5 16"/></svg>`;
   editorBtn.addEventListener("click", () => togglePanel("p5-editor"));
   miniBar.appendChild(editorBtn);
