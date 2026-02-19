@@ -489,7 +489,13 @@ async function probeOpenAI(
       debug(`Found ${models.length} model(s): ${models.join(", ")}`, "info", sourceId);
       return { models };
     }
-    debug("Probe returned OK but no models array in response.", "warn", sourceId);
+    // Ollama with no loaded models returns { data: null } — still a valid
+    // OpenAI-compatible endpoint, just with an empty model list.
+    if ("object" in json || "data" in json) {
+      debug("Probe OK — endpoint recognized but no models loaded.", "info", sourceId);
+      return { models: [] };
+    }
+    debug("Probe returned OK but unrecognized response shape.", "warn", sourceId);
     return null;
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
