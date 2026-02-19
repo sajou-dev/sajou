@@ -239,3 +239,25 @@
   color: var(--color-text-muted);
   margin-top: 1px;
 }
+
+.p5-preset-group-header {
+  padding: 4px 12px 2px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-top: 1px solid var(--color-border);
+  margin-top: 2px;
+}
+
+.p5-preset-group-header:first-child {
+  border-top: none;
+  margin-top: 0;
+}
+
+/* Mode selector */
+#p5-mode-selector {
+  min-width: 72px;
+}

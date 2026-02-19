@@ -25,7 +25,7 @@ export interface ZipSummary {
   bindings: number;
   /** Number of shader definitions. */
   shaders: number;
-  /** Number of p5.js sketch definitions. */
+  /** Number of sketch definitions (p5.js / Three.js). */
   p5Sketches: number;
 }
 
@@ -76,7 +76,7 @@ const SECTIONS: SectionDef[] = [
   },
   {
     key: "p5Sketches",
-    label: "p5.js Sketches",
+    label: "Sketches",
     summary: (s) => `${s.p5Sketches} sketches`,
     available: (s) => s.p5Sketches > 0,
   },

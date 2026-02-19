@@ -6,10 +6,10 @@
  * Reconstructs controls when the param list changes.
  */
 
-import { getP5State, updateSketch, subscribeP5 } from "./p5-state.js";
-import { parseP5Source } from "./p5-param-parser.js";
-import { setParam } from "./p5-canvas.js";
-import type { P5ParamDef } from "./p5-types.js";
+import { getSketchState, updateSketch, subscribeSketch } from "./sketch-state.js";
+import { parseSketchSource } from "./sketch-param-parser.js";
+import { setParam } from "./sketch-canvas.js";
+import type { SketchParamDef } from "./sketch-types.js";
 
 // ---------------------------------------------------------------------------
 // State
@@ -26,10 +26,10 @@ let cachedParamValues = "";
 // ---------------------------------------------------------------------------
 
 /** Initialize the params panel in the given container element. */
-export function initP5ParamsPanel(el: HTMLElement): void {
+export function initSketchParamsPanel(el: HTMLElement): void {
   containerEl = el;
 
-  subscribeP5(syncPanel);
+  subscribeSketch(syncPanel);
   syncPanel();
 }
 
@@ -41,7 +41,7 @@ export function initP5ParamsPanel(el: HTMLElement): void {
 function syncPanel(): void {
   if (!containerEl) return;
 
-  const { sketches, selectedSketchId } = getP5State();
+  const { sketches, selectedSketchId } = getSketchState();
   const sketch = sketches.find((s) => s.id === selectedSketchId);
   if (!sketch) {
     containerEl.innerHTML = "";
@@ -50,7 +50,7 @@ function syncPanel(): void {
   }
 
   // Parse current params from the source
-  const { params: parsed } = parseP5Source(sketch.source);
+  const { params: parsed } = parseSketchSource(sketch.source);
 
   // Merge parsed params with stored values (preserve user-set values)
   const merged = mergeParams(sketch.params, parsed);
@@ -81,7 +81,7 @@ function syncPanel(): void {
  * Merge stored param values with newly parsed param definitions.
  * Preserves user-set values for params that still exist.
  */
-function mergeParams(stored: P5ParamDef[], parsed: P5ParamDef[]): P5ParamDef[] {
+function mergeParams(stored: SketchParamDef[], parsed: SketchParamDef[]): SketchParamDef[] {
   return parsed.map((p) => {
     const existing = stored.find((s) => s.name === p.name && s.type === p.type);
     if (existing) {
@@ -95,7 +95,7 @@ function mergeParams(stored: P5ParamDef[], parsed: P5ParamDef[]): P5ParamDef[] {
 // DOM construction
 // ---------------------------------------------------------------------------
 
-function buildControls(params: P5ParamDef[], sketchId: string): void {
+function buildControls(params: SketchParamDef[], sketchId: string): void {
   if (!containerEl) return;
   containerEl.innerHTML = "";
 
@@ -112,7 +112,7 @@ function buildControls(params: P5ParamDef[], sketchId: string): void {
 }
 
 /** Dispatch a single param control to the appropriate builder. */
-function buildControl(param: P5ParamDef, sketchId: string, parent: HTMLElement): void {
+function buildControl(param: SketchParamDef, sketchId: string, parent: HTMLElement): void {
   switch (param.control) {
     case "slider":
       buildSliderControl(param, sketchId, parent);
@@ -133,7 +133,7 @@ function buildControl(param: P5ParamDef, sketchId: string, parent: HTMLElement):
 // Slider control (float / int)
 // ---------------------------------------------------------------------------
 
-function buildSliderControl(param: P5ParamDef, sketchId: string, parent: HTMLElement): void {
+function buildSliderControl(param: SketchParamDef, sketchId: string, parent: HTMLElement): void {
   const label = document.createElement("label");
   label.className = "p5-param-label";
   label.textContent = param.name;
@@ -163,7 +163,7 @@ function buildSliderControl(param: P5ParamDef, sketchId: string, parent: HTMLEle
     valueDisplay.textContent = formatValue(val);
 
     // Update sketch state
-    const sketch = getP5State().sketches.find((s) => s.id === sketchId);
+    const sketch = getSketchState().sketches.find((s) => s.id === sketchId);
     if (sketch) {
       const newParams = sketch.params.map((sp) =>
         sp.name === param.name ? { ...sp, value: val } : sp,
@@ -186,7 +186,7 @@ function buildSliderControl(param: P5ParamDef, sketchId: string, parent: HTMLEle
 // Color control
 // ---------------------------------------------------------------------------
 
-function buildColorControl(param: P5ParamDef, sketchId: string, parent: HTMLElement): void {
+function buildColorControl(param: SketchParamDef, sketchId: string, parent: HTMLElement): void {
   const label = document.createElement("label");
   label.className = "p5-param-label";
   label.textContent = param.name;
@@ -214,7 +214,7 @@ function buildColorControl(param: P5ParamDef, sketchId: string, parent: HTMLElem
     valueDisplay.textContent = hex;
     const [r, g, b] = hexToRgb(hex);
 
-    const sketch = getP5State().sketches.find((s) => s.id === sketchId);
+    const sketch = getSketchState().sketches.find((s) => s.id === sketchId);
     if (sketch) {
       const newParams = sketch.params.map((sp) =>
         sp.name === param.name ? { ...sp, value: [r, g, b] } : sp,
@@ -236,7 +236,7 @@ function buildColorControl(param: P5ParamDef, sketchId: string, parent: HTMLElem
 // Toggle control (bool)
 // ---------------------------------------------------------------------------
 
-function buildToggleControl(param: P5ParamDef, sketchId: string, parent: HTMLElement): void {
+function buildToggleControl(param: SketchParamDef, sketchId: string, parent: HTMLElement): void {
   const row = document.createElement("div");
   row.className = "p5-param-row";
 
@@ -259,7 +259,7 @@ function buildToggleControl(param: P5ParamDef, sketchId: string, parent: HTMLEle
   checkbox.addEventListener("change", () => {
     const val = checkbox.checked;
 
-    const sketch = getP5State().sketches.find((s) => s.id === sketchId);
+    const sketch = getSketchState().sketches.find((s) => s.id === sketchId);
     if (sketch) {
       const newParams = sketch.params.map((sp) =>
         sp.name === param.name ? { ...sp, value: val } : sp,
@@ -280,7 +280,7 @@ function buildToggleControl(param: P5ParamDef, sketchId: string, parent: HTMLEle
 // XY control (vec2) — two sliders
 // ---------------------------------------------------------------------------
 
-function buildXYControl(param: P5ParamDef, sketchId: string, parent: HTMLElement): void {
+function buildXYControl(param: SketchParamDef, sketchId: string, parent: HTMLElement): void {
   const label = document.createElement("label");
   label.className = "p5-param-label";
   label.textContent = param.name;
@@ -321,7 +321,7 @@ function buildXYControl(param: P5ParamDef, sketchId: string, parent: HTMLElement
       const val = parseFloat(slider.value);
       valueDisplay.textContent = formatValue(val);
 
-      const sketch = getP5State().sketches.find((s) => s.id === sketchId);
+      const sketch = getSketchState().sketches.find((s) => s.id === sketchId);
       if (sketch) {
         const newParams = sketch.params.map((sp) => {
           if (sp.name === param.name) {
@@ -362,7 +362,7 @@ function appendBindBadge(label: HTMLElement, semantic: string): void {
 // ---------------------------------------------------------------------------
 
 /** Update a DOM control to reflect a new param value (external sync). */
-function syncControlValue(param: P5ParamDef): void {
+function syncControlValue(param: SketchParamDef): void {
   if (!containerEl) return;
 
   if (param.control === "slider") {

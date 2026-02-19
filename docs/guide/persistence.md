@@ -18,7 +18,7 @@ The `sajou-scene-builder` database has 9 object stores:
 | `timeline` | Signal timeline state |
 | `shaders` | Shader definitions, sources, uniforms |
 | `assets` | Image files as `ArrayBuffer` (incremental save) |
-| `p5` | p5.js sketch definitions, source code, params |
+| `p5` | Sketch definitions (p5.js + Three.js), source code, params, mode |
 
 **DB_VERSION history:** 1 (initial) → 2 (added `shaders` store) → 3 (added `p5` store).
 

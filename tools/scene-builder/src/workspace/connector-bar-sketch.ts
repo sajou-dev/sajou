@@ -9,12 +9,12 @@
  */
 
 import {
-  getP5State,
-  subscribeP5,
-} from "../p5-editor/p5-state.js";
+  getSketchState,
+  subscribeSketch,
+} from "../sketch-editor/sketch-state.js";
 import { subscribeWiring } from "../state/wiring-state.js";
 import { getP5Bindings } from "../state/wiring-queries.js";
-import type { P5ParamDef } from "../p5-editor/p5-types.js";
+import type { SketchParamDef } from "../sketch-editor/sketch-types.js";
 
 // ---------------------------------------------------------------------------
 // Dot color by param type
@@ -41,7 +41,7 @@ let initialized = false;
 // ---------------------------------------------------------------------------
 
 /** Initialize the p5 connector bar inside the visual→shader rail. */
-export function initConnectorBarP5(): void {
+export function initConnectorBarSketch(): void {
   if (initialized) return;
   initialized = true;
 
@@ -68,7 +68,7 @@ export function initConnectorBarP5(): void {
     rail.appendChild(unwiredEl);
   }
 
-  subscribeP5(render);
+  subscribeSketch(render);
   subscribeWiring(render);
   render();
 }
@@ -80,7 +80,7 @@ export function initConnectorBarP5(): void {
 function render(): void {
   if (!wiredEl || !unwiredEl) return;
 
-  const { sketches, selectedSketchId } = getP5State();
+  const { sketches, selectedSketchId } = getSketchState();
   const sketch = sketches.find((s) => s.id === selectedSketchId);
 
   if (!sketch) {
@@ -97,8 +97,8 @@ function render(): void {
   const p5Bindings = getP5Bindings();
   const wiredIds = new Set(p5Bindings.map((w) => w.toId));
 
-  const wiredParams: P5ParamDef[] = [];
-  const unwiredParams: P5ParamDef[] = [];
+  const wiredParams: SketchParamDef[] = [];
+  const unwiredParams: SketchParamDef[] = [];
 
   for (const param of userParams) {
     const wireId = `p5:${sketch.id}:${param.name}`;
@@ -128,7 +128,7 @@ function render(): void {
 
 function createParamBadge(
   sketchId: string,
-  param: P5ParamDef,
+  param: SketchParamDef,
   wired: boolean,
 ): HTMLElement {
   const badge = document.createElement("div");

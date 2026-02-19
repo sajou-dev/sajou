@@ -21,12 +21,12 @@ import { setChoreographyState } from "../state/choreography-state.js";
 import { setWiringState } from "../state/wiring-state.js";
 import { setBindingState } from "../state/binding-store.js";
 import { setShaderState } from "../shader-editor/shader-state.js";
-import { setP5State } from "../p5-editor/p5-state.js";
+import { setSketchState } from "../sketch-editor/sketch-state.js";
 import type { SceneState, ChoreographyEditorState } from "../types.js";
 import type { WiringState } from "../state/wiring-state.js";
 import type { BindingState } from "../state/binding-store.js";
 import type { ShaderEditorState } from "../shader-editor/shader-types.js";
-import type { P5EditorState } from "../p5-editor/p5-types.js";
+import type { SketchEditorState } from "../sketch-editor/sketch-types.js";
 import { initHelpBar } from "./help-bar.js";
 import { initUndoManager } from "../state/undo.js";
 import {
@@ -46,7 +46,7 @@ import { initRideau } from "./rideau.js";
 import { initConnectorBarH } from "./connector-bar-horizontal.js";
 import { initConnectorBarV } from "./connector-bar-vertical.js";
 import { initConnectorBarShader } from "./connector-bar-shader.js";
-import { initConnectorBarP5 } from "./connector-bar-p5.js";
+import { initConnectorBarSketch } from "./connector-bar-sketch.js";
 import { initWiringOverlay } from "./wiring-overlay.js";
 import { initWiringDrag } from "./wiring-drag.js";
 
@@ -66,7 +66,7 @@ import { initShortcutsPanel } from "../panels/shortcuts-panel.js";
 import { initSignalView } from "../views/signal-view.js";
 import { initChoreographyView } from "../views/choreography-view.js";
 import { initShaderView, initShaderEditorPanel } from "../shader-editor/shader-view.js";
-import { initP5View, initP5EditorPanel } from "../p5-editor/p5-view.js";
+import { initSketchView, initSketchEditorPanel } from "../sketch-editor/sketch-view.js";
 
 // Tools
 import { createSelectTool, initSelectToolKeyboard } from "../tools/select-tool.js";
@@ -167,8 +167,8 @@ function restoreFromServer(data: Record<string, unknown>): void {
     setShaderState({ ...s, selectedShaderId: null, playing: true });
   }
   if (data["p5"]) {
-    const p = data["p5"] as P5EditorState;
-    setP5State({ ...p, selectedSketchId: null, playing: true });
+    const p = data["p5"] as SketchEditorState;
+    setSketchState({ ...p, selectedSketchId: null, playing: true });
   }
   console.info("[workspace] State restored from sajou server");
 }
@@ -211,7 +211,7 @@ export async function initWorkspace(): Promise<void> {
   initConnectorBarH();
   initConnectorBarV();
   initConnectorBarShader();
-  initConnectorBarP5();
+  initConnectorBarSketch();
 
   // Wiring overlay (SVG bezier curves) + drag-to-connect interaction
   initWiringOverlay();
@@ -234,7 +234,7 @@ export async function initWorkspace(): Promise<void> {
   initShaderView();
 
   // p5.js editor view
-  initP5View();
+  initSketchView();
 
   // Mini-previews for collapsed pipeline nodes
   initMiniPreviews();
@@ -276,8 +276,8 @@ export async function initWorkspace(): Promise<void> {
   const shaderPanel = createPanel({ id: "shader-editor", title: "Shader Editor", minWidth: 400, minHeight: 350, ownerNode: "shader" });
   initShaderEditorPanel(shaderPanel.contentEl);
 
-  const p5Panel = createPanel({ id: "p5-editor", title: "p5.js Editor", minWidth: 400, minHeight: 350, ownerNode: "p5" });
-  initP5EditorPanel(p5Panel.contentEl);
+  const p5Panel = createPanel({ id: "p5-editor", title: "Sketch Editor", minWidth: 400, minHeight: 350, ownerNode: "p5" });
+  initSketchEditorPanel(p5Panel.contentEl);
 
   const shortcutsPanel = createPanel({ id: "shortcuts", title: "Keyboard Shortcuts", minWidth: 280, minHeight: 300 });
   initShortcutsPanel(shortcutsPanel.contentEl);

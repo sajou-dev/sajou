@@ -20,8 +20,8 @@ import { getWiringState, type WireConnection } from "../state/wiring-state.js";
 import { getBindingState } from "../state/binding-store.js";
 import { getShaderState } from "../shader-editor/shader-state.js";
 import type { ShaderEditorState } from "../shader-editor/shader-types.js";
-import { getP5State } from "../p5-editor/p5-state.js";
-import type { P5EditorState } from "../p5-editor/p5-types.js";
+import { getSketchState } from "../sketch-editor/sketch-state.js";
+import type { SketchEditorState } from "../sketch-editor/sketch-types.js";
 import type {
   SceneState,
   EntityEntry,
@@ -68,7 +68,7 @@ interface ShaderExportJson {
 
 interface P5ExportJson {
   version: 1;
-  sketches: P5EditorState["sketches"];
+  sketches: SketchEditorState["sketches"];
 }
 
 // ---------------------------------------------------------------------------
@@ -290,7 +290,7 @@ export async function exportScene(): Promise<void> {
   }
 
   // 7c. Include p5 sketches if any exist
-  const p5State = getP5State();
+  const p5State = getSketchState();
   if (p5State.sketches.length > 0) {
     const p5Json: P5ExportJson = {
       version: 1,

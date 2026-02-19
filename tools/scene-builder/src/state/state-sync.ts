@@ -14,7 +14,7 @@ import { getBindingState, subscribeBindings } from "./binding-store.js";
 import { getSignalSourcesState, subscribeSignalSources } from "./signal-source-state.js";
 import { getEditorState, subscribeEditor } from "./editor-state.js";
 import { getShaderState, subscribeShaders } from "../shader-editor/shader-state.js";
-import { getP5State, subscribeP5 } from "../p5-editor/p5-state.js";
+import { getSketchState, subscribeSketch } from "../sketch-editor/sketch-state.js";
 
 /** Debounce interval in milliseconds. */
 const DEBOUNCE_MS = 300;
@@ -32,7 +32,7 @@ function collectSnapshot(): Record<string, unknown> {
     signalSources: getSignalSourcesState(),
     editor: getEditorState(),
     shaders: getShaderState(),
-    p5: getP5State(),
+    p5: getSketchState(),
   };
 }
 
@@ -75,7 +75,7 @@ export function initStateSync(): void {
   subscribeSignalSources(schedulePush);
   subscribeEditor(schedulePush);
   subscribeShaders(schedulePush);
-  subscribeP5(schedulePush);
+  subscribeSketch(schedulePush);
 
   // Immediate push on init so server has state right away
   pushState();

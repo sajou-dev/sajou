@@ -84,7 +84,7 @@ const REGULAR_NODES: readonly PipelineNodeDef[] = [
 /** Nodes grouped in a shared code container (no rails between them). */
 const CODE_GROUP_NODES: readonly PipelineNodeDef[] = [
   { id: "shader",        label: "Shader",  icon: ICON_SHADER,        contentId: "shader-node-content" },
-  { id: "p5",            label: "p5.js",   icon: ICON_P5,            contentId: "p5-node-content" },
+  { id: "p5",            label: "Sketches", icon: ICON_P5,            contentId: "p5-node-content" },
 ];
 
 /** Rail separators between adjacent regular nodes + one before the code group. */

@@ -15,7 +15,7 @@
  * are exposed in the editor.
  */
 
-import type { P5ParamDef, P5ParamType, P5ParamControl } from "./p5-types.js";
+import type { SketchParamDef, SketchParamType, SketchParamControl } from "./sketch-types.js";
 
 // ---------------------------------------------------------------------------
 // Parsing
@@ -31,17 +31,17 @@ const BIND_REGEX = /\/\/\s*@bind:\s*(\w+)/;
 const BIND_INLINE_REGEX = /@bind:\s*(\w+)/;
 
 /** Result of parsing a sketch source for params. */
-export interface P5ParseResult {
+export interface SketchParseResult {
   /** Parsed param definitions. */
-  params: P5ParamDef[];
+  params: SketchParamDef[];
 }
 
 /**
  * Parse all user-defined params from p5.js source code.
  * Returns param definitions with control/binding metadata.
  */
-export function parseP5Source(source: string): P5ParseResult {
-  const params: P5ParamDef[] = [];
+export function parseSketchSource(source: string): SketchParseResult {
+  const params: SketchParamDef[] = [];
   const lines = source.split("\n");
 
   for (let i = 0; i < lines.length; i++) {
@@ -66,7 +66,7 @@ export function parseP5Source(source: string): P5ParseResult {
       }
     }
 
-    const def: P5ParamDef = {
+    const def: SketchParamDef = {
       name: parsed.name,
       type: parsed.type,
       control: parsed.control,
@@ -93,8 +93,8 @@ export function parseP5Source(source: string): P5ParseResult {
 
 interface ParsedParam {
   name: string;
-  type: P5ParamType;
-  control: P5ParamControl;
+  type: SketchParamType;
+  control: SketchParamControl;
   defaultValue: number | boolean | number[];
   min: number;
   max: number;
@@ -117,7 +117,7 @@ function parseParamAnnotation(content: string): ParsedParam | null {
     return null;
   }
 
-  const control = controlStr as P5ParamControl;
+  const control = controlStr as SketchParamControl;
   const type = controlToType(control);
 
   // Parse optional key:value pairs
@@ -150,7 +150,7 @@ function parseParamAnnotation(content: string): ParsedParam | null {
 // ---------------------------------------------------------------------------
 
 /** Map control type to param type. */
-function controlToType(control: P5ParamControl): P5ParamType {
+function controlToType(control: SketchParamControl): SketchParamType {
   switch (control) {
     case "slider": return "float";
     case "color": return "color";
@@ -159,28 +159,28 @@ function controlToType(control: P5ParamControl): P5ParamType {
   }
 }
 
-function defaultMin(type: P5ParamType): number {
+function defaultMin(type: SketchParamType): number {
   switch (type) {
     case "int": return 0;
     default: return 0.0;
   }
 }
 
-function defaultMax(type: P5ParamType): number {
+function defaultMax(type: SketchParamType): number {
   switch (type) {
     case "int": return 10;
     default: return 1.0;
   }
 }
 
-function defaultStep(type: P5ParamType): number {
+function defaultStep(type: SketchParamType): number {
   switch (type) {
     case "int": return 1;
     default: return 0.01;
   }
 }
 
-function defaultValueForType(type: P5ParamType, min: number, max: number): number | boolean | number[] {
+function defaultValueForType(type: SketchParamType, min: number, max: number): number | boolean | number[] {
   switch (type) {
     case "float":
     case "int":

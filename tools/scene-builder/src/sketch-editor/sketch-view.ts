@@ -3,7 +3,7 @@
  *
  * The p5 pipeline node (#p5-node-content) contains only the preview canvas.
  * The code editor + params panel live in a floating panel created
- * by initP5EditorPanel().
+ * by initSketchEditorPanel().
  *
  * Lazily initializes CodeMirror, params, and preview canvas on first need.
  */
@@ -22,7 +22,7 @@ let panelInitialized = false;
 // ---------------------------------------------------------------------------
 
 /** Initialize the p5 preview inside the p5 pipeline node. */
-export function initP5View(): void {
+export function initSketchView(): void {
   const container = document.getElementById("p5-node-content");
   if (!container) return;
 
@@ -38,7 +38,7 @@ export function initP5View(): void {
 
   const editorBtn = document.createElement("button");
   editorBtn.className = "zoom-btn p5-mini-btn";
-  editorBtn.title = "Toggle p5.js editor";
+  editorBtn.title = "Toggle sketch editor";
   editorBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"/><path d="m6 8-4 4 4 4"/><path d="m14.5 4-5 16"/></svg>`;
   editorBtn.addEventListener("click", () => togglePanel("p5-editor"));
   miniBar.appendChild(editorBtn);
@@ -77,7 +77,7 @@ export function initP5View(): void {
 // ---------------------------------------------------------------------------
 
 /** Initialize the p5 editor floating panel content. */
-export function initP5EditorPanel(contentEl: HTMLElement): void {
+export function initSketchEditorPanel(contentEl: HTMLElement): void {
   const codePanel = document.createElement("div");
   codePanel.className = "p5-code-panel";
   codePanel.id = "p5-code-panel";
@@ -106,14 +106,14 @@ async function lazyInitPanel(): Promise<void> {
 
   panelInitialized = true;
   if (codeEl) {
-    const { initP5CodePanel } = await import("./p5-code-panel.js");
-    initP5CodePanel(codeEl);
+    const { initSketchCodePanel } = await import("./sketch-code-panel.js");
+    initSketchCodePanel(codeEl);
   }
 
   const paramsEl = document.getElementById("p5-params-panel");
   if (paramsEl) {
-    const { initP5ParamsPanel } = await import("./p5-params-panel.js");
-    initP5ParamsPanel(paramsEl);
+    const { initSketchParamsPanel } = await import("./sketch-params-panel.js");
+    initSketchParamsPanel(paramsEl);
   }
 }
 
