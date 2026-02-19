@@ -194,13 +194,24 @@ export async function discoverLocalServices(): Promise<DiscoveredService[]> {
 }
 
 /**
- * Fetch the OpenClaw gateway auth token from the Vite dev server.
- * Returns the token string or null if unavailable.
+ * Fetch the OpenClaw gateway auth token.
  *
- * This only works in dev mode — in production, the endpoint does not exist
- * and this silently returns null.
+ * - **Tauri desktop**: reads ~/.openclaw/openclaw.json via Rust command.
+ * - **Vite dev server**: fetches from GET /api/openclaw/token.
+ * - **Production browser**: silently returns null.
  */
 export async function fetchOpenClawToken(): Promise<string | null> {
+  // Tauri — read directly from filesystem via Rust command
+  if ("__TAURI_INTERNALS__" in window) {
+    try {
+      const { invoke } = await import("@tauri-apps/api/core");
+      return await invoke<string>("read_openclaw_token");
+    } catch {
+      return null;
+    }
+  }
+
+  // Vite dev server — HTTP endpoint
   try {
     const resp = await fetch("/api/openclaw/token", {
       signal: AbortSignal.timeout(2000),
