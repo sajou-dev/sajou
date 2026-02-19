@@ -1,7 +1,7 @@
 {
   "name": "sajou",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.5.6",
   "description": "Visual choreographer for AI agents",
   "scripts": {
     "typecheck": "tsc --build",

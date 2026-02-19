@@ -1,6 +1,6 @@
 {
   "name": "scene-builder",
-  "version": "0.0.0",
+  "version": "0.5.6",
   "private": true,
   "description": "Sajou Scene Builder — visual canvas-first workspace for building animated scenes",
   "type": "module",
