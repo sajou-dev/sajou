@@ -203,24 +203,35 @@ Key files: `sketch-canvas.ts` (runtime routing), `threejs-canvas.ts` (Three.js r
 
 #### Server-authoritative state
 
-The **sajou state server** (`packages/mcp-server/`) is the source of truth for scene state. It runs as a standalone Node.js process and provides:
+The **sajou state server** (`packages/mcp-server/`, published as [`@sajou/mcp-server`](https://www.npmjs.com/package/@sajou/mcp-server)) is the source of truth for scene state. It runs as a standalone Node.js process and provides:
 - **In-memory state store** with pub/sub notifications (`state/store.ts`)
-- **REST API** on `/api/*` — same endpoints the browser has always used
+- **REST API** on `/api/*` — scene, choreographies, bindings, wiring, shaders, sketches
 - **MCP Streamable HTTP** on `/mcp` — for remote AI agents
 - **MCP stdio** — for local Claude Code integration
 - **SSE streams** for real-time browser updates
 
+**Installation:**
+```bash
+npx -y @sajou/mcp-server --http       # standalone server (port 3001)
+npx -y @sajou/mcp-server              # stdio mode for Claude Code
+```
+
 **Architecture:**
 ```
-Browser ──HTTP──→ sajou server (view + edit)
-Claude  ──stdio─→ sajou server (compose scenes)
-Codex   ──MCP───→ sajou server (compose scenes)
-botoul  ──HTTP──→ same code, Express middleware
+Browser ──HTTP+SSE──→ sajou server (view + edit)
+Claude  ──stdio────→ sajou server (compose scenes)
+Codex   ──MCP HTTP─→ sajou server (compose scenes)
+botoul  ──HTTP─────→ same code, Express middleware
 ```
 
 MCP tools read/write the store directly (no browser needed). Connected browsers receive state updates via SSE. The server works standalone — agents can compose scenes without any browser open.
 
-**Dev mode**: `pnpm dev` starts the server (port 3001) and Vite (port 5175) in parallel. Vite proxies `/api`, `/__signals__`, `/__commands__`, `/mcp` to the server. Browser code uses relative URLs transparently.
+**Dev mode**: run the server and Vite client separately:
+```bash
+npx -y @sajou/mcp-server --http 3000   # terminal 1: server
+cd tools/scene-builder && pnpm dev:vite  # terminal 2: client (proxies to localhost:3000)
+```
+Or from the repo: `pnpm --filter scene-builder dev` starts both in parallel.
 
 **Startup flow**:
 1. Browser restores from IndexedDB (assets, localStorage, state stores)

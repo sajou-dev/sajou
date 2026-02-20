@@ -2,43 +2,74 @@
 
 sajou includes an [MCP](https://modelcontextprotocol.io/) (Model Context Protocol) server that lets AI agents interact with the visual choreographer programmatically. Any MCP-compatible client — Claude Code, Claude Desktop, or custom agents — can read scene state, compose choreographies, place entities, write GLSL shaders, and control uniforms in real-time.
 
-The MCP server is a thin adapter: it translates MCP tool calls into HTTP requests against the scene-builder's dev server API. The scene-builder handles all signal routing, choreography execution, and rendering.
+## Architecture
+
+The MCP server is the **source of truth** for scene state. It runs as a standalone Node.js process with an in-memory state store. The scene-builder (browser) is a view/edit client that syncs with the server.
 
 ```
-AI Agent ──MCP/stdio──> sajou-mcp ──HTTP──> scene-builder dev server
-                                             │
-                                             ├── GET  /api/scene/state
-                                             ├── GET  /api/choreographies
-                                             ├── GET  /api/bindings
-                                             ├── GET  /api/wiring
-                                             ├── GET  /api/shaders
-                                             ├── GET  /api/p5
-                                             ├── POST /api/commands
-                                             └── POST /api/signal
+                 ┌─────────────────────────────┐
+                 │   sajou MCP server           │
+                 │   (@sajou/mcp-server)        │
+                 │                              │
+                 │   In-memory state store      │
+                 │   REST API  (/api/*)         │
+                 │   SSE streams                │
+                 │   MCP stdio / HTTP (/mcp)    │
+                 └──────┬──────────┬────────────┘
+                        │          │
+              ┌─────────┘          └──────────┐
+              ▼                               ▼
+     Browser (scene-builder)           AI Agent (Claude)
+     connects via HTTP + SSE           connects via MCP
+     view + edit scenes                compose scenes
 ```
 
-## Why MCP?
+The server works **standalone** — agents can compose scenes without any browser open. When a browser connects, it syncs bidirectionally: manual edits in the browser are pushed to the server, and agent commands from the server appear live in the browser.
 
-sajou's choreographies are declarative JSON — designed from the start to be composed by AIs, not just humans. The MCP server closes the loop: an AI agent can now **observe** a scene, **compose** new elements, **wire** them together, and **trigger** animations, all through a standardized protocol.
+## Installation
 
-This enables workflows like:
-- An agent that builds visualizations of its own reasoning process
-- A coding assistant that animates task progress on a live stage
-- An orchestrator that composes multi-entity scenes to represent complex agent workflows
-
-## Setup
-
-### 1. Start the scene-builder dev server
+The server is published on npm. No need to clone the repo.
 
 ```bash
-pnpm --filter scene-builder dev
+npx -y @sajou/mcp-server --http
 ```
 
-The scene-builder runs on `http://localhost:5175` by default.
+This starts the server on port 3001 (default). Specify a custom port:
 
-### 2. Configure your MCP client
+```bash
+npx -y @sajou/mcp-server --http 3000
+```
 
-#### Claude Code / Claude Desktop
+### Running with a client
+
+The scene-builder (browser client) connects to the server via HTTP. In development:
+
+**Terminal 1 — server:**
+```bash
+npx -y @sajou/mcp-server --http 3000
+```
+
+**Terminal 2 — client:**
+```bash
+# From the sajou repo
+cd tools/scene-builder && pnpm dev:vite
+```
+
+The Vite dev server proxies `/api/*` to `http://localhost:3000` (configurable via `SAJOU_SERVER` env var). Open `http://localhost:5175` in your browser.
+
+The scene-builder can also run without a server (offline/Tauri mode) — it falls back to local IndexedDB storage.
+
+### Startup flow
+
+1. Browser restores local state from IndexedDB
+2. Probes server via `GET /api/state/full` (2s timeout)
+3. If server has state → overwrites local stores with server data
+4. If server is empty → pushes local state to server
+5. SSE connection established for live sync
+
+## MCP client configuration
+
+### Claude Code / Claude Desktop
 
 Add to your MCP config (`~/.claude/claude_desktop_config.json` or project `.mcp.json`):
 
@@ -47,40 +78,38 @@ Add to your MCP config (`~/.claude/claude_desktop_config.json` or project `.mcp.
   "mcpServers": {
     "sajou": {
       "command": "npx",
-      "args": ["-y", "@sajou/mcp-server"],
-      "env": {
-        "SAJOU_DEV_SERVER": "http://localhost:5175"
-      }
+      "args": ["-y", "@sajou/mcp-server"]
     }
   }
 }
 ```
 
-#### Development (from the repo)
+This starts the server in **stdio mode** (MCP protocol over stdin/stdout). The server also accepts `--http` to run in HTTP mode with REST API and SSE.
+
+### Development (from the repo)
 
 ```json
 {
   "mcpServers": {
     "sajou": {
-      "command": "npx",
-      "args": ["tsx", "packages/mcp-server/src/index.ts"],
-      "env": {
-        "SAJOU_DEV_SERVER": "http://localhost:5175"
-      }
+      "command": "pnpm",
+      "args": ["--filter", "@sajou/mcp-server", "start"]
     }
   }
 }
 ```
 
-### Environment variables
+## Entry points
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `SAJOU_DEV_SERVER` | `http://localhost:5175` | URL of the scene-builder dev server |
+| Command | Mode | Use case |
+|---------|------|----------|
+| `npx -y @sajou/mcp-server` | stdio | Claude Code / Claude Desktop MCP integration |
+| `npx -y @sajou/mcp-server --http` | HTTP (port 3001) | Standalone server with REST API + SSE + MCP HTTP |
+| `npx -y @sajou/mcp-server --http 8080` | HTTP (custom port) | Same, custom port |
 
 ## Tools
 
-The MCP server exposes 20 tools organized into five categories.
+The MCP server exposes 20+ tools organized into five categories.
 
 ### Read tools — scene inspection
 
@@ -92,6 +121,7 @@ These tools let the agent understand what's currently on stage.
 | `get_scene_state` | Raw scene state — all placed entities with positions, visibility, layers, routes, dimensions, and editor mode. |
 | `get_choreographies` | List all choreographies with trigger signal types, conditions, step types, and wiring info. |
 | `get_shaders` | All GLSL shaders with full source code, uniforms, object groups, and pass count. |
+| `get_sketches` | All sketches (p5.js / Three.js) with source code and parameters. |
 | `map_signals` | View current signal-to-choreography wiring (read-only). |
 
 ### Write tools — scene composition
@@ -114,52 +144,48 @@ These tools let the agent create and control GLSL shaders.
 |------|-------------|
 | `create_shader` | Create a fragment/vertex shader with uniforms. Supports `@ui` controls (slider, color, toggle, xy), virtual object grouping (`@object`), and multi-pass feedback. |
 | `update_shader` | Update an existing shader's code, uniforms, name, or pass count. Partial updates — only provided fields change. |
-| `set_uniform` | Set a uniform value in real-time. Supports float, int, bool, vec2, vec3, vec4. The primary mechanism for live shader control. |
+| `set_uniform` | Set a uniform value in real-time. Supports float, int, bool, vec2, vec3, vec4. |
 | `get_shaders` | Read all shader definitions (also listed under read tools). |
 
-### p5.js tools — sketch effects
+### Sketch tools — p5.js + Three.js
 
-These tools let the agent create and control p5.js sketches.
+These tools let the agent create and control live-coded sketches.
 
 | Tool | Description |
 |------|-------------|
-| `create_p5_sketch` | Create a p5.js sketch with source code and param annotations (`@param:` for controls, `@bind:` for wiring). |
-| `update_p5_sketch` | Update a sketch's source, name, or params. |
-| `delete_p5_sketch` | Remove a sketch from the scene. |
-| `set_p5_param` | Set a sketch param value in real-time (e.g. `speed: 2.5`). Updates the live `p.sajou` bridge without restarting. |
+| `create_sketch` | Create a sketch (p5.js or Three.js mode) with source code and param annotations. |
+| `update_sketch` | Update a sketch's source, name, mode, or params. |
+| `set_sketch_param` | Set a sketch param value in real-time (e.g. `speed: 2.5`). |
 
 ### Runtime tools — signals
 
 | Tool | Description |
 |------|-------------|
-| `emit_signal` | Emit a signal to the scene. Triggers any choreographies wired to that signal type. Supports all well-known types: `task_dispatch`, `tool_call`, `tool_result`, `agent_state_change`, `error`, `completion`, etc. |
+| `emit_signal` | Emit a signal to the scene. Triggers any choreographies wired to that signal type. |
 
 ## State sync
 
-The scene-builder dev server maintains bidirectional state sync between the browser and external tools:
+The server maintains bidirectional state sync between the browser and external tools:
 
-- **Client push (state-sync)**: the browser pushes scene state to the dev server on every change (debounced 300ms). The server holds the latest state in memory, making it available to the MCP server via REST endpoints.
-- **Command consumer**: external tools (including the MCP server) push commands to the dev server via typed `POST` endpoints. Commands are queued and broadcast to the browser via SSE (`/__commands__/stream`). The browser executes each command against its stores, then ACKs so the server prunes the queue.
-- **SSE fallback**: if the SSE stream disconnects, the browser falls back to polling `GET /api/commands/pending` every 500ms and auto-reverts to SSE when it reconnects.
-
-This means an AI agent's changes appear immediately in the browser, and any manual changes in the browser are immediately visible to the agent.
+- **Client push**: the browser pushes scene state to the server on every change (debounced 300ms)
+- **Server push**: external tools (MCP agents, REST API) mutate state on the server; changes are broadcast to the browser via SSE (`/__commands__/stream`)
+- **SSE fallback**: if the SSE stream disconnects, the browser falls back to polling every 500ms
 
 ### Command delivery flow
 
 ```
-POST /api/scene/entities ─┐
-POST /api/shaders         ├──> Server queues SceneCommand
-POST /api/wiring          ┘        │
-                                   ▼
-                          /__commands__/stream (SSE)
-                                   │
-                                   ▼
-                          Browser command-consumer.ts
-                           executes against stores
-                                   │
-                                   ▼
-                          POST /api/commands/ack
-                           (server prunes queue)
+MCP tool call ──┐
+REST API POST ──┤──> Server mutates state
+                │         │
+                │         ▼
+                │    /__commands__/stream (SSE)
+                │         │
+                │         ▼
+                │    Browser applies command
+                │         │
+                │         ▼
+                │    POST /api/commands/ack
+                └──> Server prunes queue
 ```
 
 ### REST API endpoints
@@ -174,7 +200,7 @@ POST /api/wiring          ┘        │
 | `/api/wiring` | GET | Full wiring graph (signal → signal-type → choreographer → shader) |
 | `/api/signals/sources` | GET | Connected signal sources (local + remote) |
 | `/api/shaders` | GET | All shaders with source code and uniforms |
-| `/api/p5` | GET | All p5.js sketches with source and params |
+| `/api/p5` | GET | All sketches with source and params |
 | `/api/discover/local` | GET | Probe local services (Claude Code, OpenClaw, LM Studio, Ollama) |
 
 #### Write (mutate scene)
@@ -190,24 +216,17 @@ POST /api/wiring          ┘        │
 | `/api/shaders/:id` | PUT | Update an existing shader |
 | `/api/shaders/:id` | DELETE | Remove a shader |
 | `/api/shaders/:id/uniforms` | POST | Set a uniform value in real-time |
-| `/api/p5` | POST | Create a p5.js sketch |
+| `/api/p5` | POST | Create a sketch |
 | `/api/p5/:id` | PUT | Update an existing sketch |
 | `/api/p5/:id` | DELETE | Remove a sketch |
 | `/api/p5/:id/params` | POST | Set a sketch param value in real-time |
 | `/api/signal` | POST | Emit a signal (triggers wired choreographies) |
-
-### Timing notes
-
-- State sync debounce: ~300ms. After a write command, wait ~500ms before querying state to ensure the browser has pushed its updated snapshot.
-- Shader uniform changes (`set-uniform`) are reflected immediately on the Three.js material and update the DOM slider controls in the uniforms panel.
 
 ## Example workflow
 
 Here's a complete example of an AI agent building a scene from scratch.
 
 ### Step 1: Understand the scene
-
-The agent starts by describing the current scene:
 
 ```
 Tool: describe_scene
@@ -216,109 +235,37 @@ Tool: describe_scene
 
 ### Step 2: Place entities
 
-The agent places entities from the theme's catalog:
-
 ```
 Tool: place_entity
-  entityId: "peon"
-  x: 200, y: 300
-  semanticId: "worker"
+  entityId: "peon", x: 200, y: 300, semanticId: "worker"
 
 Tool: place_entity
-  entityId: "forge"
-  x: 500, y: 300
-  semanticId: "forge"
+  entityId: "forge", x: 500, y: 300, semanticId: "forge"
 ```
 
 ### Step 3: Create a choreography
 
-The agent creates a choreography that moves the worker to the forge when a task is dispatched:
-
 ```
 Tool: create_choreography
-  name: "Worker dispatched"
-  triggerSignal: "task_dispatch"
+  on: "task_dispatch"
   steps: [
-    { "action": "move", "entity": "worker", "to": "forge", "duration": 1200, "easing": "easeInOut" },
+    { "action": "move", "entity": "worker", "target": "forge", "duration": 1200 },
     { "action": "onArrive", "steps": [
-      { "action": "flash", "target": "forge", "color": "gold" }
+      { "action": "flash", "entity": "forge", "params": { "color": "gold" } }
     ]}
   ]
 ```
 
-### Step 4: Wire signals to choreographies
-
-The agent connects the signal source to the choreography:
+### Step 4: Wire and trigger
 
 ```
 Tool: create_wire
-  from: { zone: "signal", id: "ws-source" }
-  to: { zone: "signal-type", id: "task_dispatch" }
+  fromZone: "signal-type", fromId: "task_dispatch"
+  toZone: "choreographer", toId: "<choreography-id>"
 
-Tool: create_wire
-  from: { zone: "signal-type", id: "task_dispatch" }
-  to: { zone: "choreographer", id: "worker-dispatched" }
-```
-
-### Step 5: Add a shader effect
-
-The agent creates a glow shader:
-
-```
-Tool: create_shader
-  name: "Forge glow"
-  fragmentCode: |
-    uniform float uIntensity; // @ui slider 0.0 2.0
-    uniform vec3 uColor;      // @ui color
-    void main() {
-      float glow = uIntensity * smoothstep(0.5, 0.0, length(vUv - 0.5));
-      gl_FragColor = vec4(uColor * glow, glow);
-    }
-```
-
-### Step 6: Trigger and adjust
-
-The agent fires a signal and tweaks the shader in real-time:
-
-```
 Tool: emit_signal
   type: "task_dispatch"
-  payload: { "task": "gather_resources", "from": "barracks", "to": "forge" }
-
-Tool: set_uniform
-  shaderId: "forge-glow"
-  uniform: "uIntensity"
-  value: 1.5
+  payload: { "task": "gather_resources" }
 ```
 
-The worker moves to the forge, a flash fires on arrival, and the forge glows — all composed by the AI agent through MCP.
-
-## Shader tools in depth
-
-The shader tools give agents full control over GPU-driven visual effects.
-
-### Creating shaders
-
-`create_shader` accepts GLSL source code with sajou's uniform annotation system:
-
-- **`@ui slider min max`** — expose as a slider control
-- **`@ui color`** — expose as a color picker
-- **`@ui toggle`** — expose as a boolean toggle
-- **`@ui xy`** — expose as a 2D control
-- **`@bind`** — wire to choreography actions
-- **`@object groupName`** — group uniforms under a collapsible panel
-
-### Real-time uniform control
-
-`set_uniform` lets agents tweak shader parameters without recompiling:
-
-```
-set_uniform(shaderId: "fire-effect", uniform: "uIntensity", value: 0.8)
-set_uniform(shaderId: "fire-effect", uniform: "uFlameColor", value: [1.0, 0.4, 0.1])
-```
-
-Changes appear instantly in the browser. Combined with `emit_signal`, agents can create responsive visual effects that react to their own events.
-
-### Multi-pass shaders
-
-Shaders can use ping-pong feedback (multi-pass rendering) for effects like trails, blur, and fluid simulations. Set the pass count when creating or updating a shader with `update_shader`.
+The worker moves to the forge and a flash fires on arrival — composed entirely by the AI agent.
