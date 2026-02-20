@@ -1,0 +1,45 @@
+{
+  "name": "scene-builder",
+  "version": "0.7.0",
+  "private": true,
+  "description": "Sajou Scene Builder — visual canvas-first workspace for building animated scenes",
+  "type": "module",
+  "scripts": {
+    "dev": "node ../../packages/mcp-server/dist/index.js --http & vite",
+    "dev:vite": "vite",
+    "dev:server": "node ../../packages/mcp-server/dist/index.js --http",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build"
+  },
+  "dependencies": {
+    "@codemirror/autocomplete": "^6.20.0",
+    "@codemirror/commands": "^6.10.2",
+    "@codemirror/lang-cpp": "^6.0.3",
+    "@codemirror/lang-javascript": "^6.2.4",
+    "@codemirror/language": "^6.12.1",
+    "@codemirror/state": "^6.5.4",
+    "@codemirror/theme-one-dark": "^6.1.3",
+    "@codemirror/view": "^6.39.14",
+    "@lezer/highlight": "^1.2.3",
+    "@sajou/core": "workspace:*",
+    "@sajou/stage": "workspace:*",
+    "@tauri-apps/api": "^2.10.1",
+    "@tauri-apps/plugin-http": "^2.5.7",
+    "codemirror": "^6.0.2",
+    "fflate": "^0.8.2",
+    "gifuct-js": "^2.1.2",
+    "p5": "^2.2.1",
+    "three": "^0.175.0"
+  },
+  "devDependencies": {
+    "@sajou/tap": "workspace:*",
+    "@tauri-apps/cli": "^2.10.0",
+    "@types/p5": "^1.7.7",
+    "@types/three": "^0.175.0",
+    "typescript": "^5.9.3",
+    "vite": "^6.3.5"
+  }
+}

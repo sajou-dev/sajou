@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>sajou — Download</title>
+  <meta name="description" content="Download sajou, the visual choreographer for AI agents. Desktop app for macOS, Windows, and Linux." />
+  <link rel="icon" href="/sajou-favicon.svg" type="image/svg+xml" />
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --color-bg: #07070C;
+      --color-surface: #0E0E16;
+      --color-elevated: #14141F;
+      --color-accent: #E8A851;
+      --color-accent-light: #F0C06A;
+      --color-accent-dim: #A07232;
+      --color-text: #E8E8F0;
+      --color-text-muted: #6E6E8A;
+      --color-text-dim: #3A3A52;
+      --color-border: #1E1E2E;
+      --color-border-hover: #2E2E44;
+    }
+
+    body {
+      background: var(--color-bg);
+      color: var(--color-text);
+      font-family: 'DM Sans', sans-serif;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a { color: var(--color-accent); text-decoration: none; }
+    a:hover { color: var(--color-accent-light); }
+
+    .container {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* ── Header ── */
+    header {
+      padding: 24px 0;
+      border-bottom: 1px solid var(--color-border);
+    }
+    header .container {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .header-brand {
+      font-family: 'Sora', sans-serif;
+      font-weight: 500;
+      font-size: 1.25rem;
+      letter-spacing: -0.5px;
+      color: var(--color-accent);
+    }
+    .header-nav {
+      display: flex;
+      gap: 24px;
+      list-style: none;
+    }
+    .header-nav a {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      color: var(--color-text-muted);
+      letter-spacing: 0.5px;
+    }
+    .header-nav a:hover { color: var(--color-text); }
+
+    /* ── Hero ── */
+    .hero {
+      padding: 64px 0 48px;
+      text-align: center;
+    }
+    .hero h1 {
+      font-family: 'Sora', sans-serif;
+      font-weight: 600;
+      font-size: 2.25rem;
+      letter-spacing: -0.5px;
+      line-height: 1.2;
+      margin-bottom: 12px;
+    }
+    .hero h1 em {
+      font-style: normal;
+      color: var(--color-accent);
+    }
+    .hero p {
+      font-size: 1.05rem;
+      color: var(--color-text-muted);
+      max-width: 520px;
+      margin: 0 auto;
+    }
+
+    /* ── Download section ── */
+    .download {
+      padding: 32px 0 48px;
+      text-align: center;
+    }
+    .version-badge {
+      display: inline-block;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--color-accent);
+      background: rgba(232, 168, 81, 0.08);
+      border: 1px solid var(--color-accent-dim);
+      border-radius: 12px;
+      padding: 4px 14px;
+      margin-bottom: 24px;
+      letter-spacing: 0.5px;
+    }
+    .version-badge a { color: inherit; }
+
+    .download-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin-top: 24px;
+    }
+    .download-card {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: 10px;
+      padding: 20px 16px;
+      text-align: center;
+      transition: border-color 0.15s;
+    }
+    .download-card:hover {
+      border-color: var(--color-border-hover);
+    }
+    .download-card .os {
+      font-family: 'Sora', sans-serif;
+      font-weight: 500;
+      font-size: 0.95rem;
+      margin-bottom: 8px;
+    }
+    .download-card .files {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .download-card .files a {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--color-accent);
+      padding: 6px 12px;
+      border-radius: 6px;
+      background: rgba(232, 168, 81, 0.06);
+      display: block;
+      transition: background 0.15s;
+    }
+    .download-card .files a:hover {
+      background: rgba(232, 168, 81, 0.14);
+    }
+    .download-card .files .size {
+      color: var(--color-text-dim);
+      font-size: 0.65rem;
+      margin-left: 4px;
+    }
+
+    #loading-msg {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      color: var(--color-text-dim);
+      padding: 24px;
+    }
+
+    .fallback-link {
+      margin-top: 16px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--color-text-dim);
+    }
+
+    /* ── What's new ── */
+    .whats-new {
+      padding: 48px 0;
+      border-top: 1px solid var(--color-border);
+    }
+    .whats-new h2 {
+      font-family: 'Sora', sans-serif;
+      font-weight: 600;
+      font-size: 1.5rem;
+      letter-spacing: -0.5px;
+      margin-bottom: 24px;
+    }
+    .feature-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 12px;
+    }
+    .feature-item {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: 10px;
+      padding: 20px;
+    }
+    .feature-item h3 {
+      font-family: 'Sora', sans-serif;
+      font-weight: 500;
+      font-size: 0.95rem;
+      margin-bottom: 6px;
+    }
+    .feature-item .tag {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.6rem;
+      color: var(--color-accent);
+      background: rgba(232, 168, 81, 0.08);
+      border-radius: 4px;
+      padding: 2px 6px;
+      margin-bottom: 6px;
+      display: inline-block;
+      letter-spacing: 0.5px;
+    }
+    .feature-item p {
+      font-size: 0.85rem;
+      color: var(--color-text-muted);
+      line-height: 1.5;
+    }
+
+    /* ── Footer ── */
+    footer {
+      padding: 32px 0;
+      border-top: 1px solid var(--color-border);
+      text-align: center;
+    }
+    footer p {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--color-text-dim);
+    }
+
+    @media (max-width: 480px) {
+      .hero h1 { font-size: 1.75rem; }
+      .download-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="container">
+      <a class="header-brand" href="https://sajou.dev">sajou</a>
+      <nav>
+        <ul class="header-nav">
+          <li><a href="https://docs.sajou.dev">Docs</a></li>
+          <li><a href="https://github.com/sajou-dev/sajou">GitHub</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="container">
+      <h1>Download <em>sajou</em></h1>
+      <p>Desktop app for macOS, Windows, and Linux. Connect directly to localhost AI services without browser restrictions.</p>
+    </div>
+  </section>
+
+  <section class="download">
+    <div class="container">
+      <div class="version-badge" id="version-badge">loading&hellip;</div>
+      <div id="download-area">
+        <div id="loading-msg">Fetching latest release&hellip;</div>
+      </div>
+      <p class="fallback-link"><a href="https://github.com/sajou-dev/sajou/releases" target="_blank" rel="noopener noreferrer">View all releases on GitHub</a></p>
+    </div>
+  </section>
+
+  <section class="whats-new">
+    <div class="container">
+      <h2>What's new</h2>
+      <div class="feature-list">
+
+        <div class="feature-item">
+          <div class="tag">v0.5.5</div>
+          <h3>Desktop app (Tauri)</h3>
+          <p>Native app for macOS (ARM + Intel), Windows, and Linux. No browser mixed-content limits.</p>
+        </div>
+
+        <div class="feature-item">
+          <div class="tag">v0.6.0</div>
+          <h3>Full-window preview</h3>
+          <p>Press F to expand the Visual node to full window. Auto-activates run mode for presentations and demos.</p>
+        </div>
+
+        <div class="feature-item">
+          <div class="tag">v0.5.1</div>
+          <h3>Lighting &amp; particles</h3>
+          <p>Three.js ambient, directional, point lights with flicker. CPU-simulated particle emitters with color-over-life and glow.</p>
+        </div>
+
+        <div class="feature-item">
+          <div class="tag">v0.5.3</div>
+          <h3>Speech bubbles</h3>
+          <p>Canvas2D overlay with streaming typewriter effect. Per-entity config for colors, opacity, tail position, retention.</p>
+        </div>
+
+        <div class="feature-item">
+          <div class="tag">v0.5.2</div>
+          <h3>Binding transitions</h3>
+          <p>Animated float property bindings with configurable duration, easing, and auto-revert.</p>
+        </div>
+
+        <div class="feature-item">
+          <div class="tag">v0.5.0</div>
+          <h3>OpenClaw + local discovery</h3>
+          <p>Auto-detect OpenClaw, LM Studio, Ollama on localhost. Periodic rescan every 30s.</p>
+        </div>
+
+        <div class="feature-item">
+          <div class="tag">v0.4.0</div>
+          <h3>p5.js creative coding</h3>
+          <p>Instance mode p5.js sketches with param annotations, wiring, and MCP control. 20 tools total.</p>
+        </div>
+
+        <div class="feature-item">
+          <div class="tag">v0.3.0</div>
+          <h3>MCP Server</h3>
+          <p>AI agents read scenes, compose choreographies, write GLSL shaders, and control uniforms in real-time.</p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="container">
+      <p><a href="https://sajou.dev">sajou.dev</a> &middot; <a href="https://docs.sajou.dev">docs.sajou.dev</a> &middot; <a href="https://github.com/sajou-dev/sajou">GitHub</a></p>
+    </div>
+  </footer>
+
+  <script>
+    // Fetch latest release from GitHub API and build download cards
+    (function () {
+      var REPO = 'sajou-dev/sajou';
+      var badge = document.getElementById('version-badge');
+      var area = document.getElementById('download-area');
+
+      // Platform classification by file extension
+      var PLATFORMS = {
+        macos: { label: 'macOS', extensions: ['.dmg', '.app.tar.gz'] },
+        windows: { label: 'Windows', extensions: ['.msi', '-setup.exe', '.exe'] },
+        linux: { label: 'Linux', extensions: ['.AppImage', '.deb', '.rpm', '.tar.gz'] }
+      };
+
+      function formatSize(bytes) {
+        if (bytes > 1048576) return (bytes / 1048576).toFixed(1) + ' MB';
+        if (bytes > 1024) return (bytes / 1024).toFixed(0) + ' KB';
+        return bytes + ' B';
+      }
+
+      function classifyAsset(name) {
+        var n = name.toLowerCase();
+        // Skip sig files, updater json, blockmap
+        if (n.endsWith('.sig') || n.endsWith('.json') || n.endsWith('.blockmap')) return null;
+        for (var platform in PLATFORMS) {
+          var exts = PLATFORMS[platform].extensions;
+          for (var i = 0; i < exts.length; i++) {
+            if (n.endsWith(exts[i].toLowerCase())) return platform;
+          }
+        }
+        // Linux catch-all for .tar.gz that isn't .app.tar.gz (macOS)
+        if (n.endsWith('.tar.gz') && n.indexOf('.app.tar.gz') === -1) return 'linux';
+        return null;
+      }
+
+      function render(release) {
+        badge.innerHTML = '<a href="' + release.html_url + '" target="_blank" rel="noopener noreferrer">' + release.tag_name + '</a>';
+
+        // Group assets by platform
+        var grouped = { macos: [], windows: [], linux: [] };
+        (release.assets || []).forEach(function (a) {
+          var p = classifyAsset(a.name);
+          if (p) grouped[p].push(a);
+        });
+
+        var html = '<div class="download-grid">';
+        ['macos', 'windows', 'linux'].forEach(function (p) {
+          var assets = grouped[p];
+          html += '<div class="download-card"><div class="os">' + PLATFORMS[p].label + '</div><div class="files">';
+          if (assets.length === 0) {
+            html += '<span style="font-family:JetBrains Mono,monospace;font-size:0.75rem;color:var(--color-text-dim)">not available yet</span>';
+          } else {
+            assets.forEach(function (a) {
+              var ext = a.name.replace(/^sajou[_-][\d.]+[_-]?/, '');
+              html += '<a href="' + a.browser_download_url + '">' + ext + '<span class="size">' + formatSize(a.size) + '</span></a>';
+            });
+          }
+          html += '</div></div>';
+        });
+        html += '</div>';
+        area.innerHTML = html;
+      }
+
+      function fallback(msg) {
+        badge.textContent = 'sajou';
+        area.innerHTML = '<div id="loading-msg">' + msg + ' <a href="https://github.com/' + REPO + '/releases">View releases on GitHub</a></div>';
+      }
+
+      fetch('https://api.github.com/repos/' + REPO + '/releases/latest')
+        .then(function (r) {
+          if (!r.ok) throw new Error(r.status);
+          return r.json();
+        })
+        .then(render)
+        .catch(function () { fallback('Could not load release info.'); });
+    })();
+  </script>
+
+</body>
+</html>

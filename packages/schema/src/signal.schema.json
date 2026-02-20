@@ -1,0 +1,441 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sajou.dev/schema/signal.json",
+  "title": "Sajou Signal",
+  "description": "A signal event in the Sajou protocol. Signals are the data layer: events emitted by AI agent orchestrators that feed the choreographer. Every signal has a standard envelope wrapping a typed payload. The protocol is open: any string is a valid signal type. Well-known types (task_dispatch, tool_call, etc.) have validated payloads; unknown types accept any object payload.",
+  "type": "object",
+  "required": ["id", "type", "timestamp", "source", "payload"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique identifier for this signal instance. UUID or adapter-generated."
+    },
+    "type": {
+      "type": "string",
+      "description": "Discriminator field. Determines the shape of the payload. Well-known types: task_dispatch, tool_call, tool_result, token_usage, agent_state_change, error, completion, text_delta, thinking. Any other string is accepted for custom/extension signals."
+    },
+    "timestamp": {
+      "type": "number",
+      "description": "Unix epoch in milliseconds. Used for temporal ordering of signals."
+    },
+    "source": {
+      "type": "string",
+      "description": "Identifies the adapter or producer that emitted this signal. Convention: 'adapter:<name>' (e.g., 'adapter:openclaw', 'adapter:test')."
+    },
+    "correlationId": {
+      "type": "string",
+      "description": "Optional. Groups related signals into an episode (e.g., all signals from the same task execution). Useful for the choreographer to track entity lifecycles."
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Optional. Adapter-specific or debug information. The choreographer ignores this field. Adapters can use it to pass through raw backend data.",
+      "additionalProperties": true
+    },
+    "payload": {
+      "type": "object",
+      "description": "The typed payload. Shape depends on the 'type' field. Well-known types have validated schemas; unknown types accept any object.",
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": { "properties": { "type": { "const": "task_dispatch" } } },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/taskDispatchPayload" } } }
+    },
+    {
+      "if": { "properties": { "type": { "const": "tool_call" } } },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/toolCallPayload" } } }
+    },
+    {
+      "if": { "properties": { "type": { "const": "tool_result" } } },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/toolResultPayload" } } }
+    },
+    {
+      "if": { "properties": { "type": { "const": "token_usage" } } },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/tokenUsagePayload" } } }
+    },
+    {
+      "if": { "properties": { "type": { "const": "agent_state_change" } } },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/agentStateChangePayload" } } }
+    },
+    {
+      "if": { "properties": { "type": { "const": "error" } } },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/errorPayload" } } }
+    },
+    {
+      "if": { "properties": { "type": { "const": "completion" } } },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/completionPayload" } } }
+    },
+    {
+      "if": { "properties": { "type": { "const": "text_delta" } } },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/textDeltaPayload" } } }
+    },
+    {
+      "if": { "properties": { "type": { "const": "thinking" } } },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/thinkingPayload" } } }
+    },
+    {
+      "if": { "properties": { "type": { "const": "user.click" } } },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/userClickPayload" } } }
+    },
+    {
+      "if": { "properties": { "type": { "const": "user.move" } } },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/userMovePayload" } } }
+    },
+    {
+      "if": { "properties": { "type": { "const": "user.zone" } } },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/userZonePayload" } } }
+    },
+    {
+      "if": { "properties": { "type": { "const": "user.command" } } },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/userCommandPayload" } } }
+    },
+    {
+      "if": { "properties": { "type": { "const": "user.point" } } },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/userPointPayload" } } }
+    }
+  ],
+  "$defs": {
+    "taskDispatchPayload": {
+      "type": "object",
+      "description": "A task is assigned to an agent. This is the starting point of most visual choreographies — a peon walks to the forge, a node lights up, an arrow appears.",
+      "required": ["taskId", "from", "to"],
+      "properties": {
+        "taskId": {
+          "type": "string",
+          "description": "Unique identifier for the task being dispatched."
+        },
+        "from": {
+          "type": "string",
+          "description": "The entity dispatching the task (e.g., orchestrator ID, parent agent ID)."
+        },
+        "to": {
+          "type": "string",
+          "description": "The entity receiving the task (e.g., agent ID)."
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of the task."
+        }
+      },
+      "additionalProperties": false
+    },
+    "toolCallPayload": {
+      "type": "object",
+      "description": "An agent invokes a tool. Visually: a building lights up, an ability icon appears, a terminal opens.",
+      "required": ["toolName", "agentId"],
+      "properties": {
+        "toolName": {
+          "type": "string",
+          "description": "Name of the tool being invoked (e.g., 'web_search', 'code_interpreter')."
+        },
+        "agentId": {
+          "type": "string",
+          "description": "The agent making the tool call."
+        },
+        "callId": {
+          "type": "string",
+          "description": "Optional. Unique ID for this specific call, used to correlate with the tool_result signal."
+        },
+        "input": {
+          "description": "Optional. The input/arguments passed to the tool. Shape depends on the tool.",
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "toolResultPayload": {
+      "type": "object",
+      "description": "A tool returns a result. Visually: the building dims, a result icon appears, output scrolls.",
+      "required": ["toolName", "agentId", "success"],
+      "properties": {
+        "toolName": {
+          "type": "string",
+          "description": "Name of the tool that returned."
+        },
+        "agentId": {
+          "type": "string",
+          "description": "The agent that made the original call."
+        },
+        "callId": {
+          "type": "string",
+          "description": "Optional. Correlates with the tool_call signal's callId."
+        },
+        "success": {
+          "type": "boolean",
+          "description": "Whether the tool call succeeded."
+        },
+        "output": {
+          "description": "Optional. The tool's output. Shape depends on the tool.",
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "tokenUsagePayload": {
+      "type": "object",
+      "description": "Token consumption report. Visually: gold coins tinkle, energy meter drains, a counter increments.",
+      "required": ["agentId", "promptTokens", "completionTokens"],
+      "properties": {
+        "agentId": {
+          "type": "string",
+          "description": "The agent consuming tokens."
+        },
+        "promptTokens": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of tokens in the prompt."
+        },
+        "completionTokens": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of tokens in the completion."
+        },
+        "model": {
+          "type": "string",
+          "description": "Optional. The model used (e.g., 'claude-opus-4-6', 'gpt-4')."
+        },
+        "cost": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Optional. Estimated cost in USD for this usage."
+        }
+      },
+      "additionalProperties": false
+    },
+    "agentStateChangePayload": {
+      "type": "object",
+      "description": "Agent transitions between states. Visually: idle animation, thinking particles, action stance.",
+      "required": ["agentId", "from", "to"],
+      "properties": {
+        "agentId": {
+          "type": "string",
+          "description": "The agent changing state."
+        },
+        "from": {
+          "$ref": "#/$defs/agentState",
+          "description": "The previous state."
+        },
+        "to": {
+          "$ref": "#/$defs/agentState",
+          "description": "The new state."
+        },
+        "reason": {
+          "type": "string",
+          "description": "Optional. Why the state changed (e.g., 'received task', 'tool timeout')."
+        }
+      },
+      "additionalProperties": false
+    },
+    "agentState": {
+      "type": "string",
+      "enum": ["idle", "thinking", "acting", "waiting", "done", "error"],
+      "description": "Possible states for an agent. 'idle': no task. 'thinking': processing/reasoning. 'acting': executing a tool or action. 'waiting': blocked on external input. 'done': task completed. 'error': failed."
+    },
+    "errorPayload": {
+      "type": "object",
+      "description": "Something went wrong. Visually: explosion, red flash, critical alert, log line in red.",
+      "required": ["message", "severity"],
+      "properties": {
+        "agentId": {
+          "type": "string",
+          "description": "Optional. The agent that encountered the error."
+        },
+        "code": {
+          "type": "string",
+          "description": "Optional. Machine-readable error code."
+        },
+        "message": {
+          "type": "string",
+          "description": "Human-readable error message."
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["warning", "error", "critical"],
+          "description": "Severity level. Affects visual intensity: warning is subtle, critical triggers full alert choreography."
+        }
+      },
+      "additionalProperties": false
+    },
+    "completionPayload": {
+      "type": "object",
+      "description": "A task or workflow finishes. Visually: victory animation, node dims, checkmark appears.",
+      "required": ["taskId", "success"],
+      "properties": {
+        "taskId": {
+          "type": "string",
+          "description": "The task that completed."
+        },
+        "agentId": {
+          "type": "string",
+          "description": "Optional. The agent that completed the task."
+        },
+        "success": {
+          "type": "boolean",
+          "description": "Whether the task completed successfully."
+        },
+        "result": {
+          "type": "string",
+          "description": "Optional. Summary of the result."
+        }
+      },
+      "additionalProperties": false
+    },
+    "textDeltaPayload": {
+      "type": "object",
+      "description": "A streaming text chunk from an AI model. Visually: text appears letter by letter, speech bubble fills, scroll region updates.",
+      "required": ["agentId", "content"],
+      "properties": {
+        "agentId": {
+          "type": "string",
+          "description": "The agent producing this text."
+        },
+        "content": {
+          "type": "string",
+          "description": "The text chunk (delta, not cumulative)."
+        },
+        "contentType": {
+          "type": "string",
+          "enum": ["text", "code", "markdown"],
+          "description": "Optional. Hint about the content format. Defaults to 'text'."
+        },
+        "index": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Optional. Chunk index within the current stream (0-based)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "thinkingPayload": {
+      "type": "object",
+      "description": "An AI model's internal reasoning/thinking step. Visually: thought bubbles, brain glow, internal monologue scroll.",
+      "required": ["agentId", "content"],
+      "properties": {
+        "agentId": {
+          "type": "string",
+          "description": "The agent thinking."
+        },
+        "content": {
+          "type": "string",
+          "description": "The thinking/reasoning text chunk."
+        }
+      },
+      "additionalProperties": false
+    },
+    "boardPosition": {
+      "type": "object",
+      "description": "2D position on the board.",
+      "required": ["x", "y"],
+      "properties": {
+        "x": { "type": "number", "description": "Horizontal position." },
+        "y": { "type": "number", "description": "Vertical position." }
+      },
+      "additionalProperties": false
+    },
+    "boardBounds": {
+      "type": "object",
+      "description": "Rectangular bounds on the board.",
+      "required": ["x", "y", "w", "h"],
+      "properties": {
+        "x": { "type": "number", "description": "Left edge." },
+        "y": { "type": "number", "description": "Top edge." },
+        "w": { "type": "number", "minimum": 0, "description": "Width." },
+        "h": { "type": "number", "minimum": 0, "description": "Height." }
+      },
+      "additionalProperties": false
+    },
+    "userClickPayload": {
+      "type": "object",
+      "description": "The user clicked on an entity in the Stage. Triggers agent inspection, selection, or a custom interaction.",
+      "required": ["target"],
+      "properties": {
+        "target": {
+          "type": "string",
+          "description": "The entity ID that was clicked."
+        },
+        "position": {
+          "$ref": "#/$defs/boardPosition",
+          "description": "Optional. Board position of the click."
+        }
+      },
+      "additionalProperties": false
+    },
+    "userMovePayload": {
+      "type": "object",
+      "description": "The user dragged an entity to a slot on the board.",
+      "required": ["entityId", "toSlot"],
+      "properties": {
+        "entityId": {
+          "type": "string",
+          "description": "The entity being moved."
+        },
+        "toSlot": {
+          "type": "string",
+          "description": "The destination slot ID."
+        },
+        "toZone": {
+          "type": "string",
+          "description": "Optional. The destination zone ID."
+        }
+      },
+      "additionalProperties": false
+    },
+    "userZonePayload": {
+      "type": "object",
+      "description": "The user drew a zone on the board (selection, patrol area, build zone).",
+      "required": ["bounds"],
+      "properties": {
+        "bounds": {
+          "$ref": "#/$defs/boardBounds",
+          "description": "Bounds of the drawn zone."
+        },
+        "intent": {
+          "type": "string",
+          "description": "Optional. Semantic intent (e.g., 'patrol_area', 'build_zone')."
+        }
+      },
+      "additionalProperties": false
+    },
+    "userCommandPayload": {
+      "type": "object",
+      "description": "The user selected an action from a context menu on an entity.",
+      "required": ["entityId", "action"],
+      "properties": {
+        "entityId": {
+          "type": "string",
+          "description": "The entity the command targets."
+        },
+        "action": {
+          "type": "string",
+          "description": "The action identifier (e.g., 'assign_task', 'inspect')."
+        },
+        "params": {
+          "type": "object",
+          "description": "Optional. Additional parameters for the action.",
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "userPointPayload": {
+      "type": "object",
+      "description": "The user clicked on an empty spot on the board.",
+      "required": ["position"],
+      "properties": {
+        "position": {
+          "$ref": "#/$defs/boardPosition",
+          "description": "Board position of the click."
+        },
+        "zone": {
+          "type": "string",
+          "description": "Optional. The zone containing the click."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

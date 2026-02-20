@@ -1,0 +1,489 @@
+/* ===========================================================================
+ * Shader Editor
+ * =========================================================================== */
+
+/* Header toggle button — active state */
+.header-btn--shader-active {
+  background: var(--color-accent);
+  color: var(--color-bg);
+}
+
+.header-btn--shader-active:hover {
+  background: var(--color-accent-light);
+}
+
+/* Shader editor floating panel content: code + uniforms stacked */
+.panel[data-panel-id="shader-editor"] .panel-content {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* Code editor area */
+.shader-code-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Code panel header (tabs, shader selector, buttons) */
+.shader-code-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.shader-code-header select,
+.shader-code-header input {
+  background: var(--color-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 2px 6px;
+  height: 24px;
+}
+
+.shader-code-header select:focus,
+.shader-code-header input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+.shader-tab-btn {
+  padding: 3px 10px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-muted);
+  transition: background 0.12s, color 0.12s;
+}
+
+.shader-tab-btn:hover {
+  background: var(--color-border-hover);
+  color: var(--color-text);
+}
+
+.shader-tab-btn--active {
+  background: var(--color-accent);
+  color: var(--color-bg);
+}
+
+.shader-code-btn {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  font-size: 14px;
+  transition: background 0.12s, color 0.12s;
+}
+
+.shader-code-btn:hover {
+  background: var(--color-border-hover);
+  color: var(--color-text);
+}
+
+/* CodeMirror container */
+.shader-code-panel .cm-editor {
+  flex: 1;
+  min-height: 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.shader-code-panel .cm-editor .cm-scroller {
+  overflow: auto;
+}
+
+/* Compilation error gutter marker */
+.cm-error-line {
+  background: rgba(196, 64, 64, 0.15);
+}
+
+.shader-compile-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  border-top: 1px solid var(--color-border);
+  flex-shrink: 0;
+  min-height: 24px;
+}
+
+.shader-compile-status--ok {
+  color: var(--color-success);
+}
+
+.shader-compile-status--error {
+  color: var(--color-error);
+}
+
+/* Uniforms panel (bottom of shader-editor panel) */
+.shader-uniforms-panel {
+  max-height: 40%;
+  overflow-y: auto;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
+  padding: 8px 10px;
+  flex-shrink: 0;
+}
+
+.shader-uniforms-panel:empty {
+  display: none;
+}
+
+.shader-uniform-label {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-muted);
+  margin-bottom: 2px;
+}
+
+.shader-uniform-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.shader-uniform-row input[type="range"] {
+  flex: 1;
+  accent-color: var(--color-accent);
+}
+
+.shader-uniform-row input[type="color"] {
+  width: 28px;
+  height: 22px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.shader-uniform-value {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-muted);
+  min-width: 40px;
+  text-align: right;
+}
+
+/* Object groups (collapsible sections in uniforms panel) */
+.shader-object-group {
+  margin-bottom: 6px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 4px 6px;
+}
+
+.shader-object-group[open] {
+  padding-bottom: 2px;
+}
+
+.shader-object-header {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text);
+  cursor: pointer;
+  padding: 2px 0;
+  list-style: none;
+  user-select: none;
+}
+
+.shader-object-header::before {
+  content: "\25B6";
+  display: inline-block;
+  font-size: 8px;
+  margin-right: 4px;
+  transition: transform 0.15s ease;
+}
+
+.shader-object-group[open] > .shader-object-header::before {
+  transform: rotate(90deg);
+}
+
+.shader-object-header::-webkit-details-marker {
+  display: none;
+}
+
+/* Bind badge (semantic hint next to uniform label) */
+.shader-bind-badge {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--color-accent);
+  background: rgba(232, 168, 81, 0.12);
+  border-radius: 3px;
+  padding: 0 4px;
+  margin-left: 6px;
+  vertical-align: middle;
+  line-height: 16px;
+}
+
+/* Preview panel — fills the shader pipeline node entirely */
+.shader-preview-panel {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  background: #07070c;
+  position: relative;
+  overflow: hidden;
+}
+
+.shader-preview-panel canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Shader mini-bar — same style as zoom-bar */
+#shader-mini-bar {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  z-index: 60;
+  user-select: none;
+}
+
+.shader-mini-btn {
+  border-radius: var(--radius-sm);
+}
+
+.shader-mini-btn--active {
+  color: var(--color-accent);
+}
+
+/* Preset dropdown — fixed positioning to escape overflow: hidden parent */
+.shader-preset-menu {
+  position: fixed;
+  z-index: 1000;
+  background: var(--color-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow);
+  padding: 4px 0;
+  min-width: 180px;
+}
+
+.shader-preset-item {
+  display: block;
+  width: 100%;
+  padding: 6px 12px;
+  text-align: left;
+  font-size: 12px;
+  color: var(--color-text);
+  transition: background 0.1s;
+}
+
+.shader-preset-item:hover {
+  background: var(--color-border-hover);
+}
+
+.shader-preset-item-desc {
+  display: block;
+  font-size: 10px;
+  color: var(--color-text-muted);
+  margin-top: 1px;
+}
+
+/* ── Detected values panel (shader auto-detect) ─────────────────────── */
+
+.shader-detected-panel {
+  max-height: 35%;
+  overflow-y: auto;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
+  padding: 8px 10px;
+  flex-shrink: 0;
+}
+
+.shader-detected-panel:empty {
+  display: none;
+}
+
+.shader-detected-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.shader-detected-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 16px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--color-surface);
+  background: var(--color-accent);
+  border-radius: 8px;
+  padding: 0 4px;
+}
+
+.shader-detected-lo-btn {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  padding: 1px 5px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.shader-detected-lo-btn:hover {
+  border-color: var(--color-accent);
+  color: var(--color-text);
+}
+
+.shader-detected-lo-btn--active {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.shader-detected-group {
+  margin-bottom: 6px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 4px 6px;
+}
+
+.shader-detected-group[open] {
+  padding-bottom: 2px;
+}
+
+.shader-detected-group-header {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text);
+  cursor: pointer;
+  padding: 2px 0;
+  list-style: none;
+  user-select: none;
+}
+
+.shader-detected-group-header::before {
+  content: "\25B6";
+  display: inline-block;
+  font-size: 8px;
+  margin-right: 4px;
+  transition: transform 0.15s ease;
+}
+
+.shader-detected-group[open] > .shader-detected-group-header::before {
+  transform: rotate(90deg);
+}
+
+.shader-detected-group-header::-webkit-details-marker {
+  display: none;
+}
+
+.shader-detected-entry {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+}
+
+.shader-detected-raw {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+
+.shader-detected-line {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.shader-detected-confidence {
+  display: inline-flex;
+  gap: 2px;
+  align-items: center;
+}
+
+.shader-detected-confidence-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  border: 1px solid var(--color-accent);
+  background: transparent;
+}
+
+.shader-detected-confidence-dot--filled {
+  background: var(--color-accent);
+}
+
+.shader-detected-expose-btn {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--color-accent);
+  background: none;
+  border: 1px solid var(--color-accent);
+  border-radius: 3px;
+  padding: 1px 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+
+.shader-detected-expose-btn:hover {
+  background: var(--color-accent);
+  color: var(--color-surface);
+}
+
+.shader-detected-expose-btn--active {
+  background: var(--color-accent);
+  color: var(--color-surface);
+}
+
+.shader-detected-expose-btn--active:hover {
+  background: transparent;
+  color: var(--color-accent);
+}
+
+.shader-detected-entry--exposed .shader-detected-raw {
+  color: var(--color-accent);
+}
+
+.shader-detected-entry--exposed .shader-detected-line {
+  color: var(--color-accent);
+  font-weight: 500;
+}

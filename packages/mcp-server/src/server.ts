@@ -1,0 +1,190 @@
+/**
+ * MCP server setup — creates the McpServer instance and registers all tools.
+ *
+ * Each tool is a separate module in `./tools/`. This file wires them together
+ * into a single MCP server that AI agents can interact with.
+ */
+
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+
+import * as emitSignalTool from "./tools/emit-signal.js";
+import * as getSceneStateTool from "./tools/get-scene-state.js";
+import * as getChoreographiesTool from "./tools/get-choreographies.js";
+import * as listThemesTool from "./tools/list-themes.js";
+import * as getCatalogTool from "./tools/get-catalog.js";
+import * as mapSignalsTool from "./tools/map-signals.js";
+import * as describeSceneTool from "./tools/describe-scene.js";
+
+// Write tools — scene composition
+import * as placeEntityTool from "./tools/place-entity.js";
+import * as createChoreographyTool from "./tools/create-choreography.js";
+import * as createBindingTool from "./tools/create-binding.js";
+import * as createWireTool from "./tools/create-wire.js";
+import * as removeItemTool from "./tools/remove-item.js";
+
+// Shader tools
+import * as createShaderTool from "./tools/create-shader.js";
+import * as updateShaderTool from "./tools/update-shader.js";
+import * as getShadersTool from "./tools/get-shaders.js";
+import * as setUniformTool from "./tools/set-uniform.js";
+
+/**
+ * Create and configure the sajou MCP server with all tools registered.
+ */
+export function createServer(): McpServer {
+  const server = new McpServer({
+    name: "sajou",
+    version: "0.0.0",
+  });
+
+  // Register all tools
+  server.registerTool(
+    emitSignalTool.name,
+    {
+      description: emitSignalTool.description,
+      inputSchema: emitSignalTool.inputSchema,
+    },
+    emitSignalTool.handler,
+  );
+
+  server.registerTool(
+    getSceneStateTool.name,
+    {
+      description: getSceneStateTool.description,
+      inputSchema: getSceneStateTool.inputSchema,
+    },
+    getSceneStateTool.handler,
+  );
+
+  server.registerTool(
+    getChoreographiesTool.name,
+    {
+      description: getChoreographiesTool.description,
+      inputSchema: getChoreographiesTool.inputSchema,
+    },
+    getChoreographiesTool.handler,
+  );
+
+  server.registerTool(
+    listThemesTool.name,
+    {
+      description: listThemesTool.description,
+      inputSchema: listThemesTool.inputSchema,
+    },
+    listThemesTool.handler,
+  );
+
+  server.registerTool(
+    getCatalogTool.name,
+    {
+      description: getCatalogTool.description,
+      inputSchema: getCatalogTool.inputSchema,
+    },
+    getCatalogTool.handler,
+  );
+
+  server.registerTool(
+    mapSignalsTool.name,
+    {
+      description: mapSignalsTool.description,
+      inputSchema: mapSignalsTool.inputSchema,
+    },
+    mapSignalsTool.handler,
+  );
+
+  server.registerTool(
+    describeSceneTool.name,
+    {
+      description: describeSceneTool.description,
+      inputSchema: describeSceneTool.inputSchema,
+    },
+    describeSceneTool.handler,
+  );
+
+  // --- Write tools ---
+
+  server.registerTool(
+    placeEntityTool.name,
+    {
+      description: placeEntityTool.description,
+      inputSchema: placeEntityTool.inputSchema,
+    },
+    placeEntityTool.handler,
+  );
+
+  server.registerTool(
+    createChoreographyTool.name,
+    {
+      description: createChoreographyTool.description,
+      inputSchema: createChoreographyTool.inputSchema,
+    },
+    createChoreographyTool.handler,
+  );
+
+  server.registerTool(
+    createBindingTool.name,
+    {
+      description: createBindingTool.description,
+      inputSchema: createBindingTool.inputSchema,
+    },
+    createBindingTool.handler,
+  );
+
+  server.registerTool(
+    createWireTool.name,
+    {
+      description: createWireTool.description,
+      inputSchema: createWireTool.inputSchema,
+    },
+    createWireTool.handler,
+  );
+
+  server.registerTool(
+    removeItemTool.name,
+    {
+      description: removeItemTool.description,
+      inputSchema: removeItemTool.inputSchema,
+    },
+    removeItemTool.handler,
+  );
+
+  // --- Shader tools ---
+
+  server.registerTool(
+    createShaderTool.name,
+    {
+      description: createShaderTool.description,
+      inputSchema: createShaderTool.inputSchema,
+    },
+    createShaderTool.handler,
+  );
+
+  server.registerTool(
+    updateShaderTool.name,
+    {
+      description: updateShaderTool.description,
+      inputSchema: updateShaderTool.inputSchema,
+    },
+    updateShaderTool.handler,
+  );
+
+  server.registerTool(
+    getShadersTool.name,
+    {
+      description: getShadersTool.description,
+      inputSchema: getShadersTool.inputSchema,
+    },
+    getShadersTool.handler,
+  );
+
+  server.registerTool(
+    setUniformTool.name,
+    {
+      description: setUniformTool.description,
+      inputSchema: setUniformTool.inputSchema,
+    },
+    setUniformTool.handler,
+  );
+
+  return server;
+}

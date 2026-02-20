@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>sajou</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  <link rel="apple-touch-icon" sizes="128x128" href="/apple-touch-icon.png" />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Sora:wght@300;400;500;600;700&family=DM+Sans:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/src/styles.css" />
+</head>
+<body>
+  <header id="header">
+    <div class="header-left">
+      <svg class="header-logo" width="24" height="24" viewBox="0 0 160 160" fill="none">
+        <rect x="26" y="30" width="50" height="50" rx="15" stroke="#E8A851" stroke-width="8" fill="none"/>
+        <circle cx="46" cy="52" r="8" fill="#E8A851"/>
+        <path d="M 74 60 C 90 66, 100 52, 104 40 C 108 28, 122 24, 132 34" stroke="#E8A851" stroke-width="8" stroke-linecap="round" fill="none"/>
+        <circle cx="132" cy="34" r="12" fill="#E8A851"/>
+      </svg>
+      <h1>sajou</h1>
+    </div>
+    <nav id="view-tabs"></nav>
+    <div class="header-right">
+      <!-- Editing group -->
+      <div class="header-group">
+        <button id="btn-undo" class="header-btn header-btn--icon" title="Undo (Ctrl+Z)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
+        </button>
+        <button id="btn-redo" class="header-btn header-btn--icon" title="Redo (Ctrl+Shift+Z)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13"/></svg>
+        </button>
+      </div>
+      <div class="header-sep"></div>
+      <!-- File group -->
+      <div class="header-group">
+        <button id="btn-new" class="header-btn" title="New scene (Ctrl+N)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+          New
+        </button>
+        <button id="btn-import" class="header-btn" title="Import scene">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Import
+        </button>
+        <button id="btn-export" class="header-btn header-btn--primary" title="Export scene (Ctrl+S)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Export
+        </button>
+      </div>
+      <div class="header-sep"></div>
+      <!-- Runtime group -->
+      <div class="header-group">
+        <button id="btn-run" class="header-btn header-btn--run" title="Run / Stop choreographies (Ctrl+R)">
+          <svg id="btn-run-icon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+            <polygon points="5 3 19 12 5 21 5 3"/>
+          </svg>
+          <span id="btn-run-label">Run</span>
+        </button>
+      </div>
+    </div>
+  </header>
+  <div id="workspace">
+    <!-- Pipeline layout is built by pipeline-layout.ts -->
+    <!-- Wiring overlay — SVG bezier curves between zone endpoints -->
+    <svg id="wiring-overlay" class="wiring-overlay"></svg>
+  </div>
+  <div id="help-bar"></div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

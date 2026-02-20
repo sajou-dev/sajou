@@ -1,0 +1,301 @@
+/**
+ * Entity config module.
+ *
+ * Center panel top section: entity name, display dimensions (sliders),
+ * fallback color picker, and state tab management (add/remove/select states).
+ */
+
+import {
+  getState,
+  updateState,
+  subscribe,
+  getSelectedEntity,
+  createDefaultState,
+} from "../app-state.js";
+
+// ---------------------------------------------------------------------------
+// DOM references
+// ---------------------------------------------------------------------------
+
+const noSelection = document.getElementById("no-selection")!;
+const entityConfig = document.getElementById("entity-config")!;
+const entityNameInput = document.getElementById("entity-name") as HTMLInputElement;
+const btnDeleteEntity = document.getElementById("btn-delete-entity")!;
+const inputWidth = document.getElementById("input-width") as HTMLInputElement;
+const inputHeight = document.getElementById("input-height") as HTMLInputElement;
+const inputColor = document.getElementById("input-color") as HTMLInputElement;
+const stateTabs = document.getElementById("state-tabs")!;
+const btnAddState = document.getElementById("btn-add-state")!;
+
+// ---------------------------------------------------------------------------
+// Render
+// ---------------------------------------------------------------------------
+
+/** Prevent re-entrant updates during programmatic input changes. */
+let rendering = false;
+
+/** True while an inline state-rename input is active. */
+let isEditingState = false;
+
+/** Re-render the entity config panel. */
+function render(): void {
+  rendering = true;
+  const state = getState();
+  const entity = getSelectedEntity();
+
+  if (!entity || !state.selectedEntityId) {
+    entityConfig.hidden = true;
+    noSelection.hidden = false;
+    rendering = false;
+    return;
+  }
+
+  entityConfig.hidden = false;
+  noSelection.hidden = true;
+
+  entityNameInput.value = state.selectedEntityId;
+  inputWidth.value = String(entity.displayWidth);
+  inputHeight.value = String(entity.displayHeight);
+  inputColor.value = entity.fallbackColor;
+
+  // Skip tab rebuild while user is typing a rename
+  if (isEditingState) {
+    rendering = false;
+    return;
+  }
+
+  // Render state tabs
+  stateTabs.innerHTML = "";
+  const stateNames = Object.keys(entity.states);
+
+  for (const name of stateNames) {
+    const tab = document.createElement("div");
+    tab.className = "state-tab";
+    if (name === state.selectedStateName) {
+      tab.classList.add("active");
+    }
+
+    const label = document.createElement("span");
+    label.className = "state-tab-label";
+    label.textContent = name;
+
+    // Double-click to rename
+    label.addEventListener("dblclick", (e) => {
+      e.stopPropagation();
+      const input = document.createElement("input");
+      input.type = "text";
+      input.className = "state-tab-rename";
+      input.value = name;
+      input.spellcheck = false;
+
+      isEditingState = true;
+      let committed = false;
+
+      const commit = (): void => {
+        if (committed) return; // guard against Enter→blur double-fire
+        committed = true;
+        isEditingState = false; // allow render() to rebuild tabs
+        const newName = input.value.trim().toLowerCase().replace(/\s+/g, "-");
+        if (newName && newName !== name && !entity.states[newName]) {
+          renameState(name, newName);
+        } else {
+          render();
+        }
+      };
+
+      input.addEventListener("blur", commit);
+      input.addEventListener("keydown", (ke) => {
+        if (ke.key === "Enter") input.blur();
+        if (ke.key === "Escape") {
+          input.value = name;
+          input.blur();
+        }
+      });
+      input.addEventListener("click", (ce) => ce.stopPropagation());
+
+      label.textContent = "";
+      label.appendChild(input);
+      input.focus();
+      input.select();
+    });
+
+    tab.appendChild(label);
+
+    // Don't allow removing the "idle" state
+    if (name !== "idle") {
+      const remove = document.createElement("span");
+      remove.className = "state-remove";
+      remove.textContent = "\u00D7"; // multiplication sign
+      remove.addEventListener("click", (e) => {
+        e.stopPropagation();
+        removeState(name);
+      });
+      tab.appendChild(remove);
+    }
+
+    tab.addEventListener("click", () => {
+      // Skip if already selected (avoids re-render that would kill inline rename)
+      if (getState().selectedStateName === name) return;
+      updateState({ selectedStateName: name });
+    });
+
+    stateTabs.appendChild(tab);
+  }
+
+  rendering = false;
+}
+
+// ---------------------------------------------------------------------------
+// Actions
+// ---------------------------------------------------------------------------
+
+/** Rename the selected entity. */
+function renameEntity(newId: string): void {
+  const state = getState();
+  const oldId = state.selectedEntityId;
+  if (!oldId || oldId === newId) return;
+
+  // Validate: no empty, no duplicate
+  const trimmed = newId.trim().toLowerCase().replace(/\s+/g, "-");
+  if (!trimmed || state.entities[trimmed]) return;
+
+  const entries = { ...state.entities };
+  entries[trimmed] = entries[oldId]!;
+  delete entries[oldId];
+
+  updateState({
+    entities: entries,
+    selectedEntityId: trimmed,
+  });
+}
+
+/** Delete the selected entity. */
+function deleteEntity(): void {
+  const state = getState();
+  const id = state.selectedEntityId;
+  if (!id) return;
+
+  const entries = { ...state.entities };
+  delete entries[id];
+
+  const remaining = Object.keys(entries);
+  updateState({
+    entities: entries,
+    selectedEntityId: remaining.length > 0 ? remaining[0]! : null,
+    selectedStateName: remaining.length > 0 ? Object.keys(entries[remaining[0]!]!.states)[0] ?? null : null,
+  });
+}
+
+/** Add a new state to the selected entity. */
+function addState(): void {
+  const state = getState();
+  const entity = getSelectedEntity();
+  if (!entity || !state.selectedEntityId) return;
+
+  const existing = Object.keys(entity.states);
+  let idx = existing.length;
+  let name = `state-${idx}`;
+  while (existing.includes(name)) {
+    idx++;
+    name = `state-${idx}`;
+  }
+
+  // Prompt for name
+  const input = prompt("State name:", name);
+  if (!input) return;
+
+  const stateName = input.trim().toLowerCase().replace(/\s+/g, "-");
+  if (!stateName || entity.states[stateName]) return;
+
+  entity.states[stateName] = createDefaultState();
+  updateState({ selectedStateName: stateName });
+}
+
+/** Rename a state on the selected entity. */
+function renameState(oldName: string, newName: string): void {
+  const state = getState();
+  const entity = getSelectedEntity();
+  if (!entity || !state.selectedEntityId) return;
+  if (oldName === newName || entity.states[newName]) return;
+
+  // Preserve insertion order: rebuild states with key replaced
+  const newStates: Record<string, import("../app-state.js").VisualState> = {};
+  for (const [key, val] of Object.entries(entity.states)) {
+    newStates[key === oldName ? newName : key] = val;
+  }
+  entity.states = newStates;
+
+  updateState({
+    selectedStateName: state.selectedStateName === oldName ? newName : state.selectedStateName,
+  });
+}
+
+/** Remove a state from the selected entity. */
+function removeState(name: string): void {
+  const state = getState();
+  const entity = getSelectedEntity();
+  if (!entity || !state.selectedEntityId) return;
+  if (name === "idle") return; // Never remove idle
+
+  delete entity.states[name];
+
+  const remaining = Object.keys(entity.states);
+  updateState({
+    selectedStateName: remaining.length > 0 ? remaining[0]! : null,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Init
+// ---------------------------------------------------------------------------
+
+/** Initialize the entity config module. */
+export function initEntityConfig(): void {
+  // Entity name change (on blur to avoid mid-typing renames)
+  entityNameInput.addEventListener("blur", () => {
+    if (!rendering) renameEntity(entityNameInput.value);
+  });
+  entityNameInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      entityNameInput.blur();
+    }
+  });
+
+  // Delete entity
+  btnDeleteEntity.addEventListener("click", deleteEntity);
+
+  // Width / Height sliders
+  inputWidth.addEventListener("input", () => {
+    if (rendering) return;
+    const entity = getSelectedEntity();
+    if (entity) {
+      entity.displayWidth = Number(inputWidth.value);
+      updateState({});
+    }
+  });
+
+  inputHeight.addEventListener("input", () => {
+    if (rendering) return;
+    const entity = getSelectedEntity();
+    if (entity) {
+      entity.displayHeight = Number(inputHeight.value);
+      updateState({});
+    }
+  });
+
+  // Color picker
+  inputColor.addEventListener("input", () => {
+    if (rendering) return;
+    const entity = getSelectedEntity();
+    if (entity) {
+      entity.fallbackColor = inputColor.value;
+      updateState({});
+    }
+  });
+
+  // Add state
+  btnAddState.addEventListener("click", addState);
+
+  subscribe(render);
+  render();
+}

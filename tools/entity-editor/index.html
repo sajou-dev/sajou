@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sajou Theme Editor</title>
+  <link rel="stylesheet" href="/src/styles.css" />
+</head>
+<body>
+  <!-- Onboarding overlay (shown on first launch) -->
+  <div id="onboarding-overlay" class="onboarding-overlay" hidden>
+    <div class="onboarding-panel">
+      <h2>Welcome to Sajou Theme Editor</h2>
+      <p class="onboarding-subtitle">Build complete visual themes in 3 tabs:</p>
+      <ol class="onboarding-steps">
+        <li>
+          <strong>Assets</strong>
+          <span>Drop your sprite folder to import PNG/SVG files. Browse and search your asset library.</span>
+        </li>
+        <li>
+          <strong>Entities</strong>
+          <span>Create visual entities (units, buildings, effects). Configure static sprites or animated spritesheets with live preview.</span>
+        </li>
+        <li>
+          <strong>Scene</strong>
+          <span>Build your scene layout visually: set the ground, drag decorations, place named positions, and draw routes between them.</span>
+        </li>
+      </ol>
+      <p class="onboarding-subtitle">Use <kbd>Export .zip</kbd> to download everything, or <kbd>Import</kbd> to reload a .zip or .json and continue editing.</p>
+      <button id="btn-onboarding-dismiss" class="btn btn-primary">Got it, let's start</button>
+      <label class="checkbox-label onboarding-remember">
+        <input id="onboarding-dont-show" type="checkbox" />
+        <span>Don't show this again</span>
+      </label>
+    </div>
+  </div>
+
+  <header id="header">
+    <div class="header-left">
+      <h1>Sajou <span class="header-accent">Theme Editor</span></h1>
+      <button id="btn-help" class="btn btn-icon btn-small" title="Show help &amp; workflow guide">?</button>
+    </div>
+    <nav id="tab-bar" class="tab-bar">
+      <button id="tab-assets" class="tab-btn" title="Browse and manage imported assets">Assets</button>
+      <button id="tab-entities" class="tab-btn active" title="Configure entity visuals">Entities</button>
+      <button id="tab-scene" class="tab-btn" title="Build scene layout">Scene</button>
+    </nav>
+    <div class="header-actions">
+      <button id="btn-import-json" class="btn btn-secondary" title="Import a .json config or a .zip exported by this editor">Import</button>
+      <button id="btn-export" class="btn btn-primary" title="Export configuration + referenced assets as a zip file">Export .zip</button>
+    </div>
+  </header>
+
+  <!-- ================================================================== -->
+  <!-- TAB: Assets                                                        -->
+  <!-- ================================================================== -->
+  <section id="section-assets" class="tab-section" hidden>
+    <div id="assets-tab-content" class="assets-tab">
+      <!-- Toolbar -->
+      <div class="assets-toolbar">
+        <input id="assets-search" type="text" class="search-input" placeholder="Search assets..." spellcheck="false" />
+        <select id="assets-category-filter" class="assets-select" title="Filter by category">
+          <option value="">All</option>
+        </select>
+        <div class="assets-toolbar-spacer"></div>
+        <input id="assets-thumb-size" type="range" min="32" max="160" value="64"
+               class="thumb-slider" title="Thumbnail size" />
+        <button id="assets-view-grid" class="btn btn-icon btn-small active" title="Grid view">&#9638;</button>
+        <button id="assets-view-list" class="btn btn-icon btn-small" title="List view">&#9776;</button>
+        <button id="btn-assets-pick" class="btn btn-secondary btn-small">Import</button>
+      </div>
+
+      <!-- Category bar (pills for quick filtering + drop targets) -->
+      <div id="assets-category-bar" class="assets-category-bar" hidden></div>
+
+      <!-- Selection action bar (visible when multi-selecting) -->
+      <div id="assets-selection-bar" class="assets-selection-bar" hidden></div>
+
+      <!-- Body: browser + detail panel -->
+      <div class="assets-body">
+        <div class="assets-browser">
+          <div id="assets-drop-zone" class="drop-zone">
+            <p>Drop asset folder here</p>
+            <p class="drop-hint">or click Import to add sprites</p>
+            <p class="drop-hint">Supports PNG, SVG, JPG, WebP</p>
+          </div>
+          <div id="assets-grid" class="assets-grid"></div>
+          <div id="assets-list" class="assets-list" hidden></div>
+        </div>
+        <aside id="assets-detail" class="assets-detail" hidden></aside>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================== -->
+  <!-- TAB: Entities                                                      -->
+  <!-- ================================================================== -->
+  <section id="section-entities" class="tab-section">
+    <main id="workspace">
+      <!-- Left panel: Entity list -->
+      <aside id="panel-entities" class="panel">
+        <div class="panel-header">
+          <h2>Entities</h2>
+          <button id="btn-add-entity" class="btn btn-icon" title="Add a new entity (e.g. peon, forge, explosion)">+</button>
+        </div>
+        <ul id="entity-list" class="entity-list"></ul>
+      </aside>
+
+      <!-- Center panel: Entity config + state config + preview -->
+      <section id="panel-config" class="panel">
+        <div id="no-selection" class="empty-state">
+          <p>Select an entity or click <kbd>+</kbd> to create one.</p>
+          <p class="empty-hint">Entities are visual actors in your theme: units, buildings, effects.</p>
+        </div>
+
+        <div id="entity-config" class="config-section" hidden>
+          <div class="config-header">
+            <input id="entity-name" type="text" class="entity-name-input" placeholder="entity-id (e.g. peon, forge)" spellcheck="false" title="Unique kebab-case entity identifier. Used in choreographies to reference this entity." />
+            <button id="btn-delete-entity" class="btn btn-danger btn-small" title="Remove this entity from the configuration">Delete</button>
+          </div>
+
+          <div class="config-row">
+            <label title="Display width in pixels when rendered in the scene. Independent of the source sprite size.">
+              <span class="label-text">Width</span>
+              <input id="input-width" type="number" min="1" max="2048" value="64" class="num-input" />
+            </label>
+            <label title="Display height in pixels when rendered in the scene. Independent of the source sprite size.">
+              <span class="label-text">Height</span>
+              <input id="input-height" type="number" min="1" max="2048" value="64" class="num-input" />
+            </label>
+            <label title="Fallback color shown as a colored rectangle if the sprite asset fails to load.">
+              <span class="label-text">Fallback</span>
+              <input id="input-color" type="color" value="#888888" />
+            </label>
+          </div>
+
+          <!-- States section -->
+          <div class="states-section">
+            <div class="states-header">
+              <h3>States</h3>
+              <button id="btn-add-state" class="btn btn-icon btn-small" title="Add a visual state (e.g. run, attack, death). Every entity needs at least an 'idle' state.">+</button>
+            </div>
+            <div id="state-tabs" class="state-tabs"></div>
+          </div>
+
+          <!-- State config (shown when a state tab is active) -->
+          <div id="state-config" class="state-config" hidden>
+            <div class="config-row">
+              <label title="Static = single image. Spritesheet = animated grid of frames from a single image.">
+                <span class="label-text">Type</span>
+                <select id="state-type" class="select-input">
+                  <option value="static">Static</option>
+                  <option value="spritesheet">Spritesheet</option>
+                </select>
+              </label>
+              <label title="The bound image asset. Click a file in the Assets panel to bind it.">
+                <span class="label-text">Asset</span>
+                <span id="state-asset-name" class="asset-badge">click an asset to bind</span>
+              </label>
+              <button id="btn-clear-asset" class="btn btn-small btn-secondary" title="Remove the asset binding for this state">Clear</button>
+            </div>
+
+            <!-- Validation warnings -->
+            <div id="validation-warnings" class="validation-warnings" hidden></div>
+
+            <!-- Spritesheet explorer (shown for multi-row spritesheets) -->
+            <div id="spritesheet-explorer" class="ss-explorer" hidden></div>
+
+            <!-- Spritesheet params (shown when type=spritesheet) -->
+            <div id="spritesheet-params" class="config-row" hidden>
+              <label title="Width of each frame cell in the spritesheet, in pixels.">
+                <span class="label-text">Frame W</span>
+                <input id="input-frame-width" type="number" min="1" max="4096" value="192" class="num-input" placeholder="192" />
+              </label>
+              <label title="Height of each frame cell in the spritesheet, in pixels.">
+                <span class="label-text">Frame H</span>
+                <input id="input-frame-height" type="number" min="1" max="4096" value="192" class="num-input" placeholder="192" />
+              </label>
+              <label title="Number of frames in this animation row. Typically image_width / frame_size.">
+                <span class="label-text">Frames</span>
+                <input id="input-frame-count" type="number" min="1" max="128" value="6" class="num-input" placeholder="6" />
+              </label>
+              <label title="Which row of the spritesheet to use (0-indexed). Row 0 = top row. Different rows often contain different animations (idle, run, attack...).">
+                <span class="label-text">Row</span>
+                <input id="input-frame-row" type="number" min="0" max="64" value="0" class="num-input" placeholder="0" />
+              </label>
+              <label title="First frame column to play (0-based). Lets you select a sub-range within a row.">
+                <span class="label-text">Start</span>
+                <input id="input-frame-start" type="number" min="0" max="128" value="0" class="num-input" placeholder="0" />
+              </label>
+              <label title="Playback speed in frames per second. Tiny Swords standard: 10 fps.">
+                <span class="label-text">FPS</span>
+                <input id="input-fps" type="number" min="1" max="120" value="10" class="num-input" placeholder="10" />
+              </label>
+              <label class="checkbox-label" title="If checked, the animation loops indefinitely. Uncheck for one-shot animations (death, explosion).">
+                <input id="input-loop" type="checkbox" checked />
+                <span class="label-text">Loop</span>
+              </label>
+              <span class="loop-hint">ON = repeats (idle, walk). OFF = plays once (attack, death).</span>
+            </div>
+
+            <!-- Source rect params (shown when type=static) -->
+            <div id="source-rect-params" hidden>
+              <label class="checkbox-label" title="Crop a sub-region from the source image. Useful when only part of the image is needed (e.g. Arrow.png top half only).">
+                <input id="input-use-source-rect" type="checkbox" />
+                <span class="label-text">Crop (sourceRect)</span>
+              </label>
+              <div id="source-rect-fields" class="config-row" hidden>
+                <label title="X offset in pixels from the left edge of the source image.">
+                  <span class="label-text">X</span>
+                  <input id="input-sr-x" type="number" min="0" max="4096" value="0" class="num-input" placeholder="0" />
+                </label>
+                <label title="Y offset in pixels from the top edge of the source image.">
+                  <span class="label-text">Y</span>
+                  <input id="input-sr-y" type="number" min="0" max="4096" value="0" class="num-input" placeholder="0" />
+                </label>
+                <label title="Width of the crop region in pixels.">
+                  <span class="label-text">W</span>
+                  <input id="input-sr-w" type="number" min="1" max="4096" value="64" class="num-input" placeholder="64" />
+                </label>
+                <label title="Height of the crop region in pixels.">
+                  <span class="label-text">H</span>
+                  <input id="input-sr-h" type="number" min="1" max="4096" value="64" class="num-input" placeholder="64" />
+                </label>
+              </div>
+            </div>
+
+            <!-- Preview canvas -->
+            <div class="preview-section">
+              <h4>Preview</h4>
+              <div id="preview-container" class="preview-container"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right panel: Asset sidebar for entity binding -->
+      <aside id="panel-assets" class="panel">
+        <div class="panel-header">
+          <h2>Assets</h2>
+          <button id="btn-pick-files" class="btn btn-icon btn-small" title="Open file picker to select an asset folder">Browse</button>
+        </div>
+        <div id="asset-drop-zone" class="drop-zone">
+          <p>Drop asset folder here</p>
+          <p class="drop-hint">or click Browse to import sprites</p>
+          <p class="drop-hint">Supports PNG, SVG, JPG, WebP</p>
+        </div>
+        <div id="asset-tree" class="asset-tree"></div>
+      </aside>
+    </main>
+  </section>
+
+  <!-- ================================================================== -->
+  <!-- TAB: Scene                                                         -->
+  <!-- ================================================================== -->
+  <section id="section-scene" class="tab-section" hidden>
+    <div id="scene-tab-content" class="scene-tab">
+      <!-- Toolbar -->
+      <div id="scene-toolbar" class="scene-toolbar"></div>
+
+      <!-- Main content: palette + canvas + props -->
+      <div class="scene-body">
+        <!-- Left: Asset palette -->
+        <aside class="scene-palette">
+          <div class="palette-header">
+            <h3>Palette</h3>
+          </div>
+          <input id="palette-search" type="text" class="search-input" placeholder="Search..." spellcheck="false" />
+          <div id="palette-list" class="palette-list"></div>
+        </aside>
+
+        <!-- Center: Canvas -->
+        <div id="scene-canvas-container" class="scene-canvas-container"></div>
+
+        <!-- Right: Property panel + Ground panel -->
+        <aside class="scene-props-sidebar">
+          <div class="props-header">
+            <h3>Properties</h3>
+          </div>
+          <div id="ground-panel" class="ground-panel" hidden></div>
+          <div id="scene-props" class="scene-props"></div>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

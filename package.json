@@ -1,0 +1,31 @@
+{
+  "name": "sajou",
+  "private": true,
+  "version": "0.7.0",
+  "description": "Visual choreographer for AI agents",
+  "scripts": {
+    "typecheck": "tsc --build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
+  },
+  "devDependencies": {
+    "@sajou/core": "workspace:*",
+    "@sajou/emitter": "workspace:*",
+    "@sajou/schema": "workspace:*",
+    "@sajou/tap": "workspace:*",
+    "typescript": "^5.9.3",
+    "vite": "^6.3.5",
+    "vitepress": "^1.6.4",
+    "vitest": "^4.0.18"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}

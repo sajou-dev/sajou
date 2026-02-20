@@ -1,0 +1,124 @@
+name: "Build Tauri Desktop App"
+
+on:
+  push:
+    tags:
+      - "v*.*.0"   # Auto-build on minor releases (v0.7.0, v0.8.0, …)
+  workflow_dispatch:
+    inputs:
+      full_matrix:
+        description: "Build all platforms (macOS Intel, Linux, Windows)"
+        type: boolean
+        default: false
+
+jobs:
+  build-tauri:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: "macos-latest"
+            args: "--target aarch64-apple-darwin"
+            label: "macOS ARM"
+          - platform: "macos-latest"
+            args: "--target x86_64-apple-darwin"
+            label: "macOS Intel"
+          - platform: "ubuntu-22.04"
+            args: ""
+            label: "Linux x64"
+          - platform: "windows-latest"
+            args: ""
+            label: "Windows x64"
+
+    runs-on: ${{ matrix.platform }}
+    name: Build (${{ matrix.label }})
+
+    steps:
+      - name: Skip non-ARM on manual dispatch without full_matrix
+        id: guard
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ github.event.inputs.full_matrix }}" == "true" ]]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ matrix.label }}" == "macOS ARM" ]]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Skipping ${{ matrix.label }} (manual dispatch, ARM-only)"
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.guard.outputs.run == 'true'
+
+      - name: Install system dependencies (Ubuntu)
+        if: steps.guard.outputs.run == 'true' && matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Setup Node.js
+        if: steps.guard.outputs.run == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Setup pnpm
+        if: steps.guard.outputs.run == 'true'
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Install Rust stable
+        if: steps.guard.outputs.run == 'true'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Rust cache
+        if: steps.guard.outputs.run == 'true'
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "tools/scene-builder/src-tauri -> target"
+
+      - name: Install frontend dependencies
+        if: steps.guard.outputs.run == 'true'
+        run: pnpm install
+
+      - name: Build workspace dependencies
+        if: steps.guard.outputs.run == 'true'
+        run: pnpm --filter "@sajou/stage..." build
+
+      - name: Build Tauri app
+        if: steps.guard.outputs.run == 'true'
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: "tools/scene-builder"
+          tauriScript: "pnpm tauri"
+          tagName: "v__VERSION__"
+          releaseName: "sajou v__VERSION__"
+          releaseBody: |
+            ## sajou v__VERSION__
+
+            Desktop app for the sajou visual choreographer.
+
+            Download the installer for your platform below.
+          releaseDraft: false
+          prerelease: false
+          includeUpdaterJson: false
+          args: ${{ matrix.args }}
+
+      - name: Remove .app.tar.gz duplicates (macOS only)
+        if: steps.guard.outputs.run == 'true' && matrix.platform == 'macos-latest'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="v$(jq -r .version tools/scene-builder/src-tauri/tauri.conf.json)"
+          for asset in $(gh release view "$TAG" --json assets --jq '.assets[].name | select(endswith(".app.tar.gz"))'); do
+            gh release delete-asset "$TAG" "$asset" --yes || true
+          done

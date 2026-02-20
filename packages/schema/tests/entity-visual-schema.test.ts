@@ -1,0 +1,416 @@
+/**
+ * Tests for the entity visual JSON Schema validation.
+ *
+ * Uses ajv to validate sample configs against entity-visual.schema.json.
+ * Verifies that valid configs pass and invalid configs are rejected
+ * with appropriate errors.
+ */
+
+import { describe, it, expect, beforeAll } from "vitest";
+import Ajv2020 from "ajv/dist/2020.js";
+import { readFileSync } from "node:fs";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+describe("entity-visual.schema.json", () => {
+  let validate: ReturnType<Ajv["compile"]>;
+
+  beforeAll(() => {
+    const schemaPath = resolve(__dirname, "../src/entity-visual.schema.json");
+    const schema = JSON.parse(readFileSync(schemaPath, "utf-8"));
+    const ajv = new Ajv2020({ allErrors: true });
+    validate = ajv.compile(schema);
+  });
+
+  it("accepts a valid config with static and spritesheet states", () => {
+    const config = {
+      entities: {
+        peon: {
+          displayWidth: 64,
+          displayHeight: 64,
+          fallbackColor: "#4488ff",
+          states: {
+            idle: {
+              type: "spritesheet",
+              asset: "path/to/peon.png",
+              frameWidth: 192,
+              frameHeight: 192,
+              frameCount: 6,
+              frameRow: 0,
+              fps: 10,
+              loop: true,
+            },
+            run: {
+              type: "spritesheet",
+              asset: "path/to/peon.png",
+              frameWidth: 192,
+              frameHeight: 192,
+              frameCount: 6,
+              frameRow: 1,
+              fps: 10,
+              loop: true,
+            },
+          },
+        },
+        forge: {
+          displayWidth: 64,
+          displayHeight: 96,
+          fallbackColor: "#8b4513",
+          states: {
+            idle: {
+              type: "static",
+              asset: "path/to/house.png",
+            },
+          },
+        },
+      },
+    };
+
+    const valid = validate(config);
+    expect(valid).toBe(true);
+  });
+
+  it("accepts a static state with sourceRect", () => {
+    const config = {
+      entities: {
+        pigeon: {
+          displayWidth: 32,
+          displayHeight: 32,
+          fallbackColor: "#ffffff",
+          states: {
+            idle: {
+              type: "static",
+              asset: "path/to/arrow.png",
+              sourceRect: { x: 0, y: 0, w: 64, h: 64 },
+            },
+          },
+        },
+      },
+    };
+
+    const valid = validate(config);
+    expect(valid).toBe(true);
+  });
+
+  it("accepts a multi-entity config with mixed state types", () => {
+    const config = {
+      entities: {
+        peon: {
+          displayWidth: 64,
+          displayHeight: 64,
+          fallbackColor: "#4488ff",
+          states: {
+            idle: {
+              type: "spritesheet",
+              asset: "peon-idle.png",
+              frameWidth: 192,
+              frameHeight: 192,
+              frameCount: 6,
+              frameRow: 0,
+              fps: 10,
+              loop: true,
+            },
+            walk: {
+              type: "spritesheet",
+              asset: "peon-walk.png",
+              frameWidth: 192,
+              frameHeight: 192,
+              frameCount: 8,
+              frameRow: 1,
+              fps: 12,
+              loop: true,
+            },
+          },
+        },
+        building: {
+          displayWidth: 128,
+          displayHeight: 128,
+          fallbackColor: "#8b4513",
+          states: {
+            idle: {
+              type: "static",
+              asset: "building.png",
+            },
+          },
+        },
+        arrow: {
+          displayWidth: 16,
+          displayHeight: 16,
+          fallbackColor: "#cccccc",
+          states: {
+            idle: {
+              type: "static",
+              asset: "arrow.png",
+              sourceRect: { x: 0, y: 0, w: 64, h: 64 },
+            },
+          },
+        },
+      },
+    };
+
+    const valid = validate(config);
+    expect(valid).toBe(true);
+  });
+
+  it("rejects config missing displayWidth", () => {
+    const config = {
+      entities: {
+        broken: {
+          displayHeight: 64,
+          fallbackColor: "#ff0000",
+          states: {
+            idle: { type: "static", asset: "test.png" },
+          },
+        },
+      },
+    };
+
+    const valid = validate(config);
+    expect(valid).toBe(false);
+  });
+
+  it("rejects config missing states", () => {
+    const config = {
+      entities: {
+        broken: {
+          displayWidth: 64,
+          displayHeight: 64,
+          fallbackColor: "#ff0000",
+        },
+      },
+    };
+
+    const valid = validate(config);
+    expect(valid).toBe(false);
+  });
+
+  it("rejects state with missing asset", () => {
+    const config = {
+      entities: {
+        broken: {
+          displayWidth: 64,
+          displayHeight: 64,
+          fallbackColor: "#ff0000",
+          states: {
+            idle: { type: "static" },
+          },
+        },
+      },
+    };
+
+    const valid = validate(config);
+    expect(valid).toBe(false);
+  });
+
+  it("rejects invalid type value", () => {
+    const config = {
+      entities: {
+        broken: {
+          displayWidth: 64,
+          displayHeight: 64,
+          fallbackColor: "#ff0000",
+          states: {
+            idle: { type: "video", asset: "test.mp4" },
+          },
+        },
+      },
+    };
+
+    const valid = validate(config);
+    expect(valid).toBe(false);
+  });
+
+  it("rejects spritesheet without frameWidth", () => {
+    const config = {
+      entities: {
+        broken: {
+          displayWidth: 64,
+          displayHeight: 64,
+          fallbackColor: "#ff0000",
+          states: {
+            idle: {
+              type: "spritesheet",
+              asset: "test.png",
+              frameHeight: 192,
+              frameCount: 6,
+              fps: 10,
+            },
+          },
+        },
+      },
+    };
+
+    const valid = validate(config);
+    expect(valid).toBe(false);
+  });
+
+  it("rejects spritesheet without frameHeight", () => {
+    const config = {
+      entities: {
+        broken: {
+          displayWidth: 64,
+          displayHeight: 64,
+          fallbackColor: "#ff0000",
+          states: {
+            idle: {
+              type: "spritesheet",
+              asset: "test.png",
+              frameWidth: 192,
+              frameCount: 6,
+              fps: 10,
+            },
+          },
+        },
+      },
+    };
+
+    const valid = validate(config);
+    expect(valid).toBe(false);
+  });
+
+  it("rejects spritesheet without frameCount", () => {
+    const config = {
+      entities: {
+        broken: {
+          displayWidth: 64,
+          displayHeight: 64,
+          fallbackColor: "#ff0000",
+          states: {
+            idle: {
+              type: "spritesheet",
+              asset: "test.png",
+              frameWidth: 192,
+              frameHeight: 192,
+              fps: 10,
+            },
+          },
+        },
+      },
+    };
+
+    const valid = validate(config);
+    expect(valid).toBe(false);
+  });
+
+  it("rejects spritesheet without fps", () => {
+    const config = {
+      entities: {
+        broken: {
+          displayWidth: 64,
+          displayHeight: 64,
+          fallbackColor: "#ff0000",
+          states: {
+            idle: {
+              type: "spritesheet",
+              asset: "test.png",
+              frameWidth: 192,
+              frameHeight: 192,
+              frameCount: 6,
+            },
+          },
+        },
+      },
+    };
+
+    const valid = validate(config);
+    expect(valid).toBe(false);
+  });
+
+  it("accepts spritesheet with rectangular frames", () => {
+    const config = {
+      entities: {
+        character: {
+          displayWidth: 32,
+          displayHeight: 48,
+          fallbackColor: "#44ff88",
+          states: {
+            idle: {
+              type: "spritesheet",
+              asset: "path/to/character.png",
+              frameWidth: 32,
+              frameHeight: 48,
+              frameCount: 4,
+              fps: 8,
+              loop: true,
+            },
+          },
+        },
+      },
+    };
+
+    const valid = validate(config);
+    expect(valid).toBe(true);
+  });
+
+  it("accepts spritesheet with frameStart", () => {
+    const config = {
+      entities: {
+        character: {
+          displayWidth: 64,
+          displayHeight: 64,
+          fallbackColor: "#44ff88",
+          states: {
+            walk: {
+              type: "spritesheet",
+              asset: "path/to/character.png",
+              frameWidth: 32,
+              frameHeight: 48,
+              frameCount: 4,
+              frameStart: 3,
+              fps: 8,
+              loop: true,
+            },
+          },
+        },
+      },
+    };
+
+    const valid = validate(config);
+    expect(valid).toBe(true);
+  });
+
+  it("accepts spritesheet without frameStart (defaults to 0)", () => {
+    const config = {
+      entities: {
+        character: {
+          displayWidth: 64,
+          displayHeight: 64,
+          fallbackColor: "#44ff88",
+          states: {
+            idle: {
+              type: "spritesheet",
+              asset: "path/to/character.png",
+              frameWidth: 32,
+              frameHeight: 48,
+              frameCount: 4,
+              fps: 8,
+            },
+          },
+        },
+      },
+    };
+
+    const valid = validate(config);
+    expect(valid).toBe(true);
+  });
+
+  it("rejects invalid fallbackColor format", () => {
+    const config = {
+      entities: {
+        broken: {
+          displayWidth: 64,
+          displayHeight: 64,
+          fallbackColor: "red",
+          states: {
+            idle: { type: "static", asset: "test.png" },
+          },
+        },
+      },
+    };
+
+    const valid = validate(config);
+    expect(valid).toBe(false);
+  });
+});

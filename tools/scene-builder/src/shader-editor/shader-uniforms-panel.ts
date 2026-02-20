@@ -1,0 +1,485 @@
+/**
+ * Shader uniforms panel.
+ *
+ * Auto-generates UI controls (sliders, color pickers, toggles) from
+ * uniform annotations parsed from the GLSL source code.
+ * Reconstructs controls when the uniform list changes.
+ */
+
+import { getShaderState, updateShader, subscribeShaders } from "./shader-state.js";
+import { parseShaderSource } from "./shader-uniform-parser.js";
+import { setUniform } from "./shader-canvas.js";
+import type { ShaderUniformDef, ShaderObjectDef } from "./shader-types.js";
+
+// ---------------------------------------------------------------------------
+// State
+// ---------------------------------------------------------------------------
+
+let containerEl: HTMLElement | null = null;
+/** Cached uniform names to detect when controls need rebuilding. */
+let cachedUniformKeys = "";
+/** Cached uniform values to detect external changes (MCP commands). */
+let cachedUniformValues = "";
+
+// ---------------------------------------------------------------------------
+// Initialization
+// ---------------------------------------------------------------------------
+
+/** Initialize the uniforms panel in the given container element. */
+export function initShaderUniformsPanel(el: HTMLElement): void {
+  containerEl = el;
+
+  subscribeShaders(syncPanel);
+  syncPanel();
+}
+
+// ---------------------------------------------------------------------------
+// Sync
+// ---------------------------------------------------------------------------
+
+/** Rebuild or update the controls panel. */
+function syncPanel(): void {
+  if (!containerEl) return;
+
+  const { shaders, selectedShaderId } = getShaderState();
+  const shader = shaders.find((s) => s.id === selectedShaderId);
+  if (!shader) {
+    containerEl.innerHTML = "";
+    cachedUniformKeys = "";
+    return;
+  }
+
+  // Parse current uniforms and objects from the fragment source
+  const { uniforms: parsed, objects } = parseShaderSource(shader.fragmentSource);
+
+  // Merge parsed uniforms with stored values (preserve user-set values)
+  const merged = mergeUniforms(shader.uniforms, parsed);
+
+  // Check if we need to rebuild controls (uniform names changed)
+  const newKeys = merged.map((u) => `${u.name}:${u.type}`).join(",");
+  if (newKeys !== cachedUniformKeys) {
+    cachedUniformKeys = newKeys;
+    buildControls(merged, objects, shader.id);
+
+    // Update shader state with merged uniforms and objects
+    updateShader(shader.id, { uniforms: merged, objects });
+  }
+
+  // Sync uniform values to the Three.js material when changed externally
+  // (e.g. via MCP set-uniform command). Also update slider DOM values.
+  const newValues = shader.uniforms.map((u) => `${u.name}=${JSON.stringify(u.value)}`).join(",");
+  if (newValues !== cachedUniformValues) {
+    cachedUniformValues = newValues;
+    for (const u of shader.uniforms) {
+      setUniform(u.name, u.value as number | boolean | number[]);
+      // Update DOM control to match
+      syncControlValue(u);
+    }
+  }
+}
+
+/**
+ * Merge stored uniform values with newly parsed uniform definitions.
+ * Preserves user-set values for uniforms that still exist.
+ * Carries forward objectId and bind from the parsed definitions.
+ */
+function mergeUniforms(stored: ShaderUniformDef[], parsed: ShaderUniformDef[]): ShaderUniformDef[] {
+  return parsed.map((p) => {
+    const existing = stored.find((s) => s.name === p.name && s.type === p.type);
+    if (existing) {
+      return { ...p, value: existing.value };
+    }
+    return p;
+  });
+}
+
+// ---------------------------------------------------------------------------
+// DOM construction
+// ---------------------------------------------------------------------------
+
+function buildControls(uniforms: ShaderUniformDef[], objects: ShaderObjectDef[], shaderId: string): void {
+  if (!containerEl) return;
+  containerEl.innerHTML = "";
+
+  if (uniforms.length === 0) return;
+
+  const title = document.createElement("div");
+  title.style.cssText = "font-size: 11px; color: var(--color-text-muted); margin-bottom: 8px; font-weight: 500;";
+  title.textContent = "Uniforms";
+  containerEl.appendChild(title);
+
+  // If no objects, render flat list (backwards compatible)
+  if (objects.length === 0) {
+    for (const u of uniforms) {
+      buildControl(u, shaderId, containerEl);
+    }
+    return;
+  }
+
+  // Group uniforms by objectId
+  const grouped = new Map<string | undefined, ShaderUniformDef[]>();
+  for (const u of uniforms) {
+    const key = u.objectId;
+    let list = grouped.get(key);
+    if (!list) {
+      list = [];
+      grouped.set(key, list);
+    }
+    list.push(u);
+  }
+
+  // Render each object group as a collapsible <details>
+  for (const obj of objects) {
+    const group = grouped.get(obj.id);
+    if (!group || group.length === 0) continue;
+
+    const details = document.createElement("details");
+    details.className = "shader-object-group";
+    details.open = true;
+
+    const summary = document.createElement("summary");
+    summary.className = "shader-object-header";
+    summary.textContent = obj.label;
+    details.appendChild(summary);
+
+    for (const u of group) {
+      buildControl(u, shaderId, details);
+    }
+
+    containerEl.appendChild(details);
+  }
+
+  // Ungrouped uniforms
+  const ungrouped = grouped.get(undefined);
+  if (ungrouped && ungrouped.length > 0) {
+    const details = document.createElement("details");
+    details.className = "shader-object-group";
+    details.open = true;
+
+    const summary = document.createElement("summary");
+    summary.className = "shader-object-header";
+    summary.textContent = "Ungrouped";
+    details.appendChild(summary);
+
+    for (const u of ungrouped) {
+      buildControl(u, shaderId, details);
+    }
+
+    containerEl.appendChild(details);
+  }
+}
+
+/** Dispatch a single uniform control to the appropriate builder. */
+function buildControl(u: ShaderUniformDef, shaderId: string, parent: HTMLElement): void {
+  switch (u.control) {
+    case "slider":
+      buildSliderControl(u, shaderId, parent);
+      break;
+    case "color":
+      buildColorControl(u, shaderId, parent);
+      break;
+    case "toggle":
+      buildToggleControl(u, shaderId, parent);
+      break;
+    case "xy":
+      buildXYControl(u, shaderId, parent);
+      break;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Slider control (float / int)
+// ---------------------------------------------------------------------------
+
+function buildSliderControl(u: ShaderUniformDef, shaderId: string, parent: HTMLElement): void {
+  const label = document.createElement("label");
+  label.className = "shader-uniform-label";
+  label.textContent = u.name;
+  if (u.bind) appendBindBadge(label, u.bind.semantic);
+
+  const row = document.createElement("div");
+  row.className = "shader-uniform-row";
+
+  const inputId = `uniform-${u.name}`;
+  label.htmlFor = inputId;
+
+  const slider = document.createElement("input");
+  slider.type = "range";
+  slider.id = inputId;
+  slider.name = u.name;
+  slider.min = String(u.min);
+  slider.max = String(u.max);
+  slider.step = String(u.step);
+  slider.value = String(typeof u.value === "number" ? u.value : 0);
+
+  const valueDisplay = document.createElement("span");
+  valueDisplay.className = "shader-uniform-value";
+  valueDisplay.textContent = formatValue(u.value);
+
+  slider.addEventListener("input", () => {
+    const val = u.type === "int" ? parseInt(slider.value, 10) : parseFloat(slider.value);
+    valueDisplay.textContent = formatValue(val);
+
+    // Update shader state
+    const shader = getShaderState().shaders.find((s) => s.id === shaderId);
+    if (shader) {
+      const newUniforms = shader.uniforms.map((su) =>
+        su.name === u.name ? { ...su, value: val } : su,
+      );
+      updateShader(shaderId, { uniforms: newUniforms });
+    }
+
+    // Update canvas uniform
+    setUniform(u.name, val);
+  });
+
+  row.appendChild(slider);
+  row.appendChild(valueDisplay);
+
+  parent.appendChild(label);
+  parent.appendChild(row);
+}
+
+// ---------------------------------------------------------------------------
+// Color control (vec3)
+// ---------------------------------------------------------------------------
+
+function buildColorControl(u: ShaderUniformDef, shaderId: string, parent: HTMLElement): void {
+  const label = document.createElement("label");
+  label.className = "shader-uniform-label";
+  label.textContent = u.name;
+  if (u.bind) appendBindBadge(label, u.bind.semantic);
+
+  const row = document.createElement("div");
+  row.className = "shader-uniform-row";
+
+  const colorId = `uniform-${u.name}`;
+  label.htmlFor = colorId;
+
+  const colorInput = document.createElement("input");
+  colorInput.type = "color";
+  colorInput.id = colorId;
+  colorInput.name = u.name;
+  const rgb = Array.isArray(u.value) ? u.value as number[] : [1, 1, 1];
+  colorInput.value = rgbToHex(rgb[0], rgb[1], rgb[2]);
+
+  const valueDisplay = document.createElement("span");
+  valueDisplay.className = "shader-uniform-value";
+  valueDisplay.textContent = colorInput.value;
+
+  colorInput.addEventListener("input", () => {
+    const hex = colorInput.value;
+    valueDisplay.textContent = hex;
+    const [r, g, b] = hexToRgb(hex);
+
+    // Update shader state
+    const shader = getShaderState().shaders.find((s) => s.id === shaderId);
+    if (shader) {
+      const newUniforms = shader.uniforms.map((su) =>
+        su.name === u.name ? { ...su, value: [r, g, b] } : su,
+      );
+      updateShader(shaderId, { uniforms: newUniforms });
+    }
+
+    // Update canvas uniform (vec3 as array)
+    setUniform(u.name, [r, g, b]);
+  });
+
+  row.appendChild(colorInput);
+  row.appendChild(valueDisplay);
+
+  parent.appendChild(label);
+  parent.appendChild(row);
+}
+
+// ---------------------------------------------------------------------------
+// Toggle control (bool)
+// ---------------------------------------------------------------------------
+
+function buildToggleControl(u: ShaderUniformDef, shaderId: string, parent: HTMLElement): void {
+  const row = document.createElement("div");
+  row.className = "shader-uniform-row";
+
+  const checkId = `uniform-${u.name}`;
+
+  const checkbox = document.createElement("input");
+  checkbox.type = "checkbox";
+  checkbox.id = checkId;
+  checkbox.name = u.name;
+  checkbox.checked = u.value === true;
+  checkbox.style.accentColor = "var(--color-accent)";
+
+  const label = document.createElement("label");
+  label.className = "shader-uniform-label";
+  label.style.marginBottom = "0";
+  label.htmlFor = checkId;
+  label.textContent = u.name;
+  if (u.bind) appendBindBadge(label, u.bind.semantic);
+
+  checkbox.addEventListener("change", () => {
+    const val = checkbox.checked;
+
+    // Update shader state
+    const shader = getShaderState().shaders.find((s) => s.id === shaderId);
+    if (shader) {
+      const newUniforms = shader.uniforms.map((su) =>
+        su.name === u.name ? { ...su, value: val } : su,
+      );
+      updateShader(shaderId, { uniforms: newUniforms });
+    }
+
+    // Update canvas uniform (bool as 0/1)
+    setUniform(u.name, val ? 1 : 0);
+  });
+
+  row.appendChild(checkbox);
+  row.appendChild(label);
+
+  parent.appendChild(row);
+}
+
+// ---------------------------------------------------------------------------
+// XY control (vec2) — two sliders
+// ---------------------------------------------------------------------------
+
+function buildXYControl(u: ShaderUniformDef, shaderId: string, parent: HTMLElement): void {
+  const label = document.createElement("label");
+  label.className = "shader-uniform-label";
+  label.textContent = u.name;
+  if (u.bind) appendBindBadge(label, u.bind.semantic);
+  parent.appendChild(label);
+
+  const vals = Array.isArray(u.value) ? u.value as number[] : [0.5, 0.5];
+
+  for (let axis = 0; axis < 2; axis++) {
+    const axisLabel = axis === 0 ? "x" : "y";
+
+    const row = document.createElement("div");
+    row.className = "shader-uniform-row";
+
+    const axisSpan = document.createElement("span");
+    axisSpan.className = "shader-uniform-value";
+    axisSpan.style.minWidth = "12px";
+    axisSpan.textContent = axisLabel;
+
+    const sliderId = `uniform-${u.name}-${axisLabel}`;
+
+    const slider = document.createElement("input");
+    slider.type = "range";
+    slider.id = sliderId;
+    slider.name = `${u.name}-${axisLabel}`;
+    slider.setAttribute("aria-label", `${u.name} ${axisLabel}`);
+    slider.min = String(u.min);
+    slider.max = String(u.max);
+    slider.step = String(u.step);
+    slider.value = String(vals[axis] ?? 0.5);
+
+    const valueDisplay = document.createElement("span");
+    valueDisplay.className = "shader-uniform-value";
+    valueDisplay.textContent = formatValue(vals[axis] ?? 0.5);
+
+    const capturedAxis = axis;
+    slider.addEventListener("input", () => {
+      const val = parseFloat(slider.value);
+      valueDisplay.textContent = formatValue(val);
+
+      // Update shader state
+      const shader = getShaderState().shaders.find((s) => s.id === shaderId);
+      if (shader) {
+        const newUniforms = shader.uniforms.map((su) => {
+          if (su.name === u.name) {
+            const arr = Array.isArray(su.value) ? [...(su.value as number[])] : [0.5, 0.5];
+            arr[capturedAxis] = val;
+            return { ...su, value: arr };
+          }
+          return su;
+        });
+        updateShader(shaderId, { uniforms: newUniforms });
+      }
+
+      // Update canvas uniform
+      const current = Array.isArray(u.value) ? [...(u.value as number[])] : [0.5, 0.5];
+      current[capturedAxis] = val;
+      setUniform(u.name, current);
+    });
+
+    row.appendChild(axisSpan);
+    row.appendChild(slider);
+    row.appendChild(valueDisplay);
+    parent.appendChild(row);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Bind badge
+// ---------------------------------------------------------------------------
+
+/** Append a small bind badge (e.g. "position") to a label element. */
+function appendBindBadge(label: HTMLElement, semantic: string): void {
+  const badge = document.createElement("span");
+  badge.className = "shader-bind-badge";
+  badge.textContent = semantic;
+  label.appendChild(badge);
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Update a DOM control to reflect a new uniform value (external sync). */
+function syncControlValue(u: ShaderUniformDef): void {
+  if (!containerEl) return;
+
+  if (u.control === "slider") {
+    const slider = containerEl.querySelector<HTMLInputElement>(`#uniform-${u.name}`);
+    if (slider) {
+      slider.value = String(typeof u.value === "number" ? u.value : 0);
+      const valueDisplay = slider.parentElement?.querySelector<HTMLSpanElement>(".shader-uniform-value");
+      if (valueDisplay) valueDisplay.textContent = formatValue(u.value);
+    }
+  } else if (u.control === "toggle") {
+    const checkbox = containerEl.querySelector<HTMLInputElement>(`#uniform-${u.name}`);
+    if (checkbox) checkbox.checked = u.value === true;
+  } else if (u.control === "color") {
+    const colorInput = containerEl.querySelector<HTMLInputElement>(`#uniform-${u.name}`);
+    if (colorInput && Array.isArray(u.value)) {
+      const rgb = u.value as number[];
+      colorInput.value = rgbToHex(rgb[0], rgb[1], rgb[2]);
+    }
+  } else if (u.control === "xy") {
+    const vals = Array.isArray(u.value) ? u.value as number[] : [0.5, 0.5];
+    for (let axis = 0; axis < 2; axis++) {
+      const axisLabel = axis === 0 ? "x" : "y";
+      const slider = containerEl.querySelector<HTMLInputElement>(`#uniform-${u.name}-${axisLabel}`);
+      if (slider) {
+        slider.value = String(vals[axis] ?? 0.5);
+        const valueDisplay = slider.parentElement?.querySelector<HTMLSpanElement>(".shader-uniform-value:last-child");
+        if (valueDisplay) valueDisplay.textContent = formatValue(vals[axis] ?? 0.5);
+      }
+    }
+  }
+}
+
+function formatValue(v: number | boolean | number[]): string {
+  if (typeof v === "boolean") return v ? "true" : "false";
+  if (typeof v === "number") return v.toFixed(2);
+  if (Array.isArray(v)) return v.map((n) => (n as number).toFixed(2)).join(", ");
+  return String(v);
+}
+
+function rgbToHex(r: number, g: number, b: number): string {
+  const toHex = (c: number): string => {
+    const h = Math.round(Math.max(0, Math.min(1, c)) * 255).toString(16);
+    return h.length === 1 ? "0" + h : h;
+  };
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
+
+function hexToRgb(hex: string): [number, number, number] {
+  const h = hex.replace("#", "");
+  return [
+    parseInt(h.slice(0, 2), 16) / 255,
+    parseInt(h.slice(2, 4), 16) / 255,
+    parseInt(h.slice(4, 6), 16) / 255,
+  ];
+}

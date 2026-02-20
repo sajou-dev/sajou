@@ -1,0 +1,10 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/schema" },
+    { "path": "packages/core" },
+    { "path": "packages/stage" },
+    { "path": "packages/emitter" },
+    { "path": "adapters/tap" }
+  ]
+}

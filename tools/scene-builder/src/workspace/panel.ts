@@ -1,0 +1,219 @@
+/**
+ * Generic floating panel component.
+ *
+ * Creates a draggable, resizable, closeable floating panel as an HTML div.
+ * Used by all panels (Asset Palette, Inspector, Layers, etc.).
+ */
+
+import type { PanelId, PipelineNodeId } from "../types.js";
+import { getEditorState, updatePanelLayout, togglePanel, subscribeEditor } from "../state/editor-state.js";
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+export interface PanelConfig {
+  id: PanelId;
+  title: string;
+  minWidth?: number;
+  minHeight?: number;
+  /** When set, panel is hidden whenever this pipeline node is not extended. */
+  ownerNode?: PipelineNodeId;
+}
+
+export interface PanelInstance {
+  element: HTMLElement;
+  contentEl: HTMLElement;
+  destroy: () => void;
+}
+
+// ---------------------------------------------------------------------------
+// Z-index stacking (bring-to-front)
+// ---------------------------------------------------------------------------
+
+/** Global z-index counter — incremented each time a panel is focused. */
+let topZIndex = 100;
+
+/** Bring a panel element to the front of the stack. */
+function bringToFront(el: HTMLElement): void {
+  topZIndex++;
+  el.style.zIndex = String(topZIndex);
+}
+
+// ---------------------------------------------------------------------------
+// Factory
+// ---------------------------------------------------------------------------
+
+/** Create a floating panel and append it to the workspace. */
+export function createPanel(config: PanelConfig): PanelInstance {
+  const { id, title, minWidth = 200, minHeight = 150 } = config;
+
+  // Root element
+  const el = document.createElement("div");
+  el.className = "panel";
+  el.dataset.panelId = id;
+
+  // Header (drag handle)
+  const header = document.createElement("div");
+  header.className = "panel-header";
+
+  const titleEl = document.createElement("span");
+  titleEl.className = "panel-title";
+  titleEl.textContent = title;
+
+  const closeBtn = document.createElement("button");
+  closeBtn.className = "panel-close";
+  closeBtn.textContent = "\u00D7";
+  closeBtn.title = "Close";
+  closeBtn.addEventListener("click", () => togglePanel(id));
+
+  header.appendChild(titleEl);
+  header.appendChild(closeBtn);
+
+  // Content area
+  const contentEl = document.createElement("div");
+  contentEl.className = "panel-content";
+
+  // Prevent pointerdown inside panel content from bubbling to zone-level
+  // handlers (view-tabs sets activeView on zone pointerdown, which triggers
+  // editor notify → full re-render, destroying <select> dropdowns mid-open).
+  contentEl.addEventListener("pointerdown", (e) => e.stopPropagation());
+
+  // Resize handle (bottom-right)
+  const resizeHandle = document.createElement("div");
+  resizeHandle.className = "panel-resize-handle";
+
+  el.appendChild(header);
+  el.appendChild(contentEl);
+  el.appendChild(resizeHandle);
+
+  // Bring panel to front on any interaction
+  el.addEventListener("mousedown", () => bringToFront(el));
+
+  // Apply initial layout from state, clamping to parent bounds
+  function applyLayout(): void {
+    const state = getEditorState();
+    const layout = state.panelLayouts[id];
+
+    // If panel is owned by a pipeline node, hide when that node is mini
+    const ownerExtended = config.ownerNode
+      ? state.pipelineLayout.extended.includes(config.ownerNode)
+      : true;
+    el.style.display = layout.visible && ownerExtended ? "flex" : "none";
+
+    // Clamp position + size within parent bounds (visual only, no state write)
+    const parent = el.parentElement;
+    let { x, y, width, height } = layout;
+    if (parent && layout.visible) {
+      const pw = parent.clientWidth;
+      const ph = parent.clientHeight;
+      if (pw > 0 && ph > 0) {
+        width = Math.min(width, pw - 8);
+        height = Math.min(height, ph - 8);
+        x = Math.max(4, Math.min(x, pw - width - 4));
+        y = Math.max(4, Math.min(y, ph - height - 4));
+      }
+    }
+
+    el.style.left = `${x}px`;
+    el.style.top = `${y}px`;
+    el.style.width = `${width}px`;
+    el.style.height = `${height}px`;
+  }
+
+  applyLayout();
+
+  // ---------------------------------------------------------------------------
+  // Drag
+  // ---------------------------------------------------------------------------
+
+  let dragging: { startX: number; startY: number; origX: number; origY: number } | null = null;
+
+  header.addEventListener("mousedown", (e) => {
+    if ((e.target as HTMLElement).classList.contains("panel-close")) return;
+    e.preventDefault();
+    const layout = getEditorState().panelLayouts[id];
+    dragging = { startX: e.clientX, startY: e.clientY, origX: layout.x, origY: layout.y };
+    el.classList.add("panel--dragging");
+
+    const onMove = (ev: MouseEvent) => {
+      if (!dragging) return;
+      const nx = dragging.origX + (ev.clientX - dragging.startX);
+      const ny = dragging.origY + (ev.clientY - dragging.startY);
+      // Clamp to parent container bounds
+      const parent = el.parentElement;
+      const layout = getEditorState().panelLayouts[id];
+      const maxX = parent ? parent.clientWidth - layout.width : Infinity;
+      const maxY = parent ? parent.clientHeight - layout.height : Infinity;
+      updatePanelLayout(id, {
+        x: Math.max(0, Math.min(maxX, nx)),
+        y: Math.max(0, Math.min(maxY, ny)),
+      });
+    };
+
+    const onUp = () => {
+      dragging = null;
+      el.classList.remove("panel--dragging");
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Resize
+  // ---------------------------------------------------------------------------
+
+  let resizing: { startX: number; startY: number; origW: number; origH: number } | null = null;
+
+  resizeHandle.addEventListener("mousedown", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const layout = getEditorState().panelLayouts[id];
+    resizing = { startX: e.clientX, startY: e.clientY, origW: layout.width, origH: layout.height };
+    el.classList.add("panel--resizing");
+
+    const onMove = (ev: MouseEvent) => {
+      if (!resizing) return;
+      // Clamp resize to parent container bounds
+      const parent = el.parentElement;
+      const layout = getEditorState().panelLayouts[id];
+      const maxW = parent ? parent.clientWidth - layout.x : Infinity;
+      const maxH = parent ? parent.clientHeight - layout.y : Infinity;
+      const nw = Math.max(minWidth, Math.min(maxW, resizing.origW + (ev.clientX - resizing.startX)));
+      const nh = Math.max(minHeight, Math.min(maxH, resizing.origH + (ev.clientY - resizing.startY)));
+      updatePanelLayout(id, { width: nw, height: nh });
+    };
+
+    const onUp = () => {
+      resizing = null;
+      el.classList.remove("panel--resizing");
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  });
+
+  // ---------------------------------------------------------------------------
+  // State sync
+  // ---------------------------------------------------------------------------
+
+  const unsub = subscribeEditor(() => applyLayout());
+
+  // Append to workspace (panels float above the entire pipeline)
+  const panelParent = document.getElementById("workspace")!;
+  panelParent.appendChild(el);
+
+  return {
+    element: el,
+    contentEl,
+    destroy: () => {
+      unsub();
+      el.remove();
+    },
+  };
+}
