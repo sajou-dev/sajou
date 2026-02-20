@@ -20,18 +20,6 @@ importers:
       '@sajou/tap':
         specifier: workspace:*
         version: link:adapters/tap
-      '@sajou/theme-api':
-        specifier: workspace:*
-        version: link:packages/theme-api
-      '@sajou/theme-citadel':
-        specifier: workspace:*
-        version: link:packages/theme-citadel
-      '@sajou/theme-office':
-        specifier: workspace:*
-        version: link:packages/theme-office
-      pixi.js:
-        specifier: ^8.16.0
-        version: 8.16.0
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -126,42 +114,6 @@ importers:
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
-
-  packages/theme-api:
-    dependencies:
-      '@sajou/schema':
-        specifier: workspace:*
-        version: link:../schema
-
-  packages/theme-citadel:
-    dependencies:
-      '@sajou/core':
-        specifier: workspace:*
-        version: link:../core
-      '@sajou/schema':
-        specifier: workspace:*
-        version: link:../schema
-      '@sajou/theme-api':
-        specifier: workspace:*
-        version: link:../theme-api
-      pixi.js:
-        specifier: ^8.16.0
-        version: 8.16.0
-
-  packages/theme-office:
-    dependencies:
-      '@sajou/core':
-        specifier: workspace:*
-        version: link:../core
-      '@sajou/schema':
-        specifier: workspace:*
-        version: link:../schema
-      '@sajou/theme-api':
-        specifier: workspace:*
-        version: link:../theme-api
-      pixi.js:
-        specifier: ^8.16.0
-        version: 8.16.0
 
   tools/entity-editor:
     dependencies:
