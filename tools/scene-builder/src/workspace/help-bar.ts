@@ -4,10 +4,22 @@
  * Thin contextual hint bar at the bottom of the workspace.
  * Shows keyboard shortcuts and interaction hints for the active tool.
  * Subscribes to editor state and updates automatically on tool change.
+ *
+ * Also hosts the server connection status indicator (right corner).
  */
 
 import type { ToolId } from "../types.js";
 import { getEditorState, subscribeEditor } from "../state/editor-state.js";
+import {
+  subscribeConnection,
+  getConnectionStatus,
+  getLastContactAt,
+  getConnectionLog,
+  getReconnectAttempts,
+  getServerBaseUrl,
+  switchServer,
+} from "../state/server-connection.js";
+import type { ServerConnectionStatus } from "../state/server-connection.js";
 
 // ---------------------------------------------------------------------------
 // Hint definitions (static HTML per tool)
@@ -143,12 +155,239 @@ function render(): void {
   const { activeTool } = getEditorState();
   const buildHint = TOOL_HINTS[activeTool];
   const hints = buildHint ? buildHint() : "";
-  const html = hints + `<span class="hb-version">v${__APP_VERSION__}</span>`;
+
+  const status = getConnectionStatus();
+  const statusClass = `hb-status--${status}`;
+  const statusTitle = STATUS_TITLES[status];
+
+  const html =
+    hints +
+    `<span class="hb-version">v${__APP_VERSION__}</span>` +
+    `<button id="server-status-btn" class="hb-status ${statusClass}" title="${statusTitle}" aria-label="${statusTitle}">` +
+    `<span class="hb-status-dot"></span>` +
+    (status === "local" ? '<span class="hb-status-label">local</span>' : "") +
+    `</button>`;
 
   // Skip DOM write if unchanged
   if (html === lastHtml) return;
   lastHtml = html;
   el.innerHTML = html;
+
+  // Re-attach click handler after innerHTML replace
+  const btn = document.getElementById("server-status-btn");
+  if (btn) btn.addEventListener("click", togglePopover);
+}
+
+const STATUS_TITLES: Record<ServerConnectionStatus, string> = {
+  connected: "Connected to sajou server",
+  local: "Working offline (local mode)",
+  reconnecting: "Reconnecting to server…",
+};
+
+// ---------------------------------------------------------------------------
+// Connection status popover
+// ---------------------------------------------------------------------------
+
+let popoverEl: HTMLElement | null = null;
+let popoverUnsub: (() => void) | null = null;
+
+function togglePopover(): void {
+  if (popoverEl) {
+    destroyPopover();
+  } else {
+    createPopover();
+  }
+}
+
+function createPopover(): void {
+  if (popoverEl) return;
+
+  const anchor = document.getElementById("server-status-btn");
+  if (!anchor) return;
+
+  const div = document.createElement("div");
+  div.className = "server-popover";
+  div.innerHTML = buildPopoverContent();
+
+  document.body.appendChild(div);
+  popoverEl = div;
+
+  attachPopoverHandlers();
+
+  // Position above the button, anchored to bottom-right
+  positionPopover(anchor);
+
+  // Live updates
+  popoverUnsub = subscribeConnection(updatePopoverContent);
+
+  // Close on click outside or Escape
+  requestAnimationFrame(() => {
+    document.addEventListener("pointerdown", onOutsideClick);
+    document.addEventListener("keydown", onEscapeKey);
+  });
+}
+
+function destroyPopover(): void {
+  if (popoverEl) {
+    popoverEl.remove();
+    popoverEl = null;
+  }
+  if (popoverUnsub) {
+    popoverUnsub();
+    popoverUnsub = null;
+  }
+  document.removeEventListener("pointerdown", onOutsideClick);
+  document.removeEventListener("keydown", onEscapeKey);
+}
+
+function positionPopover(anchor: HTMLElement): void {
+  if (!popoverEl) return;
+  const rect = anchor.getBoundingClientRect();
+  popoverEl.style.bottom = `${window.innerHeight - rect.top + 4}px`;
+  popoverEl.style.right = `${window.innerWidth - rect.right}px`;
+}
+
+function onOutsideClick(e: PointerEvent): void {
+  if (!popoverEl) return;
+  const target = e.target as Node;
+  if (popoverEl.contains(target)) return;
+  const btn = document.getElementById("server-status-btn");
+  if (btn && btn.contains(target)) return;
+  destroyPopover();
+}
+
+function onEscapeKey(e: KeyboardEvent): void {
+  if (e.key === "Escape") destroyPopover();
+}
+
+function updatePopoverContent(): void {
+  if (!popoverEl) return;
+  // Preserve the input value if user is typing
+  const input = popoverEl.querySelector("#sp-server-input") as HTMLInputElement | null;
+  const cursorValue = input?.value;
+  const hasFocus = input === document.activeElement;
+
+  popoverEl.innerHTML = buildPopoverContent();
+  attachPopoverHandlers();
+
+  // Restore input state if user was editing
+  if (hasFocus && cursorValue !== undefined) {
+    const newInput = popoverEl.querySelector("#sp-server-input") as HTMLInputElement | null;
+    if (newInput) {
+      newInput.value = cursorValue;
+      newInput.focus();
+    }
+  }
+}
+
+/** Attach click/keydown handlers to popover interactive elements. */
+function attachPopoverHandlers(): void {
+  if (!popoverEl) return;
+  const btn = popoverEl.querySelector("#sp-server-connect");
+  const input = popoverEl.querySelector("#sp-server-input") as HTMLInputElement | null;
+
+  const doConnect = (): void => {
+    if (!input) return;
+    const newUrl = input.value.trim();
+    switchServer(newUrl);
+  };
+
+  btn?.addEventListener("click", doConnect);
+  input?.addEventListener("keydown", (e: Event) => {
+    const ke = e as KeyboardEvent;
+    if (ke.key === "Enter") {
+      ke.preventDefault();
+      doConnect();
+    }
+    // Don't let Escape close popover when input is focused — just blur
+    if (ke.key === "Escape") {
+      ke.stopPropagation();
+      input?.blur();
+    }
+  });
+}
+
+function formatTime(ts: number): string {
+  const d = new Date(ts);
+  return d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
+
+function buildPopoverContent(): string {
+  const status = getConnectionStatus();
+  const lastContact = getLastContactAt();
+  const entries = getConnectionLog();
+  const attempts = getReconnectAttempts();
+  const baseUrl = getServerBaseUrl();
+
+  const statusLine = STATUS_TITLES[status];
+  const statusDotClass = `sp-dot sp-dot--${status}`;
+
+  let lastContactLine: string;
+  if (lastContact !== null) {
+    lastContactLine = formatTime(lastContact);
+  } else {
+    lastContactLine = "never";
+  }
+
+  // Resolved display URL: override or build-time default
+  const displayUrl = baseUrl || __SERVER_URL__;
+
+  let html =
+    `<div class="sp-header">` +
+    `<span class="${statusDotClass}"></span>` +
+    `<span class="sp-status-text">${statusLine}</span>` +
+    `</div>`;
+
+  // Editable server URL
+  html +=
+    `<div class="sp-server-row">` +
+    `<label class="sp-label" for="sp-server-input">Server</label>` +
+    `<div class="sp-server-input-row">` +
+    `<input id="sp-server-input" class="sp-input" type="text" ` +
+    `value="${escapeAttr(baseUrl)}" placeholder="${escapeAttr(displayUrl)}" spellcheck="false" />` +
+    `<button id="sp-server-connect" class="sp-connect-btn" title="Connect">Go</button>` +
+    `</div>` +
+    `<div class="sp-server-hint">Empty = Vite proxy (${escapeHtml(__SERVER_URL__)})</div>` +
+    `</div>`;
+
+  html += `<div class="sp-detail">Last contact: <span class="sp-mono">${lastContactLine}</span></div>`;
+
+  if (status === "reconnecting" && attempts > 0) {
+    html += `<div class="sp-detail">Attempts: <span class="sp-mono">${attempts}</span></div>`;
+  }
+
+  if (entries.length > 0) {
+    html += `<div class="sp-log-title">Recent events</div>`;
+    html += `<div class="sp-log">`;
+    // Show most recent 10
+    const visible = entries.slice(-10);
+    for (const entry of visible) {
+      html += `<div class="sp-log-entry"><span class="sp-log-time">${formatTime(entry.time)}</span> ${entry.message}</div>`;
+    }
+    html += `</div>`;
+  }
+
+  return html;
+}
+
+function escapeAttr(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+// ---------------------------------------------------------------------------
+// Server status init
+// ---------------------------------------------------------------------------
+
+function initServerStatus(): void {
+  // Re-render help bar when connection status changes (updates dot color)
+  subscribeConnection(() => {
+    lastHtml = ""; // Force re-render
+    render();
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -160,4 +399,5 @@ export function initHelpBar(): void {
   applyVisibility();
   render();
   subscribeEditor(render);
+  initServerStatus();
 }

@@ -242,21 +242,40 @@ Or from the repo: `pnpm --filter scene-builder dev` starts both in parallel.
 
 **Startup flow**:
 1. Browser restores from IndexedDB (assets, localStorage, state stores)
-2. Probes server via `GET /api/state/full` (2s timeout)
-3. If server has real state → overwrites local stores with server data
-4. If server is empty → `initStateSync()` pushes IDB state to server
-5. Tauri production builds skip the server probe (local-only mode)
+2. `initServerConnection()` probes server via `GET /api/state/full` (2s timeout)
+3. If server has real state → overwrites local stores with server data → starts sync + commands
+4. If server is empty → starts sync (pushes IDB state on first push) + commands
+5. If server unreachable → sets status to `local`, starts reconnect timer
+6. Tauri production builds skip the server probe (local-only mode)
 
-Key files: `state/store.ts` (in-memory state), `state/mutations.ts` (mutation functions), `routes/*.ts` (Express routes), `mcp/transport.ts` (Streamable HTTP), `app.ts` (Express app)
+Key files (server): `state/store.ts` (in-memory state), `state/mutations.ts` (mutation functions), `routes/*.ts` (Express routes), `mcp/transport.ts` (Streamable HTTP), `app.ts` (Express app)
 
-#### MCP command pipeline (browser side)
+#### Server connection status
 
-The browser listens for commands from the server and applies them to local stores:
-- **SSE**: `command-consumer.ts` connects to `/__commands__/stream`, executes commands, ACKs
-- **Polling fallback**: `GET /api/commands/pending` every 500ms if SSE disconnects
-- **State push**: `state-sync.ts` pushes full state snapshot via `POST /api/state/push` (debounced 300ms)
+The browser tracks server connectivity via `server-connection.ts` (single source of truth):
 
-Key files: `command-consumer.ts` (client-side executor), `state-sync.ts` (state push), `server-config.ts` (server probe)
+| Status | Meaning | Help bar |
+|--------|---------|----------|
+| `connected` | Server reachable, sync active | Green dot |
+| `local` | Server unreachable, IDB-only | Gray dot + "local" |
+| `reconnecting` | Was connected, retrying | Amber pulsing dot |
+
+- **Reconnect**: exponential backoff 5s → 10s → 20s → 40s → 60s cap
+- **Server URL**: configurable at runtime via the status popover (persisted in localStorage as `sajou:server-url`). Empty = use Vite proxy (default). Set a full URL (e.g. `http://localhost:3001`) to bypass the proxy and connect directly.
+- **Popover**: click the status dot in the help bar → shows status, server URL (editable), last contact time, connection event log (20 entries)
+
+Key files: `server-connection.ts` (state + reconnect), `server-config.ts` (URL config + probe)
+
+#### State sync (browser ↔ server)
+
+Bidirectional sync between browser stores and the sajou server:
+
+- **Push** (browser → server): `state-sync.ts` subscribes to all stores and pushes a full snapshot via `POST /api/state/push` (debounced 300ms). Guarded by connection status (`connected` only) and `isApplyingServerState` flag.
+- **Pull** (server → browser): `command-consumer.ts` connects to `/__commands__/stream` SSE. The server broadcasts `event: state-change` with `{ version }` on every mutation. On receiving this event, the browser re-fetches `/api/state/full` and applies the full state to local stores.
+- **Feedback loop prevention**: while applying server state, the `isApplyingServerState` flag suppresses `state-sync` pushes to avoid echoing the same data back.
+- **Polling fallback**: if SSE disconnects, polls `/api/state/full` every 2s.
+
+Key files: `command-consumer.ts` (SSE listener + state pull), `state-sync.ts` (state push), `server-connection.ts` (connection lifecycle)
 
 #### Canvas2D dial widgets
 

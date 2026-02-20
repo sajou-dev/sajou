@@ -15,6 +15,9 @@ import { getSignalSourcesState, subscribeSignalSources } from "./signal-source-s
 import { getEditorState, subscribeEditor } from "./editor-state.js";
 import { getShaderState, subscribeShaders } from "../shader-editor/shader-state.js";
 import { getSketchState, subscribeSketch } from "../sketch-editor/sketch-state.js";
+import { getConnectionStatus, notifyServerContact, notifyServerLost } from "./server-connection.js";
+import { serverUrl } from "./server-config.js";
+import { isApplyingServerState } from "./command-consumer.js";
 
 /** Debounce interval in milliseconds. */
 const DEBOUNCE_MS = 300;
@@ -38,15 +41,23 @@ function collectSnapshot(): Record<string, unknown> {
 
 /** Push the snapshot to the dev server. Fire-and-forget. */
 function pushState(): void {
+  if (getConnectionStatus() !== "connected") return;
+  if (isApplyingServerState()) return; // Don't echo server state back
+
   const snapshot = collectSnapshot();
 
-  fetch("/api/state/push", {
+  fetch(serverUrl("/api/state/push"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(snapshot),
-  }).catch(() => {
-    // Silently ignore push failures (server might be restarting)
-  });
+  })
+    .then((resp) => {
+      if (resp.ok) notifyServerContact();
+      else notifyServerLost();
+    })
+    .catch(() => {
+      notifyServerLost();
+    });
 }
 
 /** Schedule a debounced push. */

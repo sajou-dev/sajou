@@ -134,6 +134,7 @@ export default defineConfig({
   root: ".",
   define: {
     __APP_VERSION__: JSON.stringify(appVersion),
+    __SERVER_URL__: JSON.stringify(serverUrl),
   },
   plugins: [corsProxyPlugin()],
   server: {

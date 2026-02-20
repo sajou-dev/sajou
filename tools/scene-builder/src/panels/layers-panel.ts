@@ -465,7 +465,7 @@ function renderLayerRow(layer: SceneLayer, activeLayerId: string | null): HTMLEl
 function getEntityDisplayName(placed: PlacedEntity): string {
   if (placed.semanticId) return placed.semanticId;
   // Truncate entityId for display
-  const id = placed.entityId;
+  const id = placed.entityId ?? placed.id;
   return id.length > 16 ? id.slice(0, 14) + "\u2026" : id;
 }
 
