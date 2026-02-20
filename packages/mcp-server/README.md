@@ -1,4 +1,4 @@
-# @sajou/mcp-server
+# @sajou-dev/mcp-server
 
 MCP (Model Context Protocol) server for sajou. Lets AI agents interact with the visual choreographer via the standard MCP protocol.
 
@@ -39,7 +39,7 @@ Add to your MCP config (`~/.claude/claude_desktop_config.json` or project `.mcp.
   "mcpServers": {
     "sajou": {
       "command": "npx",
-      "args": ["tsx", "adapters/mcp-server/src/index.ts"],
+      "args": ["tsx", "packages/mcp-server/src/index.ts"],
       "env": {
         "SAJOU_DEV_SERVER": "http://localhost:5175"
       }

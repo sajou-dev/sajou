@@ -31,6 +31,7 @@ sajou/
 ├── packages/
 │   ├── core/              # Signal bus + Choreographer runtime (vanilla TS, zero deps)
 │   ├── schema/            # JSON Schemas + TypeScript types for signal protocol
+│   ├── mcp-server/        # MCP server — AI agent integration via Model Context Protocol
 │   ├── theme-api/         # Theme contract and renderer interfaces
 │   ├── theme-citadel/     # WC3/Tiny Swords theme (PixiJS v8)
 │   ├── theme-office/      # Corporate/office theme (PixiJS v8)

@@ -1,8 +1,8 @@
 {
-  "name": "@sajou/mcp-server",
+  "name": "@sajou-dev/mcp-server",
   "version": "0.6.0",
-  "private": true,
   "description": "MCP server for sajou — lets AI agents interact with the visual choreographer via Model Context Protocol",
+  "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -16,8 +16,27 @@
     "sajou-mcp": "./dist/index.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "!dist/sajou-mcp.cjs"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sajou-dev/sajou",
+    "directory": "packages/mcp-server"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "claude",
+    "ai-agents",
+    "sajou"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "build": "tsc --build",
     "typecheck": "tsc --noEmit",
@@ -25,7 +44,6 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.26.0",
-    "@sajou/schema": "workspace:*",
     "express": "^5.1.0",
     "zod": "^3.24.0"
   },
