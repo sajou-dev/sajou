@@ -47,7 +47,7 @@ Add to your MCP config (`~/.claude/claude_desktop_config.json` or project `.mcp.
   "mcpServers": {
     "sajou": {
       "command": "npx",
-      "args": ["sajou-mcp"],
+      "args": ["-y", "@sajou/mcp-server"],
       "env": {
         "SAJOU_DEV_SERVER": "http://localhost:5175"
       }
