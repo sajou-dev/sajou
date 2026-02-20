@@ -1,7 +1,7 @@
 /**
  * Scene import module.
  *
- * Opens a file picker for a ZIP archive, displays a selection dialog,
+ * Opens a file picker for a .sajou or .zip archive, displays a selection dialog,
  * and selectively restores stores based on the user's choices.
  * Clears undo history to prevent stale references.
  *
@@ -97,12 +97,12 @@ interface ZipContents {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Open a file picker constrained to .zip files. Returns null if cancelled. */
+/** Open a file picker for .sajou or .zip files. Returns null if cancelled. */
 function pickZipFile(): Promise<File | null> {
   return new Promise((resolve) => {
     const input = document.createElement("input");
     input.type = "file";
-    input.accept = ".zip";
+    input.accept = ".sajou,.zip";
     input.style.display = "none";
 
     input.addEventListener("change", () => {

@@ -2,10 +2,10 @@
  * Scene export module.
  *
  * Gathers scene state, entity definitions, and referenced assets
- * into a ZIP archive (via fflate) and triggers a browser download.
+ * into a .sajou archive (ZIP format via fflate) and triggers a browser download.
  * A dialog lets the user choose which sections to include.
  *
- * ZIP structure (all sections selected):
+ * Archive structure (all sections selected):
  *   scene.json            — scene layout (dimensions, background, layers, placed entities, positions, routes)
  *   entities.json         — entity definitions (visual config, defaults, tags)
  *   choreographies.json   — choreography definitions + wire connections + bindings
@@ -351,5 +351,5 @@ export async function exportScene(): Promise<void> {
 
   // Phase 3 — Create ZIP and trigger download
   const zipped = zipSync(zipData);
-  downloadBlob(zipped, "scene-export.zip");
+  downloadBlob(zipped, "scene-export.sajou");
 }
