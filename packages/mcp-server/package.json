@@ -1,5 +1,5 @@
 {
-  "name": "@sajou/mcp-server",
+  "name": "@sajou-dev/mcp-server",
   "version": "0.6.0",
   "description": "MCP server for sajou — lets AI agents interact with the visual choreographer via Model Context Protocol",
   "license": "MIT",

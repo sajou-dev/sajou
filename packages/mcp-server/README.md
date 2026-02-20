@@ -1,4 +1,4 @@
-# @sajou/mcp-server
+# @sajou-dev/mcp-server
 
 MCP (Model Context Protocol) server for sajou. Lets AI agents interact with the visual choreographer via the standard MCP protocol.
 
