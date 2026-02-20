@@ -6,17 +6,19 @@ Sajou is a **visual choreographer for AI agents**. It translates agent events in
 
 **The 3-layer architecture is sacred:**
 ```
-Signals (data) → Choreographer (sequences) → Theme (render)
+Signals (data) → Choreographer (sequences) → Stage (render)
 ```
 Never shortcut signal → render. The choreography layer is the product.
 
+> **Historical note:** Early docs and ADRs refer to "Theme" as the render layer. The concept evolved into **Stage** (`@sajou/stage`, Three.js). The packages `theme-api`, `theme-citadel`, and `theme-office` are archived prototypes (PixiJS v8) that predate the Stage layer. They remain in the repo for reference but are not used in production.
+
 ## Core Principles (never violate these)
 
-1. **Declarative first** — Choreographies and themes are JSON, not imperative code. The runtime interprets declarations. This is what makes Sajou composable by AIs.
+1. **Declarative first** — Choreographies and scenes are JSON, not imperative code. The runtime interprets declarations. This is what makes Sajou composable by AIs.
 
-2. **Core is framework-agnostic** — `@sajou/core` has zero framework dependencies. Vanilla TypeScript only. Themes choose their own render stack.
+2. **Core is framework-agnostic** — `@sajou/core` has zero framework dependencies. Vanilla TypeScript only. The Stage chooses its own render stack.
 
-3. **Themes are complete scenes** — Not CSS skins. A theme provides entities, animations, sounds, layouts, choreographies, and its own renderers. Changing theme changes everything except the data.
+3. **The Stage is a complete scene** — Not a CSS skin. The Stage provides entities, animations, sounds, layouts, and its own renderer (Three.js). Changing scene changes everything except the data.
 
 4. **Backend-agnostic** — Sajou consumes a standardized signal stream (JSON over WebSocket). It never depends on a specific orchestrator.
 
@@ -31,14 +33,18 @@ sajou/
 ├── packages/
 │   ├── core/              # Signal bus + Choreographer runtime (vanilla TS, zero deps)
 │   ├── schema/            # JSON Schemas + TypeScript types for signal protocol
+│   ├── stage/             # Three.js renderer library (EntityManager, cameras, lights)
 │   ├── mcp-server/        # MCP server — AI agent integration via Model Context Protocol
-│   ├── theme-api/         # Theme contract and renderer interfaces
-│   ├── theme-citadel/     # WC3/Tiny Swords theme (PixiJS v8)
-│   ├── theme-office/      # Corporate/office theme (PixiJS v8)
-│   └── emitter/           # Test signal emitter (WebSocket)
+│   ├── emitter/           # Test signal emitter (WebSocket)
+│   ├── theme-api/         # [archived] Theme contract interfaces (PixiJS era)
+│   ├── theme-citadel/     # [archived] WC3/Tiny Swords prototype (PixiJS v8)
+│   └── theme-office/      # [archived] Corporate/office prototype (PixiJS v8)
+├── adapters/
+│   └── tap/               # Signal tap — CLI + adapters to connect Claude Code → scene-builder
 ├── tools/
-│   ├── scene-builder/     # Visual scene editor — main authoring tool (Vite + PixiJS)
-│   ├── player/            # Scene player for exported scenes
+│   ├── scene-builder/     # Visual scene editor — main authoring tool (Vite + Three.js)
+│   ├── site/              # Web deployment (VitePress docs, sajou.app static build)
+│   ├── player/            # Scene player (orphaned — no package.json, dist only)
 │   └── entity-editor/     # Entity editor (frozen — superseded by scene-builder)
 ├── tests/
 │   └── integration/       # Cross-package integration tests
@@ -47,11 +53,15 @@ sajou/
 │   ├── active/            # Ideas currently in development
 │   ├── done/              # Completed and merged ideas
 │   ├── specs/             # Technical reference documents
+│   ├── guide/             # User-facing guides (signal flow, shaders, wiring, etc.)
+│   ├── reference/         # Reference docs (scene format, signal protocol, shortcuts)
 │   ├── decisions/         # Technical decisions and their context
+│   ├── features/          # Feature design docs
 │   ├── marketing/         # Product plan, positioning, launch — NOT technical guidelines
 │   ├── adr/               # Architecture Decision Records
 │   ├── archive/           # Archived specs (implemented, kept for reference)
 │   └── brand/             # Brand guide and assets
+├── scripts/               # Release and deploy scripts
 ├── SAJOU-MANIFESTO.md
 ├── ARCHITECTURE.md        # Current state of the codebase
 ├── CLAUDE.md
@@ -69,17 +79,23 @@ Multiple agents may work in parallel. Each agent owns a specific package. **Neve
 |---------|---------------|--------------|
 | `@sajou/schema` | JSON Schemas, TypeScript types generated from schemas | None |
 | `@sajou/core` | Signal bus, choreographer runtime, primitives | `@sajou/schema` |
-| `@sajou/theme-api` | Theme contract interfaces | `@sajou/schema` |
-| `@sajou/theme-citadel` | WC3/Tiny Swords theme (PixiJS v8) | `@sajou/theme-api`, `@sajou/core` |
-| `@sajou/theme-office` | Corporate/office theme (PixiJS v8) | `@sajou/theme-api`, `@sajou/core` |
-| `@sajou/emitter` | Test signal emitter | `@sajou/schema` |
+| `@sajou/stage` | Three.js renderer library (entities, cameras, lights, textures) | `@sajou/core`, `three` |
+| `@sajou/mcp-server` | MCP server for AI agent integration (published on npm) | `@modelcontextprotocol/sdk`, `express`, `zod` |
+| `@sajou/emitter` | Test signal emitter (WebSocket) | `@sajou/schema` |
+| `@sajou/tap` | Signal tap — CLI adapters to connect local agents | `@sajou/schema`, `ws` |
+| `@sajou/theme-api` | [archived] Theme contract interfaces | `@sajou/schema` |
+| `@sajou/theme-citadel` | [archived] WC3/Tiny Swords prototype (PixiJS v8) | `@sajou/theme-api`, `@sajou/core` |
+| `@sajou/theme-office` | [archived] Corporate/office prototype (PixiJS v8) | `@sajou/theme-api`, `@sajou/core` |
+
+> **Note:** `@sajou/mcp-server` is standalone — it does NOT depend on `@sajou/core` or `@sajou/schema`. It manages scene state independently via its own in-memory store. This is by design: the MCP server is a state authority, not part of the signal → choreographer → stage pipeline.
 
 ### Tools
 
 | Tool | Status | Description |
 |------|--------|-------------|
-| `scene-builder` | Active | Visual scene editor — main authoring tool. Wiring, node canvas, step chain, export/import ZIP, run mode. |
-| `player` | Active | Plays exported scene files |
+| `scene-builder` | Active | Visual scene editor — main authoring tool. Three.js + Canvas2D, wiring, shaders, sketches, export/import ZIP, run mode. Tauri desktop shell available. |
+| `site` | Active | Web deployment — VitePress docs site, sajou.app static build |
+| `player` | Orphaned | Scene player — `dist/` exists but no `package.json`. Needs rebuild or removal. |
 | `entity-editor` | Frozen | Superseded by scene-builder |
 
 **Rule: `@sajou/schema` is the shared contract.** Any change to schemas must be discussed and validated before implementation. If you need a schema change, propose it as a separate commit with justification — don't just change it.
@@ -104,12 +120,12 @@ Multiple agents may work in parallel. Each agent owns a specific package. **Neve
 - TypeScript types should be generated from or aligned with JSON Schemas — schemas are the source of truth.
 - Schemas must be documented with `description` fields on every property — these serve as LLM documentation.
 
-### Theme Package Rules
-- A theme chooses its own rendering stack (Three.js, PixiJS, Canvas 2D, SVG...).
-- A theme must implement the `ThemeContract` interface from `@sajou/theme-api`.
-- A theme must provide renderers for all choreographer primitives.
-- A theme declares its available entities and their visual properties in a JSON manifest.
-- Theme-specific dependencies (Three.js, etc.) live only in the theme's `package.json`.
+### Stage Package Rules
+- `@sajou/stage` is the Three.js renderer library — it receives commands from the choreographer.
+- Stage depends on `@sajou/core` for types and on `three` for rendering.
+- Stage owns: EntityManager, LightManager, TextureLoader, cameras, CommandSink.
+- Stage-specific dependencies (Three.js) live only in its own `package.json`.
+- Scene-builder imports from `@sajou/stage` — never from Three.js directly for entity/scene management.
 
 ---
 
@@ -129,7 +145,8 @@ Multiple agents may work in parallel. Each agent owns a specific package. **Neve
 
 ### Packages
 - npm scope: `@sajou/`
-- Package names: `@sajou/core`, `@sajou/schema`, `@sajou/theme-api`, `@sajou/theme-citadel`, `@sajou/theme-office`, `@sajou/emitter`
+- Package names: `@sajou/core`, `@sajou/schema`, `@sajou/stage`, `@sajou/mcp-server`, `@sajou/emitter`, `@sajou/tap`
+- Archived: `@sajou/theme-api`, `@sajou/theme-citadel`, `@sajou/theme-office`
 
 ### Signals & Choreographies (JSON)
 - `snake_case` for signal types: `task_dispatch`, `tool_call`, `token_usage`
@@ -156,8 +173,8 @@ main                         ← stable, tagged releases only (semver v0.x.x)
 
 | Tier | Branch prefix | Scope examples |
 |------|--------------|----------------|
-| **Core** | `core/` | `@sajou/schema`, `@sajou/core`, `@sajou/theme-api`, `@sajou/emitter`, choreographer runtime, signal protocol |
-| **Interface** | `interface/` | `scene-builder`, `player`, themes (`theme-citadel`, `theme-office`), UI components, visual tooling |
+| **Core** | `core/` | `@sajou/schema`, `@sajou/core`, `@sajou/stage`, `@sajou/emitter`, `@sajou/tap`, choreographer runtime, signal protocol |
+| **Interface** | `interface/` | `scene-builder`, `mcp-server`, `site`, `player`, UI components, visual tooling |
 | **Infra** | `infra/` | `vite.config`, `tsconfig`, CI/CD, pnpm workspace, deployment, dev server plugins |
 | **Fix** | `fix/` | Bug fixes in any tier — name should indicate the affected area |
 
@@ -191,7 +208,7 @@ explore(theme-api): prototype renderer interface for 3D entities
 ```
 
 Types: `feat`, `fix`, `test`, `docs`, `refactor`, `chore`, `explore`
-Scopes: `core`, `schema`, `theme-api`, `theme-citadel`, `theme-office`, `emitter`, `scene-builder`, `player`
+Scopes: `core`, `schema`, `stage`, `mcp-server`, `emitter`, `tap`, `scene-builder`, `site`, `player`
 
 ### Rules
 - Every commit must compile (`pnpm typecheck` passes)
@@ -212,8 +229,12 @@ docs/
 ├── active/         → currently in development
 ├── done/           → completed and merged
 ├── specs/          → technical reference documents
+├── guide/          → user-facing guides (signal flow, shaders, wiring, persistence, etc.)
+├── reference/      → reference docs (scene format, signal protocol, keyboard shortcuts)
+├── features/       → feature design documents
 ├── decisions/      → session-level technical choices and their context
-└── adr/            → foundational architecture decisions (numbered, rare)
+├── adr/            → foundational architecture decisions (numbered, rare)
+└── archive/        → archived specs (implemented, kept for reference)
 ```
 
 ### Backlog format
@@ -272,23 +293,23 @@ Don't log raw conversations. Capture only the decisions and their context. These
 ### Adding a new primitive to the choreographer
 1. Define the action type in `packages/schema/` (JSON Schema + TypeScript type)
 2. Implement the runtime logic in `packages/core/src/primitives/`
-3. Add the renderer interface in `packages/theme-api/`
-4. Implement the renderer in `packages/theme-citadel/`
-5. Add tests at every layer
-6. Document the primitive in the schema with `description` fields
+3. Implement the command handler in `packages/stage/` (CommandSink)
+4. Add tests at every layer
+5. Document the primitive in the schema with `description` fields
 
 ### Modifying the signal protocol
 1. Update the JSON Schema in `packages/schema/`
 2. Update the signal bus in `packages/core/`
 3. Update the emitter in `packages/emitter/`
 4. Update any affected choreographies
+5. If the MCP server exposes the signal type, update `packages/mcp-server/` too
 
-### Working on a theme
-- The theme implements renderers for each choreographer primitive
-- The theme owns its visual stack (PixiJS v8 for Citadel and Office)
-- The theme declares its available entities and their visual properties
+### Working on the Stage renderer
+- `@sajou/stage` receives commands from the choreographer via `CommandSink`
+- Stage owns: EntityManager, LightManager, TextureLoader, cameras
+- Three.js is the render stack — all 3D/2D rendering goes through it
 - Test with the emitter or scene-builder, not a real backend
-- Theme-specific logic never leaks into `@sajou/core`
+- Stage-specific logic never leaks into `@sajou/core`
 
 ---
 
@@ -341,7 +362,7 @@ When in doubt about any visual decision, defer to the brand guide.
 ## What NOT to do
 
 - **Don't couple core to any rendering library** — no Three.js, no PixiJS, no DOM in `@sajou/core`
-- **Don't hardcode theme-specific logic in the choreographer** — the choreographer doesn't know about peons or pigeons
+- **Don't hardcode scene-specific logic in the choreographer** — the choreographer doesn't know about peons or pigeons
 - **Don't bypass the choreography layer** — signal → render directly is forbidden
 - **Don't use imperative code where declarative JSON works** — if it can be a schema, it should be
 - **Don't optimize prematurely** — clarity over performance in V1
@@ -358,6 +379,6 @@ When in doubt about any visual decision, defer to the brand guide.
 
 1. **Update reference documentation** — reflect the changes in the relevant docs (`ARCHITECTURE.md`, `CLAUDE.md`, ADRs, etc.). The codebase docs must stay in sync with the code.
 
-2. **Update VitePress documentation** — if the change affects user-facing behavior, a system described in the guides, or a reference format, update the corresponding page in `docs/guide/` or `docs/reference/`. New systems get a new page. The doc site is the project's living manual — it must stay accurate.
+2. **Update guides and reference docs** — if the change affects user-facing behavior, a system described in the guides, or a reference format, update the corresponding page in `docs/guide/` or `docs/reference/`. New systems get a new page. These docs are the project's living manual — they must stay accurate.
 
 3. **Log remarks, ideas, and open questions** — during implementation, ideas, edge cases, future improvements, and unresolved questions inevitably surface. Capture them in a dedicated section at the end of your work summary so we can integrate them into the next work plan. Nothing should be lost to context window eviction.

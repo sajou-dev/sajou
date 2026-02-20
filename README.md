@@ -2,15 +2,15 @@
 
 **A visual choreographer for AI agents.**
 
-sajou translates AI agent events (tasks, tool calls, costs, errors) into animated visual scenes through a declarative, themeable choreography system.
+sajou translates AI agent events (tasks, tool calls, costs, errors) into animated visual scenes through a declarative choreography system.
 
-> *The signals are the music. The themes are the dancers. sajou is the choreographer.*
+> *The signals are the music. The stage is the theater. sajou is the choreographer.*
 
 ## What is this?
 
 Every AI agent today shares the same interface: a chat. sajou offers something different — a visual runtime that maps agent data streams onto rich, animated, artistic interfaces.
 
-Think of it like MadMapper for AI agents: signals come in (MIDI/OSC/ArtNet style), choreographies define the visual sequences, and themes render them on screen.
+Think of it like MadMapper for AI agents: signals come in (MIDI/OSC/ArtNet style), choreographies define the visual sequences, and the stage renders them on screen.
 
 - **Signals**: standardized JSON events from any agent backend (OpenClaw, LangChain, custom) — plus MIDI controllers and local AI services
 - **Choreographer**: declarative JSON sequences that describe what happens visually when a signal arrives — authored with interlocking blocks
@@ -20,32 +20,43 @@ Same data, different scene, completely different experience.
 
 Read the full vision in [SAJOU-MANIFESTO.md](./SAJOU-MANIFESTO.md)
 
-## What's new in v0.4.0
+## Current state (v0.6)
 
-### p5.js Editor — creative coding in the pipeline
+### MCP server — published on npm
 
-Built-in p5.js sketch editor with live preview, running in instance mode. Write sketches with `p.setup`/`p.draw`, control parameters via `// @param:` annotations, and wire them to the choreographer — just like shaders.
+The sajou state server (`@sajou/mcp-server`) is [published on npm](https://www.npmjs.com/package/@sajou/mcp-server) and works standalone. It provides 16 MCP tools, a REST API, and SSE streams. AI agents can compose scenes without any browser open.
 
-- **Params bridge**: `p.sajou.speed`, `p.sajou.color` — live parameter control without re-run
-- **Annotations**: `// @param: speed, slider, min: 0.1, max: 5.0` generates interactive controls
-- **Wiring**: p5 params appear as badges on the connector bar, wireable to choreographer outputs
-- **MCP**: 4 new tools (`create_p5_sketch`, `update_p5_sketch`, `delete_p5_sketch`, `set_p5_param`)
-- **3 presets**: Particles, Wave, Grid
+```bash
+npx -y @sajou/mcp-server --http       # standalone server (port 3001)
+npx -y @sajou/mcp-server              # stdio mode for Claude Code
+```
 
-Shader and p5.js share a pipeline slot — press `4` for Shader, `5` for p5.js.
+### Tauri desktop app
 
-### Auto-wire & selective import
+Native desktop shell via Tauri v2 — bypasses browser mixed-content restrictions for localhost connections. ~3.4 MB production build.
 
-- **Auto-wire**: connected signal sources are automatically wired to choreography signal types on import or connect
-- **Selective import**: ZIP import dialog lets you pick which sections to restore (visual layout, entities, choreographies, shaders, p5 sketches)
+### Sketch editor — dual-mode p5.js + Three.js
 
-### Header redesign
+Built-in sketch editor with live preview, supporting both p5.js instance mode and Three.js `setup(ctx)/draw(ctx, state)` API. 6 presets, `// @param:` annotations, wirable to the choreographer.
 
-Grouped layout with undo/redo buttons, help toggle, and cleaner visual hierarchy.
+### Speech bubbles
 
-### Previous: v0.3.0
+Canvas2D overlay rendering speech bubbles above entities in run mode — streaming typewriter effect for `text_delta`/`thinking`, per-entity config (colors, tail position, retention).
 
-MCP server (20 tools), multi-instance Actor IDs, state sync, REST API, MIDI binding fix. See [CHANGELOG.md](./CHANGELOG.md) for full history.
+### Binding transitions
+
+Temporal animation engine for choreographer bindings — easing, smooth interrupt, revert to snapshot. Float properties (scale, opacity, rotation, position) animate; non-float properties stay immediate.
+
+### Also
+
+- **Auto-wire**: connected signal sources automatically wired to active choreography signal types
+- **Selective import**: ZIP import dialog lets you pick sections independently
+- **OpenClaw integration**: challenge/response handshake (protocol v3), delta-first streaming
+- **Lighting**: ambient, directional, point lights with flicker modulation
+- **Particles**: CPU-simulated emitters with color-over-life, glow
+- **Full-window preview**: press `F` for immersive run mode
+
+See [CHANGELOG.md](./CHANGELOG.md) for the full release history.
 
 ## Architecture
 
@@ -77,19 +88,21 @@ sajou/
 ├── packages/
 │   ├── core/              # Signal bus + Choreographer runtime (vanilla TS, zero deps)
 │   ├── schema/            # JSON Schemas + TypeScript types for signal protocol
-│   ├── mcp-server/        # MCP server — 20+ tools for AI agent integration
 │   ├── stage/             # Three.js renderer library (EntityManager, LightManager, cameras)
-│   ├── theme-api/         # Theme contract interfaces (early prototype)
-│   ├── theme-citadel/     # WC3/Tiny Swords theme (early prototype)
-│   ├── theme-office/      # Corporate/office theme (early prototype)
-│   └── emitter/           # Test signal emitter (WebSocket)
+│   ├── mcp-server/        # MCP server — 16 tools for AI agent integration (npm: @sajou/mcp-server)
+│   ├── emitter/           # Test signal emitter (WebSocket)
+│   ├── theme-api/         # [archived] Theme contract interfaces (PixiJS era)
+│   ├── theme-citadel/     # [archived] WC3/Tiny Swords prototype (PixiJS v8)
+│   └── theme-office/      # [archived] Corporate/office prototype (PixiJS v8)
 ├── adapters/
-│   └── tap/               # Signal tap — hooks into Claude Code, bridges to scene-builder
+│   └── tap/               # Signal tap — CLI + adapters to connect Claude Code → scene-builder
 ├── tools/
-│   ├── scene-builder/     # Visual scene editor — main authoring tool (Three.js)
-│   ├── player/            # Scene player for exported scenes
+│   ├── scene-builder/     # Visual scene editor — main authoring tool (Vite + Three.js + Tauri)
+│   ├── site/              # Web deployment (docs, sajou.app static build)
 │   └── entity-editor/     # Entity editor (frozen — superseded by scene-builder)
 ├── docs/
+│   ├── guide/             # User-facing guides (signal flow, shaders, wiring, etc.)
+│   ├── reference/         # Reference docs (scene format, signal protocol, shortcuts)
 │   ├── backlog/           # Raw ideas — one markdown file per idea
 │   ├── active/            # Ideas currently in development
 │   ├── done/              # Completed and merged ideas
@@ -97,6 +110,7 @@ sajou/
 │   ├── decisions/         # Session-level technical choices
 │   ├── adr/               # Architecture Decision Records
 │   └── brand/             # Brand guide and assets
+├── scripts/               # Release and deploy scripts
 └── SAJOU-MANIFESTO.md     # Project vision and design principles
 ```
 
@@ -108,7 +122,7 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed package descriptions and c
 - **Core**: Vanilla TS, zero framework dependency — the choreographer is framework-agnostic
 - **Stage**: Three.js (WebGLRenderer + Canvas2D overlay)
 - **Signal sources**: WebSocket, SSE, OpenAI-compatible, Anthropic API, OpenClaw gateway, MIDI
-- **MCP**: Model Context Protocol server (stdio transport) for AI agent integration
+- **MCP**: Model Context Protocol server (stdio + Streamable HTTP) — 16 tools, published as `@sajou/mcp-server`
 - **Code editors**: CodeMirror 6 (GLSL + JavaScript)
 - **Monorepo**: pnpm workspaces
 - **Build**: Vite
@@ -138,7 +152,7 @@ The main authoring tool — a visual editor for building sajou scenes.
 - **Pipeline layout**: node-based workspace with signal, choreographer, visual, and shader nodes
 - **Interlocking blocks**: choreography authoring with sentence-blocks, drag-reorder, and action palette
 - **Shader editor**: CodeMirror 6 with GLSL highlighting, live preview canvas, multi-pass ping-pong feedback, 3 built-in presets, JSON export/import
-- **p5.js editor**: CodeMirror 6 with JavaScript, instance mode runtime, `@param:` annotations, live param bridge
+- **Sketch editor**: dual-mode p5.js + Three.js, CodeMirror 6, `@param:` annotations, live param bridge, 6 presets
 - **Uniform/param annotations**: `@ui` / `@param:` (slider, color, toggle, xy), `@bind` (choreographer wiring), `@object` (grouped controls)
 - **GLSL auto-detect**: static analysis finds extractable literals (vec constructors, smoothstep, mix, pow, time multipliers, SDF radii...) with confidence scoring and Expose/Unexpose toggle
 - **Choreo→shader/p5 wiring**: bind choreography actions to shader uniforms and p5 params
@@ -146,7 +160,11 @@ The main authoring tool — a visual editor for building sajou scenes.
 - **Particles**: CPU-simulated emitters with color-over-life, radial/directional modes, glow
 - **State persistence**: IndexedDB + localStorage, auto-save, scene ZIP import/export with selective import
 - **Auto-wire**: connected signal sources automatically wired to active choreography signal types
+- **Speech bubbles**: Canvas2D overlay with streaming typewriter effect, per-entity config
+- **Binding transitions**: temporal animation (easing, interrupt, revert) for choreographer bindings
 - **Shared Actor IDs**: multiple entities can share an Actor ID for group choreography (×N badge in inspector)
+- **Tauri desktop**: native shell via Tauri v2 — bypasses browser mixed-content restrictions for localhost
+- **Full-window preview**: press `F` for immersive run mode
 
 ## Status
 

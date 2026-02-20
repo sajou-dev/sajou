@@ -3,10 +3,12 @@
 ## Overview
 
 ```
-Signals (data) → Choreographer (sequences) → Theme (render)
+Signals (data) → Choreographer (sequences) → Stage (render)
 ```
 
 See [SAJOU-MANIFESTO.md](./SAJOU-MANIFESTO.md) for the full vision.
+
+> **Historical note:** Early docs and ADRs use "Theme" for the render layer. In practice the concept evolved into **Stage** (`@sajou/stage`, Three.js). The `theme-*` packages are archived prototypes from the PixiJS era.
 
 ## Runtime packages
 
@@ -15,7 +17,7 @@ See [SAJOU-MANIFESTO.md](./SAJOU-MANIFESTO.md) for the full vision.
 TypeScript types + JSON Schema for the signal protocol.
 
 - **Open protocol**: any string is a valid signal type — no enum gate
-- 9 well-known types: `task_dispatch`, `tool_call`, `tool_result`, `token_usage`, `agent_state_change`, `error`, `completion`, `text_delta`, `thinking`
+- 14 well-known types — 9 agent: `task_dispatch`, `tool_call`, `tool_result`, `token_usage`, `agent_state_change`, `error`, `completion`, `text_delta`, `thinking` + 5 user interaction: `user.click`, `user.move`, `user.zone`, `user.command`, `user.point`
 - `WellKnownSignalType` (typed union) vs `SignalType` (any string with autocomplete)
 - `SignalEnvelope<T>`: well-known types get typed payloads; custom types get `Record<string, unknown>`
 - `SignalEvent`: discriminated union on `type` field for type narrowing (well-known types only)
@@ -27,37 +29,45 @@ TypeScript types + JSON Schema for the signal protocol.
 Choreographer runtime — zero external dependencies, runs in browser and Node.js.
 
 - Concurrent performances with tween-based timing ([ADR-002](./docs/adr/002-choreographer-runtime.md))
-- Typed `CommandSink` for theme communication
+- Typed `CommandSink` for Stage communication
 - `TestClock` for deterministic unit tests
 - `toPerformanceSignal()` bridge: `SignalEnvelope` (schema) → `PerformanceSignal` (core)
 
-### @sajou/theme-api
+### @sajou/stage
 
-Theme contract interfaces.
+Three.js renderer library — the production render layer.
 
-- `ThemeContract`, `ThemeManifest`, `EntityDefinition`, `ThemeRenderer`
-
-### @sajou/theme-citadel
-
-WC3/Tiny Swords theme — PixiJS v8.
-
-- 6 entities, 4 choreographies, grid-based layout
-- Spritesheets: 192x192 cells, `frameRow` selects animation row
-- Assets from `tiny-swords/` (original) and `tiny-swords-update-010/` (faction-based)
-
-### @sajou/theme-office
-
-Corporate/office theme — PixiJS v8.
-
-- LimeZu Modern Interiors pixel art
-- 4 zones: manager office, server room, open space, entrance/break room
-- Entities: workers, server racks, office furniture
+- `EntityManager`: creates, updates, removes entity meshes (PlaneGeometry, MeshBasicMaterial)
+- `LightManager`: AmbientLight, DirectionalLight, PointLight array with flicker
+- `TextureLoader`: async texture loading with spritesheet support
+- `setUVFrame()`: spritesheet animation via UV frame cycling
+- Cameras: OrthographicCamera (top-down), isometric mode
+- `CommandSink`: receives choreographer commands and translates them to Three.js operations
+- Depends on `@sajou/core` + `three`
 
 ### @sajou/emitter
 
 WebSocket signal emitter for testing.
 
 - 3 predefined scenarios, replay loop, speed control
+
+### @sajou/tap (adapter)
+
+Signal tap — CLI + adapters to connect local agents (Claude Code) to scene-builder.
+
+- `sajou-tap` CLI: hooks into Claude Code activity and bridges signals
+- `sajou-emit` CLI: manual signal emission
+- Located in `adapters/tap/`
+
+### Archived packages
+
+The following packages are **archived prototypes** from the PixiJS era. They remain in the repo for reference but are not used in production. The Stage layer (`@sajou/stage`) replaces them.
+
+| Package | Description |
+|---------|-------------|
+| `@sajou/theme-api` | Theme contract interfaces (`ThemeContract`, `ThemeManifest`, `ThemeRenderer`) |
+| `@sajou/theme-citadel` | WC3/Tiny Swords theme — PixiJS v8 (6 entities, 4 choreographies) |
+| `@sajou/theme-office` | Corporate/office theme — PixiJS v8 (LimeZu Modern Interiors) |
 
 ## Tools
 
@@ -199,7 +209,7 @@ Dual-mode sketch editor with live preview, supporting both p5.js and Three.js ru
 - **External control**: MCP `set-param` commands update both the state store and the live params object
 - **Backward-compatible**: `mode ?? "p5"` — existing sketches without the field default to p5.js
 
-Key files: `sketch-canvas.ts` (runtime routing), `threejs-canvas.ts` (Three.js runtime), `sketch-params-panel.ts` (UI controls), `sketch-code-panel.ts` (editor + mode selector), `sketch-param-parser.ts` (annotation parser), `sketch-presets.ts` (p5 + Three.js presets), `sketch-state.ts` (store), `sketch-view.ts` (pipeline node integration)
+Key files (in `src/sketch-editor/`): `sketch-canvas.ts` (runtime routing), `threejs-canvas.ts` (Three.js runtime), `sketch-params-panel.ts` (UI controls), `sketch-code-panel.ts` (editor + mode selector), `sketch-param-parser.ts` (annotation parser), `sketch-presets.ts` (p5 + Three.js presets), `sketch-state.ts` (store), `sketch-view.ts` (pipeline node integration)
 
 #### Server-authoritative state
 
@@ -225,6 +235,8 @@ botoul  ──HTTP─────→ same code, Express middleware
 ```
 
 MCP tools read/write the store directly (no browser needed). Connected browsers receive state updates via SSE. The server works standalone — agents can compose scenes without any browser open.
+
+> **Note:** The MCP server is **standalone** — it does NOT depend on `@sajou/core` or `@sajou/schema`. It manages scene state via its own in-memory store with its own types. This is by design: the MCP server is a state authority that operates orthogonally to the signal → choreographer → stage pipeline.
 
 **Dev mode**: run the server and Vite client separately:
 ```bash
@@ -283,9 +295,9 @@ Signal ─rail─ Choreo ─rail─ Visual ─rail─ [ Shader │ Sketches ]
 - Inside the code group: extended node takes all space, sibling collapses to 28px horizontal bar
 - Keyboard: 1–5 toggle nodes, double-click header to solo-focus
 
-### player (active)
+### player (orphaned)
 
-Plays exported scene files from the scene-builder.
+Scene player for exported files. Currently orphaned — `dist/` exists but no `package.json`. Needs rebuild or removal.
 
 ### entity-editor (frozen)
 
@@ -297,12 +309,14 @@ Entity editor — superseded by scene-builder's integrated entity management.
 
 ## Architecture Decision Records
 
-| ADR | Topic |
-|-----|-------|
-| [001-signal-protocol](./docs/adr/001-signal-protocol.md) | Envelope + typed payload, 7 signal types, `correlationId` grouping |
-| [002-choreographer-runtime](./docs/adr/002-choreographer-runtime.md) | Concurrent performances, tween-based timing, typed `CommandSink`, `TestClock` |
-| [002-entity-format](./docs/adr/002-entity-format.md) | Extensible entity format (sprites → spritesheets → 3D) |
-| [003-renderer-stack](./docs/adr/003-renderer-stack.md) | PixiJS v8 as renderer for V1 themes |
+| ADR | Topic | Status |
+|-----|-------|--------|
+| [001-signal-protocol](./docs/adr/001-signal-protocol.md) | Envelope + typed payload, `correlationId` grouping (14 well-known types today) | Active |
+| [002-choreographer-runtime](./docs/adr/002-choreographer-runtime.md) | Concurrent performances, tween-based timing, typed `CommandSink`, `TestClock` | Active |
+| [002-entity-format](./docs/adr/002-entity-format.md) | Extensible entity format (sprites → spritesheets → 3D) | Active |
+| [003-renderer-stack](./docs/adr/003-renderer-stack.md) | PixiJS v8 as renderer for V1 themes — **superseded** by `@sajou/stage` (Three.js) | Superseded |
+
+> **Note:** ADR-002 has a duplicate number (choreographer-runtime and entity-format). This is a historical artifact. ADR-003 recommended PixiJS for V1 but the codebase adopted Three.js via `@sajou/stage` — the ADR is kept for historical context.
 
 ## Brand
 
