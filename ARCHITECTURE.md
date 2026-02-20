@@ -203,7 +203,7 @@ Key files: `sketch-canvas.ts` (runtime routing), `threejs-canvas.ts` (Three.js r
 
 #### Server-authoritative state
 
-The **sajou state server** (`adapters/mcp-server/`) is the source of truth for scene state. It runs as a standalone Node.js process and provides:
+The **sajou state server** (`packages/mcp-server/`) is the source of truth for scene state. It runs as a standalone Node.js process and provides:
 - **In-memory state store** with pub/sub notifications (`state/store.ts`)
 - **REST API** on `/api/*` — same endpoints the browser has always used
 - **MCP Streamable HTTP** on `/mcp` — for remote AI agents

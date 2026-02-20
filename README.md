@@ -77,13 +77,13 @@ sajou/
 ├── packages/
 │   ├── core/              # Signal bus + Choreographer runtime (vanilla TS, zero deps)
 │   ├── schema/            # JSON Schemas + TypeScript types for signal protocol
+│   ├── mcp-server/        # MCP server — 20+ tools for AI agent integration
 │   ├── stage/             # Three.js renderer library (EntityManager, LightManager, cameras)
 │   ├── theme-api/         # Theme contract interfaces (early prototype)
 │   ├── theme-citadel/     # WC3/Tiny Swords theme (early prototype)
 │   ├── theme-office/      # Corporate/office theme (early prototype)
 │   └── emitter/           # Test signal emitter (WebSocket)
 ├── adapters/
-│   ├── mcp-server/        # MCP server — 20 tools for AI agent integration
 │   └── tap/               # Signal tap — hooks into Claude Code, bridges to scene-builder
 ├── tools/
 │   ├── scene-builder/     # Visual scene editor — main authoring tool (Three.js)
