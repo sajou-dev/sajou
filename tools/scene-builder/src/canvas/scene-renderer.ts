@@ -388,7 +388,7 @@ function applyBillboard(ctrl: CameraController): void {
       const placed = placedMap.get(record.placedId);
       const def = placed ? getEntityDef(placed.entityId) : null;
 
-      if (!def?.defaults.flat) {
+      if (def && !def.defaults.flat) {
         record.mesh.rotation.set(Math.PI / 2, angle, 0, "YXZ");
         const h = def.displayHeight;
         const ay = def.defaults.anchor?.[1] ?? 0.5;
