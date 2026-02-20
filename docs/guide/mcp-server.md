@@ -62,10 +62,33 @@ The scene-builder can also run without a server (offline/Tauri mode) — it fall
 ### Startup flow
 
 1. Browser restores local state from IndexedDB
-2. Probes server via `GET /api/state/full` (2s timeout)
-3. If server has state → overwrites local stores with server data
-4. If server is empty → pushes local state to server
-5. SSE connection established for live sync
+2. `initServerConnection()` probes server via `GET /api/state/full` (2s timeout)
+3. If server has state → overwrites local stores with server data → starts sync + commands
+4. If server is empty → starts sync (pushes local state on first push) + commands
+5. If server unreachable → enters `local` mode (IDB only), starts reconnect with exponential backoff
+6. SSE connection established for live state-change notifications
+
+### Connection status
+
+The help bar (bottom-right corner) shows a server connection indicator:
+
+| Dot | Status | Meaning |
+|-----|--------|---------|
+| Green | `connected` | Server reachable, bidirectional sync active |
+| Gray + "local" | `local` | Server not found, IndexedDB only |
+| Amber pulsing | `reconnecting` | Was connected, retrying with backoff (5s → 60s cap) |
+
+Click the dot to open a popover with:
+- **Status line** and last contact timestamp
+- **Editable server URL** — change the target server at runtime (persisted in localStorage). Empty = Vite proxy (default). Useful when the default port is taken.
+- **Connection log** — timestamped events (connected, lost, retrying, reconnected…)
+
+### State sync
+
+Bidirectional sync between browser and server:
+- **Push** (browser → server): `state-sync.ts` pushes full state snapshot via `POST /api/state/push` (debounced 300ms)
+- **Pull** (server → browser): `command-consumer.ts` listens on `/__commands__/stream` SSE for `state-change` events, then re-fetches `/api/state/full`
+- **Feedback prevention**: `isApplyingServerState` flag suppresses pushes while applying server state
 
 ## MCP client configuration
 

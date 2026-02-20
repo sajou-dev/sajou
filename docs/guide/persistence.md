@@ -30,6 +30,7 @@ Each store wraps its data in a versioned envelope `{ version: 1, data: ... }`.
 |---|---|
 | `sajou:remote-sources` | Remote signal source configs (URL, protocol, API key, model) |
 | `sajou:editor-prefs` | Panel layouts, grid settings, view mode, pipeline layout |
+| `sajou:server-url` | Server URL override (empty = Vite proxy default). Set via the connection popover. |
 
 ### Not Persisted
 
@@ -37,7 +38,8 @@ These are rebuilt or re-discovered on each session:
 
 - Undo/redo stack
 - Local signal sources (re-discovered via local discovery)
-- Connection status (all sources start `"disconnected"`)
+- Signal source connection status (all sources start `"disconnected"`)
+- Server connection status (re-probed on startup, tracked by `server-connection.ts`)
 - Active selections
 - Compositor state
 
