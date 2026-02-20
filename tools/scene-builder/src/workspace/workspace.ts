@@ -11,11 +11,9 @@ import { initCanvasDropHandler } from "../canvas/canvas-drop-handler.js";
 import { initToolbarPanel } from "./toolbar.js";
 import { initHeader } from "./header.js";
 import { restoreState, initAutoSave } from "../state/persistence.js";
-import { initStateSync } from "../state/state-sync.js";
-import { initCommandConsumer } from "../state/command-consumer.js";
 import { isTauri } from "../utils/platform-fetch.js";
 import { initAutoWire } from "../state/auto-wire.js";
-import { probeServer } from "../state/server-config.js";
+import { initServerConnection } from "../state/server-connection.js";
 import { setSceneState } from "../state/scene-state.js";
 import { setChoreographyState } from "../state/choreography-state.js";
 import { setWiringState } from "../state/wiring-state.js";
@@ -181,11 +179,9 @@ export async function initWorkspace(): Promise<void> {
   // 2. If sajou server is available, sync state with it.
   //    Server wins if it has real state; otherwise initStateSync() will push
   //    the IDB state to the server on its first immediate push.
+  //    initServerConnection handles probe → restore → start sync/commands.
   if (!isTauri()) {
-    const probe = await probeServer();
-    if (probe.hasState && probe.data) {
-      restoreFromServer(probe.data);
-    }
+    await initServerConnection(restoreFromServer);
   }
 
   // Undo/redo shortcuts
@@ -288,11 +284,7 @@ export async function initWorkspace(): Promise<void> {
   // Auto-wire: create signal→signal-type wires when sources connect.
   initAutoWire();
 
-  // MCP command pipeline: state sync + command consumer require the Vite dev
-  // server endpoints. In Tauri production builds these don't exist — skip to
-  // avoid perpetual EventSource reconnects and wasted fetch polls.
-  if (!isTauri()) {
-    initStateSync();
-    initCommandConsumer();
-  }
+  // MCP command pipeline is started by initServerConnection() above.
+  // In Tauri production builds the server is not available — skipped via
+  // the isTauri() guard around initServerConnection().
 }

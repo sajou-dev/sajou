@@ -13,6 +13,8 @@
  * command-consumer pulls commands IN.
  */
 
+import { notifyServerContact, notifyServerLost } from "./server-connection.js";
+import { serverUrl } from "./server-config.js";
 import { getSceneState, updateSceneState } from "./scene-state.js";
 import { getChoreographyState, updateChoreographyState, removeChoreography } from "./choreography-state.js";
 import { addWire, removeWire } from "./wiring-state.js";
@@ -362,7 +364,7 @@ function executeCommand(cmd: PendingCommand): void {
 /** Acknowledge processed command IDs so the server prunes them. */
 function ackCommands(ids: string[]): void {
   if (ids.length === 0) return;
-  fetch("/api/commands/ack", {
+  fetch(serverUrl("/api/commands/ack"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ids }),
@@ -377,7 +379,7 @@ function ackCommands(ids: string[]): void {
 
 /** Connect to the command SSE stream and process commands in real-time. */
 function connectSSE(): void {
-  const es = new EventSource("/__commands__/stream");
+  const es = new EventSource(serverUrl("/__commands__/stream"));
   eventSource = es;
 
   es.addEventListener("command", (event: MessageEvent) => {
@@ -395,6 +397,7 @@ function connectSSE(): void {
       console.log("[command-consumer] SSE connected — real-time command streaming active");
       sseConnected = true;
     }
+    notifyServerContact();
     // Stop fallback polling when SSE is connected
     stopPolling();
   });
@@ -403,6 +406,7 @@ function connectSSE(): void {
     if (sseConnected) {
       console.warn("[command-consumer] SSE disconnected — falling back to polling");
       sseConnected = false;
+      notifyServerLost();
     }
     // EventSource will auto-reconnect, but start polling as fallback in the meantime
     startPolling();
@@ -416,7 +420,7 @@ function connectSSE(): void {
 /** Fetch pending commands and execute them. */
 async function pollCommands(): Promise<void> {
   try {
-    const resp = await fetch("/api/commands/pending", {
+    const resp = await fetch(serverUrl("/api/commands/pending"), {
       signal: AbortSignal.timeout(3000),
     });
     if (!resp.ok) return;
