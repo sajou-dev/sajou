@@ -59,15 +59,10 @@ Signal tap — CLI + adapters to connect local agents (Claude Code) to scene-bui
 - `sajou-emit` CLI: manual signal emission
 - Located in `adapters/tap/`
 
-### Archived packages
+### Removed packages
 
-The following packages are **archived prototypes** from the PixiJS era. They remain in the repo for reference but are not used in production. The Stage layer (`@sajou/stage`) replaces them.
-
-| Package | Description |
-|---------|-------------|
-| `@sajou/theme-api` | Theme contract interfaces (`ThemeContract`, `ThemeManifest`, `ThemeRenderer`) |
-| `@sajou/theme-citadel` | WC3/Tiny Swords theme — PixiJS v8 (6 entities, 4 choreographies) |
-| `@sajou/theme-office` | Corporate/office theme — PixiJS v8 (LimeZu Modern Interiors) |
+The following packages were removed (PixiJS-era prototypes, superseded by `@sajou/stage`):
+`@sajou/theme-api`, `@sajou/theme-citadel`, `@sajou/theme-office`. See git history for reference.
 
 ## Tools
 
@@ -294,10 +289,6 @@ Signal ─rail─ Choreo ─rail─ Visual ─rail─ [ Shader │ Sketches ]
 - Extended: fills available space, other nodes collapse
 - Inside the code group: extended node takes all space, sibling collapses to 28px horizontal bar
 - Keyboard: 1–5 toggle nodes, double-click header to solo-focus
-
-### player (orphaned)
-
-Scene player for exported files. Currently orphaned — `dist/` exists but no `package.json`. Needs rebuild or removal.
 
 ### entity-editor (frozen)
 

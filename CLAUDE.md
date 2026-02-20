@@ -36,15 +36,12 @@ sajou/
 │   ├── stage/             # Three.js renderer library (EntityManager, cameras, lights)
 │   ├── mcp-server/        # MCP server — AI agent integration via Model Context Protocol
 │   ├── emitter/           # Test signal emitter (WebSocket)
-│   ├── theme-api/         # [archived] Theme contract interfaces (PixiJS era)
-│   ├── theme-citadel/     # [archived] WC3/Tiny Swords prototype (PixiJS v8)
-│   └── theme-office/      # [archived] Corporate/office prototype (PixiJS v8)
+│   └── (theme-api, theme-citadel, theme-office removed — were archived PixiJS prototypes)
 ├── adapters/
 │   └── tap/               # Signal tap — CLI + adapters to connect Claude Code → scene-builder
 ├── tools/
 │   ├── scene-builder/     # Visual scene editor — main authoring tool (Vite + Three.js)
 │   ├── site/              # Web deployment (VitePress docs, sajou.app static build)
-│   ├── player/            # Scene player (orphaned — no package.json, dist only)
 │   └── entity-editor/     # Entity editor (frozen — superseded by scene-builder)
 ├── tests/
 │   └── integration/       # Cross-package integration tests
@@ -83,9 +80,7 @@ Multiple agents may work in parallel. Each agent owns a specific package. **Neve
 | `@sajou/mcp-server` | MCP server for AI agent integration (published on npm) | `@modelcontextprotocol/sdk`, `express`, `zod` |
 | `@sajou/emitter` | Test signal emitter (WebSocket) | `@sajou/schema` |
 | `@sajou/tap` | Signal tap — CLI adapters to connect local agents | `@sajou/schema`, `ws` |
-| `@sajou/theme-api` | [archived] Theme contract interfaces | `@sajou/schema` |
-| `@sajou/theme-citadel` | [archived] WC3/Tiny Swords prototype (PixiJS v8) | `@sajou/theme-api`, `@sajou/core` |
-| `@sajou/theme-office` | [archived] Corporate/office prototype (PixiJS v8) | `@sajou/theme-api`, `@sajou/core` |
+| ~~`@sajou/theme-*`~~ | Removed — were archived PixiJS prototypes | — |
 
 > **Note:** `@sajou/mcp-server` is standalone — it does NOT depend on `@sajou/core` or `@sajou/schema`. It manages scene state independently via its own in-memory store. This is by design: the MCP server is a state authority, not part of the signal → choreographer → stage pipeline.
 
@@ -95,7 +90,6 @@ Multiple agents may work in parallel. Each agent owns a specific package. **Neve
 |------|--------|-------------|
 | `scene-builder` | Active | Visual scene editor — main authoring tool. Three.js + Canvas2D, wiring, shaders, sketches, export/import ZIP, run mode. Tauri desktop shell available. |
 | `site` | Active | Web deployment — VitePress docs site, sajou.app static build |
-| `player` | Orphaned | Scene player — `dist/` exists but no `package.json`. Needs rebuild or removal. |
 | `entity-editor` | Frozen | Superseded by scene-builder |
 
 **Rule: `@sajou/schema` is the shared contract.** Any change to schemas must be discussed and validated before implementation. If you need a schema change, propose it as a separate commit with justification — don't just change it.
@@ -146,7 +140,7 @@ Multiple agents may work in parallel. Each agent owns a specific package. **Neve
 ### Packages
 - npm scope: `@sajou/`
 - Package names: `@sajou/core`, `@sajou/schema`, `@sajou/stage`, `@sajou/mcp-server`, `@sajou/emitter`, `@sajou/tap`
-- Archived: `@sajou/theme-api`, `@sajou/theme-citadel`, `@sajou/theme-office`
+- Removed: `@sajou/theme-api`, `@sajou/theme-citadel`, `@sajou/theme-office` (were archived PixiJS prototypes)
 
 ### Signals & Choreographies (JSON)
 - `snake_case` for signal types: `task_dispatch`, `tool_call`, `token_usage`

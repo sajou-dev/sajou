@@ -3,7 +3,7 @@
  *
  * Proves the full Sajou pipeline works end-to-end:
  * 1. Signals created by @sajou/emitter (signal factory)
- * 2. Choreographies from @sajou/theme-citadel (Citadel theme)
+ * 2. Choreographies defined inline (originally from theme-citadel)
  * 3. Choreographer runtime from @sajou/core interprets choreographies
  * 4. RecordingSink captures commands for assertion
  *
@@ -17,15 +17,56 @@ import {
   RecordingSink,
   resetPerformanceIdCounter,
 } from "@sajou/core";
-import type { PerformanceSignal } from "@sajou/core";
+import type { PerformanceSignal, ChoreographyDefinition } from "@sajou/core";
 import { createSignal, resetCounter } from "@sajou/emitter";
 import type { SignalEnvelope, SignalType } from "@sajou/schema";
-import {
-  citadelChoreographies,
+
+// ---------------------------------------------------------------------------
+// Test choreography fixtures (inline — no theme dependency)
+// ---------------------------------------------------------------------------
+
+const taskDispatchChoreography: ChoreographyDefinition = {
+  on: "task_dispatch",
+  steps: [
+    { action: "move", entity: "peon", to: "signal.to", duration: 800, easing: "easeInOut" },
+    { action: "spawn", entity: "pigeon", at: "signal.from" },
+    { action: "fly", entity: "pigeon", to: "signal.to", duration: 1200, easing: "arc" },
+    {
+      action: "onArrive",
+      steps: [
+        { action: "destroy", entity: "pigeon" },
+        { action: "flash", target: "signal.to", color: "#ffd700", duration: 300 },
+      ],
+    },
+  ],
+};
+
+const errorChoreography: ChoreographyDefinition = {
+  on: "error",
+  interrupts: true,
+  steps: [
+    { action: "spawn", entity: "explosion", at: "signal.agentId" },
+    { action: "flash", target: "signal.agentId", color: "#ff3300", duration: 400 },
+    { action: "playSound", entity: "explosion", sound: "sfx/explosion.ogg" },
+  ],
+};
+
+const tokenUsageChoreography: ChoreographyDefinition = {
+  on: "token_usage",
+  steps: [
+    { action: "spawn", entity: "gold-coins", at: "goldPile" },
+    { action: "playSound", entity: "gold-coins", sound: "sfx/coins-clink.ogg" },
+    { action: "wait", duration: 1200 },
+    { action: "destroy", entity: "gold-coins" },
+  ],
+};
+
+const testChoreographies: readonly ChoreographyDefinition[] = [
   taskDispatchChoreography,
   errorChoreography,
-  citadelManifest,
-} from "@sajou/theme-citadel";
+  { on: "tool_call", steps: [{ action: "flash", target: "forge", color: "#4488ff", duration: 600 }] },
+  tokenUsageChoreography,
+];
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -61,24 +102,23 @@ describe("Integration: Signal → Choreographer → Commands", () => {
     resetPerformanceIdCounter();
     resetCounter();
 
-    // Register all Citadel choreographies
-    choreographer.registerAll(citadelChoreographies);
+    choreographer.registerAll(testChoreographies);
   });
 
   // =========================================================================
-  // Sanity: Citadel provides valid choreographies
+  // Sanity: test fixtures provide valid choreographies
   // =========================================================================
 
-  describe("Citadel theme provides choreographies", () => {
+  describe("test choreographies are valid", () => {
     it("exports choreographies for task_dispatch and error", () => {
-      expect(citadelChoreographies.length).toBeGreaterThanOrEqual(2);
+      expect(testChoreographies.length).toBeGreaterThanOrEqual(2);
 
-      const signalTypes = citadelChoreographies.map((c) => c.on);
+      const signalTypes = testChoreographies.map((c) => c.on);
       expect(signalTypes).toContain("task_dispatch");
       expect(signalTypes).toContain("error");
     });
 
-    it("task_dispatch choreography uses Citadel entities", () => {
+    it("task_dispatch choreography uses expected entities", () => {
       const steps = taskDispatchChoreography.steps;
       const entityRefs = steps
         .filter((s) => "entity" in s)
@@ -91,20 +131,13 @@ describe("Integration: Signal → Choreographer → Commands", () => {
     it("error choreography uses interrupts", () => {
       expect(errorChoreography.interrupts).toBe(true);
     });
-
-    it("Citadel manifest declares entities used by choreographies", () => {
-      const entityIds = Object.keys(citadelManifest.entities);
-      expect(entityIds).toContain("peon");
-      expect(entityIds).toContain("pigeon");
-      expect(entityIds).toContain("explosion");
-    });
   });
 
   // =========================================================================
   // task_dispatch: move → spawn → fly → onArrive(destroy → flash)
   // =========================================================================
 
-  describe("task_dispatch signal → full Citadel choreography", () => {
+  describe("task_dispatch signal → full choreography", () => {
     it("produces commands in the correct order: move → spawn → fly → destroy → flash", () => {
       const signal = createSignal("task_dispatch", {
         taskId: "task-integration-001",
@@ -250,7 +283,7 @@ describe("Integration: Signal → Choreographer → Commands", () => {
   // error: interrupts + spawn(explosion) → flash(red) → playSound
   // =========================================================================
 
-  describe("error signal → Citadel error choreography", () => {
+  describe("error signal → error choreography", () => {
     it("produces spawn(explosion) → flash(red) → playSound", () => {
       const signal = createSignal("error", {
         message: "Tool web_search timed out",
@@ -291,7 +324,6 @@ describe("Integration: Signal → Choreographer → Commands", () => {
     it("interrupts a running task_dispatch choreography", () => {
       const correlationId = "workflow-interrupt-test";
 
-      // Start task_dispatch (long-running: 800ms move + 1200ms fly + ...)
       const taskSignal = createSignal("task_dispatch", {
         taskId: "task-will-be-interrupted",
         from: "orchestrator",
@@ -309,7 +341,6 @@ describe("Integration: Signal → Choreographer → Commands", () => {
       expect(sink.starts).toHaveLength(1);
       expect(sink.starts[0]?.action).toBe("move");
 
-      // Error arrives on same correlationId → should interrupt
       const errorSignal = createSignal("error", {
         message: "Agent crashed",
         severity: "critical" as const,
@@ -323,12 +354,10 @@ describe("Integration: Signal → Choreographer → Commands", () => {
 
       clock.advance(16);
 
-      // Interrupt command was emitted for the task_dispatch performance
       expect(sink.interrupts).toHaveLength(1);
       expect(sink.interrupts[0]?.correlationId).toBe(correlationId);
       expect(sink.interrupts[0]?.interruptedBy).toBe("error");
 
-      // Error choreography's spawn+flash also started
       const explosionSpawn = sink.executes.find(
         (e) => e.action === "spawn" && e.entityRef === "explosion",
       );
@@ -341,7 +370,6 @@ describe("Integration: Signal → Choreographer → Commands", () => {
     });
 
     it("does not interrupt unrelated performances", () => {
-      // Two workflows running in parallel
       const sig1 = createSignal("task_dispatch", {
         taskId: "task-A",
         from: "orch",
@@ -358,10 +386,8 @@ describe("Integration: Signal → Choreographer → Commands", () => {
       choreographer.handleSignal(toPerformanceSignal(sig2), sig2.correlationId);
 
       clock.advance(16);
-      // Both performances running
       expect(sink.starts).toHaveLength(2);
 
-      // Error only targets workflow-A
       const err = createSignal("error", {
         message: "fail A",
         severity: "error" as const,
@@ -371,13 +397,9 @@ describe("Integration: Signal → Choreographer → Commands", () => {
       choreographer.handleSignal(toPerformanceSignal(err), err.correlationId);
       clock.advance(16);
 
-      // Only workflow-A interrupted
       expect(sink.interrupts).toHaveLength(1);
       expect(sink.interrupts[0]?.correlationId).toBe("workflow-A");
 
-      // workflow-B still running (its move still active)
-      // +2 for task_dispatch moves, +1 for error's flash = 3 starts total
-      // The task_dispatch for B should still be advancing
       const bUpdates = sink.updates.filter(
         (u) => u.entityRef === "peon" && u.performanceId !== sink.interrupts[0]?.performanceId,
       );
@@ -391,42 +413,24 @@ describe("Integration: Signal → Choreographer → Commands", () => {
 
   describe("emitter signal factory compatibility", () => {
     it("createSignal output is accepted by choreographer.handleSignal", () => {
-      // All 7 signal types from the schema — at minimum, no runtime errors
       const signals = [
-        createSignal("task_dispatch", {
-          taskId: "t1", from: "o", to: "a",
-        }),
-        createSignal("tool_call", {
-          toolName: "search", agentId: "a1",
-        }),
-        createSignal("tool_result", {
-          toolName: "search", agentId: "a1", success: true,
-        }),
-        createSignal("token_usage", {
-          agentId: "a1", promptTokens: 100, completionTokens: 50,
-        }),
-        createSignal("agent_state_change", {
-          agentId: "a1", from: "idle", to: "thinking",
-        }),
-        createSignal("error", {
-          message: "oops", severity: "warning" as const,
-        }),
-        createSignal("completion", {
-          taskId: "t1", success: true,
-        }),
+        createSignal("task_dispatch", { taskId: "t1", from: "o", to: "a" }),
+        createSignal("tool_call", { toolName: "search", agentId: "a1" }),
+        createSignal("tool_result", { toolName: "search", agentId: "a1", success: true }),
+        createSignal("token_usage", { agentId: "a1", promptTokens: 100, completionTokens: 50 }),
+        createSignal("agent_state_change", { agentId: "a1", from: "idle", to: "thinking" }),
+        createSignal("error", { message: "oops", severity: "warning" as const }),
+        createSignal("completion", { taskId: "t1", success: true }),
       ];
 
-      // None of these should throw
       for (const signal of signals) {
         choreographer.handleSignal(toPerformanceSignal(signal));
       }
 
       clock.advance(16);
 
-      // task_dispatch and error have registered choreographies → commands emitted
       expect(sink.all.length).toBeGreaterThan(0);
 
-      // token_usage has a choreography too (gold coins)
       const goldSpawn = sink.executes.find(
         (e) => e.action === "spawn" && e.entityRef === "gold-coins",
       );

@@ -94,13 +94,63 @@ describe("entity-visual.schema.json", () => {
     expect(valid).toBe(true);
   });
 
-  it("accepts the Citadel entity-visuals.json", () => {
-    const citadelPath = resolve(
-      __dirname,
-      "../../theme-citadel/src/entity-visuals.json",
-    );
-    const citadel = JSON.parse(readFileSync(citadelPath, "utf-8"));
-    const valid = validate(citadel);
+  it("accepts a multi-entity config with mixed state types", () => {
+    const config = {
+      entities: {
+        peon: {
+          displayWidth: 64,
+          displayHeight: 64,
+          fallbackColor: "#4488ff",
+          states: {
+            idle: {
+              type: "spritesheet",
+              asset: "peon-idle.png",
+              frameWidth: 192,
+              frameHeight: 192,
+              frameCount: 6,
+              frameRow: 0,
+              fps: 10,
+              loop: true,
+            },
+            walk: {
+              type: "spritesheet",
+              asset: "peon-walk.png",
+              frameWidth: 192,
+              frameHeight: 192,
+              frameCount: 8,
+              frameRow: 1,
+              fps: 12,
+              loop: true,
+            },
+          },
+        },
+        building: {
+          displayWidth: 128,
+          displayHeight: 128,
+          fallbackColor: "#8b4513",
+          states: {
+            idle: {
+              type: "static",
+              asset: "building.png",
+            },
+          },
+        },
+        arrow: {
+          displayWidth: 16,
+          displayHeight: 16,
+          fallbackColor: "#cccccc",
+          states: {
+            idle: {
+              type: "static",
+              asset: "arrow.png",
+              sourceRect: { x: 0, y: 0, w: 64, h: 64 },
+            },
+          },
+        },
+      },
+    };
+
+    const valid = validate(config);
     expect(valid).toBe(true);
   });
 

@@ -1,7 +1,7 @@
 /**
  * All TypeScript interfaces for the Scene Builder.
  *
- * Aligned with @sajou/theme-api (EntityDefinition, ThemeManifest, ThemeLayout).
+ * Aligned with @sajou/stage entity and scene types.
  * The Scene Builder is entity-centric: the canvas contains placed entities,
  * not raw assets. Assets are source material; entities are what lives in the scene.
  */
@@ -622,7 +622,7 @@ export interface SpritesheetHint {
 }
 
 // ---------------------------------------------------------------------------
-// Entity definitions (aligned with @sajou/theme-api EntityDefinition)
+// Entity definitions (aligned with @sajou/stage EntityDefinition)
 // ---------------------------------------------------------------------------
 
 /** Source rectangle for cropping a sub-region of a static sprite. */
@@ -682,7 +682,7 @@ export type EntityVisual = SpriteVisual | SpritesheetVisual | GifVisual;
 /**
  * Default presentation properties for an entity.
  * Applied on spawn, can be overridden per-instance.
- * Aligned with @sajou/theme-api EntityDefaults.
+ * Aligned with @sajou/stage EntityDefaults.
  */
 export interface EntityDefaults {
   /** Scale factor. 1.0 is original size. */
@@ -704,7 +704,7 @@ export interface EntityDefaults {
 /**
  * Entity definition with display properties and visual configuration.
  *
- * Aligned with @sajou/theme-api EntityDefinition:
+ * Aligned with @sajou/stage EntityDefinition:
  * - id, tags, defaults, visual (discriminated union), sounds
  *
  * The Scene Builder adds displayWidth/displayHeight/fallbackColor

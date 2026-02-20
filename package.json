@@ -7,8 +7,7 @@
     "typecheck": "tsc --build",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "tsc --noEmit",
-    "dev": "vite"
+    "lint": "tsc --noEmit"
   },
   "engines": {
     "node": ">=20",
@@ -19,10 +18,6 @@
     "@sajou/emitter": "workspace:*",
     "@sajou/schema": "workspace:*",
     "@sajou/tap": "workspace:*",
-    "@sajou/theme-api": "workspace:*",
-    "@sajou/theme-citadel": "workspace:*",
-    "@sajou/theme-office": "workspace:*",
-    "pixi.js": "^8.16.0",
     "typescript": "^5.9.3",
     "vite": "^6.3.5",
     "vitepress": "^1.6.4",

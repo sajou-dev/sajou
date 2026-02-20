@@ -91,9 +91,7 @@ sajou/
 │   ├── stage/             # Three.js renderer library (EntityManager, LightManager, cameras)
 │   ├── mcp-server/        # MCP server — 16 tools for AI agent integration (npm: @sajou/mcp-server)
 │   ├── emitter/           # Test signal emitter (WebSocket)
-│   ├── theme-api/         # [archived] Theme contract interfaces (PixiJS era)
-│   ├── theme-citadel/     # [archived] WC3/Tiny Swords prototype (PixiJS v8)
-│   └── theme-office/      # [archived] Corporate/office prototype (PixiJS v8)
+│   └── (theme-api, theme-citadel, theme-office removed — were PixiJS prototypes)
 ├── adapters/
 │   └── tap/               # Signal tap — CLI + adapters to connect Claude Code → scene-builder
 ├── tools/

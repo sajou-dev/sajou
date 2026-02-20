@@ -3,7 +3,7 @@
  *
  * Opens a fullscreen overlay that renders the current editor scene using
  * Three.js + Canvas2D — directly from the scene/entity/asset stores.
- * No external runtime packages (@sajou/core, @sajou/theme-citadel) needed.
+ * No external runtime packages needed — renders directly from stores.
  *
  * Three.js renders entities (horizontal PlaneGeometry on XZ plane) with
  * a top-down OrthographicCamera. Overlays (positions, routes) are drawn
