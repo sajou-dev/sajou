@@ -17,6 +17,7 @@ import { getShaderState, subscribeShaders } from "../shader-editor/shader-state.
 import { getSketchState, subscribeSketch } from "../sketch-editor/sketch-state.js";
 import { getConnectionStatus, notifyServerContact, notifyServerLost } from "./server-connection.js";
 import { serverUrl } from "./server-config.js";
+import { isApplyingServerState } from "./command-consumer.js";
 
 /** Debounce interval in milliseconds. */
 const DEBOUNCE_MS = 300;
@@ -41,6 +42,7 @@ function collectSnapshot(): Record<string, unknown> {
 /** Push the snapshot to the dev server. Fire-and-forget. */
 function pushState(): void {
   if (getConnectionStatus() !== "connected") return;
+  if (isApplyingServerState()) return; // Don't echo server state back
 
   const snapshot = collectSnapshot();
 
