@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 160 160" fill="none">
+  <!-- Sajou Favicon — Simplified for small sizes -->
+  <rect x="26" y="30" width="50" height="50" rx="15" stroke="#E8A851" stroke-width="8" fill="none"/>
+  <circle cx="46" cy="52" r="8" fill="#E8A851"/>
+  <path d="M 74 60 C 90 66, 100 52, 104 40 C 108 28, 122 24, 132 34" stroke="#E8A851" stroke-width="8" stroke-linecap="round" fill="none"/>
+  <circle cx="132" cy="34" r="12" fill="#E8A851"/>
+</svg>
