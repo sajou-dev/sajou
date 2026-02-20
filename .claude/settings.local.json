@@ -121,7 +121,8 @@
       "Bash(npx vitepress build:*)",
       "Bash(command -v:*)",
       "Bash(command:*)",
-      "Bash(brew list:*)"
+      "Bash(brew list:*)",
+      "Bash(./scripts/release-public.sh:*)"
     ]
   },
   "hooks": {
