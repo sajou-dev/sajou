@@ -5,9 +5,9 @@
   "description": "Sajou Scene Builder — visual canvas-first workspace for building animated scenes",
   "type": "module",
   "scripts": {
-    "dev": "node ../../adapters/mcp-server/dist/index.js --http & vite",
+    "dev": "node ../../packages/mcp-server/dist/index.js --http & vite",
     "dev:vite": "vite",
-    "dev:server": "node ../../adapters/mcp-server/dist/index.js --http",
+    "dev:server": "node ../../packages/mcp-server/dist/index.js --http",
     "build": "vite build",
     "typecheck": "tsc --noEmit",
     "tauri": "tauri",
