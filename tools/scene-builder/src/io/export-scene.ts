@@ -3,11 +3,14 @@
  *
  * Gathers scene state, entity definitions, and referenced assets
  * into a ZIP archive (via fflate) and triggers a browser download.
+ * A dialog lets the user choose which sections to include.
  *
- * ZIP structure:
+ * ZIP structure (all sections selected):
  *   scene.json            — scene layout (dimensions, background, layers, placed entities, positions, routes)
  *   entities.json         — entity definitions (visual config, defaults, tags)
- *   choreographies.json   — choreography definitions + wire connections
+ *   choreographies.json   — choreography definitions + wire connections + bindings
+ *   shaders.json          — shader definitions (optional)
+ *   p5.json               — sketch definitions (optional)
  *   assets/               — referenced image files (sprites/, spritesheets/, gifs/)
  */
 
@@ -22,6 +25,8 @@ import { getShaderState } from "../shader-editor/shader-state.js";
 import type { ShaderEditorState } from "../shader-editor/shader-types.js";
 import { getSketchState } from "../sketch-editor/sketch-state.js";
 import type { SketchEditorState } from "../sketch-editor/sketch-types.js";
+import { showExportDialog } from "./export-dialog.js";
+import type { ExportSelection, ExportSummary } from "./export-dialog.js";
 import type {
   SceneState,
   EntityEntry,
@@ -205,108 +210,146 @@ function downloadBlob(data: Uint8Array, filename: string): void {
 }
 
 // ---------------------------------------------------------------------------
+// Summary computation
+// ---------------------------------------------------------------------------
+
+/** Compute export summary counts from current state. */
+function computeExportSummary(): ExportSummary {
+  const sceneState = getSceneState();
+  const entityStore = getEntityStore();
+  const assetStore = getAssetStore();
+  const choreoState = getChoreographyState();
+  const wiringState = getWiringState();
+  const bindingState = getBindingState();
+  const shaderState = getShaderState();
+  const p5State = getSketchState();
+
+  const persistentWires = wiringState.wires.filter(
+    (w) => w.fromZone !== "signal",
+  );
+
+  return {
+    entityPlacements: sceneState.entities.length,
+    entityDefinitions: Object.keys(entityStore.entities).length,
+    assetFiles: assetStore.assets.length,
+    choreographies: choreoState.choreographies.length,
+    wires: persistentWires.length,
+    bindings: bindingState.bindings.length,
+    shaders: shaderState.shaders.length,
+    p5Sketches: p5State.sketches.length,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
 /**
  * Export the current scene as a ZIP file.
  *
- * Gathers scene state, entity definitions, and referenced assets.
- * Only assets actually referenced by entity visuals are included.
- * Triggers a browser download of the resulting ZIP.
+ * Shows a selection dialog, then gathers the chosen sections
+ * into a ZIP archive and triggers a browser download.
  */
 export async function exportScene(): Promise<void> {
-  const sceneState = getSceneState();
-  const entityStore = getEntityStore();
-  const assetStore = getAssetStore();
+  // Phase 1 — Compute summary and show selection dialog
+  const summary = computeExportSummary();
+  const selection = await showExportDialog(summary);
+  if (!selection) return; // User cancelled
 
-  // 1. Collect referenced assets
-  const referencedPaths = collectReferencedAssetPaths(entityStore.entities);
+  // Phase 2 — Gather selected sections
+  const zipData: Record<string, Uint8Array> = {};
 
-  // 2. Build path mapping (original → ZIP-relative)
-  const pathMapping = buildAssetPathMapping(
-    referencedPaths,
-    assetStore.assets,
-    entityStore.entities,
-  );
-
-  // 3. Rewrite entity visual paths for the ZIP
-  const exportedEntities = rewriteEntityPaths(entityStore.entities, pathMapping);
-
-  // 4. Build scene.json
-  const sceneJson: SceneExportJson = {
-    version: 1,
-    dimensions: sceneState.dimensions,
-    background: sceneState.background,
-    layers: sceneState.layers,
-    entities: sceneState.entities,
-    positions: sceneState.positions,
-    routes: sceneState.routes,
-    zoneTypes: sceneState.zoneTypes,
-    zoneGrid: sceneState.zoneGrid,
-    lighting: sceneState.lighting,
-    particles: sceneState.particles,
-  };
-
-  // 5. Build entities.json
-  const entitiesJson: EntityExportJson = {
-    version: 1,
-    entities: exportedEntities,
-  };
-
-  // 6. Build choreographies.json (choreography definitions + wire graph + bindings)
-  const choreoState = getChoreographyState();
-  const wiringState = getWiringState();
-  const bindingState = getBindingState();
-
-  // Exclude signal→signal-type wires — sources are session-ephemeral
-  // and won't exist on re-import, creating orphaned references
-  const persistentWires = wiringState.wires.filter(
-    (w) => w.fromZone !== "signal",
-  );
-
-  const choreoJson: ChoreographyExportJson = {
-    version: 1,
-    choreographies: choreoState.choreographies,
-    wires: persistentWires,
-    bindings: bindingState.bindings,
-  };
-
-  // 7. Build ZIP data structure
-  const zipData: Record<string, Uint8Array> = {
-    "scene.json": strToU8(JSON.stringify(sceneJson, null, 2)),
-    "entities.json": strToU8(JSON.stringify(entitiesJson, null, 2)),
-    "choreographies.json": strToU8(JSON.stringify(choreoJson, null, 2)),
-  };
-
-  // 7b. Include shaders if any exist
-  const shaderState = getShaderState();
-  if (shaderState.shaders.length > 0) {
-    const shaderJson: ShaderExportJson = {
+  // Scene layout
+  if (selection.visualLayout) {
+    const sceneState = getSceneState();
+    const sceneJson: SceneExportJson = {
       version: 1,
-      shaders: shaderState.shaders,
+      dimensions: sceneState.dimensions,
+      background: sceneState.background,
+      layers: sceneState.layers,
+      entities: sceneState.entities,
+      positions: sceneState.positions,
+      routes: sceneState.routes,
+      zoneTypes: sceneState.zoneTypes,
+      zoneGrid: sceneState.zoneGrid,
+      lighting: sceneState.lighting,
+      particles: sceneState.particles,
     };
-    zipData["shaders.json"] = strToU8(JSON.stringify(shaderJson, null, 2));
+    zipData["scene.json"] = strToU8(JSON.stringify(sceneJson, null, 2));
   }
 
-  // 7c. Include p5 sketches if any exist
-  const p5State = getSketchState();
-  if (p5State.sketches.length > 0) {
-    const p5Json: P5ExportJson = {
+  // Entities & Assets
+  if (selection.entitiesAndAssets) {
+    const entityStore = getEntityStore();
+    const assetStore = getAssetStore();
+
+    const referencedPaths = collectReferencedAssetPaths(entityStore.entities);
+    const pathMapping = buildAssetPathMapping(
+      referencedPaths,
+      assetStore.assets,
+      entityStore.entities,
+    );
+    const exportedEntities = rewriteEntityPaths(entityStore.entities, pathMapping);
+
+    const entitiesJson: EntityExportJson = {
       version: 1,
-      sketches: p5State.sketches,
+      entities: exportedEntities,
     };
-    zipData["p5.json"] = strToU8(JSON.stringify(p5Json, null, 2));
+    zipData["entities.json"] = strToU8(JSON.stringify(entitiesJson, null, 2));
+
+    // Read referenced asset files into the ZIP
+    for (const [originalPath, zipPath] of pathMapping) {
+      const asset = assetStore.assets.find((a) => a.path === originalPath);
+      if (!asset) continue;
+      zipData[zipPath] = await fileToUint8Array(asset.file);
+    }
   }
 
-  // 8. Read referenced asset files into the ZIP
-  for (const [originalPath, zipPath] of pathMapping) {
-    const asset = assetStore.assets.find((a) => a.path === originalPath);
-    if (!asset) continue;
-    zipData[zipPath] = await fileToUint8Array(asset.file);
+  // Choreographies + Wiring + Bindings
+  if (selection.choreographiesAndWiring) {
+    const choreoState = getChoreographyState();
+    const wiringState = getWiringState();
+    const bindingState = getBindingState();
+
+    // Exclude signal→signal-type wires — sources are session-ephemeral
+    const persistentWires = wiringState.wires.filter(
+      (w) => w.fromZone !== "signal",
+    );
+
+    const choreoJson: ChoreographyExportJson = {
+      version: 1,
+      choreographies: choreoState.choreographies,
+      wires: persistentWires,
+      bindings: bindingState.bindings,
+    };
+    zipData["choreographies.json"] = strToU8(JSON.stringify(choreoJson, null, 2));
   }
 
-  // 9. Create ZIP and trigger download
+  // Shaders
+  if (selection.shaders) {
+    const shaderState = getShaderState();
+    if (shaderState.shaders.length > 0) {
+      const shaderJson: ShaderExportJson = {
+        version: 1,
+        shaders: shaderState.shaders,
+      };
+      zipData["shaders.json"] = strToU8(JSON.stringify(shaderJson, null, 2));
+    }
+  }
+
+  // p5 Sketches
+  if (selection.p5Sketches) {
+    const p5State = getSketchState();
+    if (p5State.sketches.length > 0) {
+      const p5Json: P5ExportJson = {
+        version: 1,
+        sketches: p5State.sketches,
+      };
+      zipData["p5.json"] = strToU8(JSON.stringify(p5Json, null, 2));
+    }
+  }
+
+  // Phase 3 — Create ZIP and trigger download
   const zipped = zipSync(zipData);
   downloadBlob(zipped, "scene-export.zip");
 }
